@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+{% block title %}Meus Imóveis — LoteAlvo{% endblock %}
+{% block page_title %}Meus Imóveis{% endblock %}
+{% block page_subtitle %}Visão consolidada do seu portfólio{% endblock %}
+
+{% block header_actions %}
+  <a href="{% url 'criar' %}"
+     class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
+    + Novo Imóvel
+  </a>
+{% endblock %}
+
+{% block content %}
+{% if not cards %}
+<div class="text-center py-16">
+  <div class="text-6xl mb-4">🏠</div>
+  <h3 class="text-xl font-bold text-gray-700 mb-2">Nenhum imóvel cadastrado</h3>
+  <a href="{% url 'criar' %}"
+     class="bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg inline-block">
+    + Cadastrar imóvel
+  </a>
+</div>
+{% else %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for card in cards %}
+  {% with im=card.imovel r=card.resultado %}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-teal-200 transition-all duration-200 overflow-hidden group">
+    <!-- Status bar -->
+    <div class="h-1.5" style="background: {{ im.etapa_cor }}"></div>
+    <div class="p-5">
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <a href="{% url 'detalhe' im.pk %}"
+             class="font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
+            {{ im.endereco }}
+          </a>
+          <p class="text-xs text-gray-500 mt-0.5">📍 {{ im.cidade }} — {{ im.estado }}</p>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full font-medium"
+              style="background: {{ im.etapa_cor }}22; color: {{ im.etapa_cor }}">
+          {{ im.etapa_display }}
+        </span>
+      </div>
+
+      <!-- KPIs -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-gray-50 rounded-lg p-2.5 text-center">
+          <div class="text-xs text-gray-500 mb-0.5">Lance</div>
+          <div class="text-sm font-bold text-gray-900">{{ im.lance|brl_short }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2.5 text-center">
+          <div class="text-xs text-gray-500 mb-0.5">Venda</div>
+          <div class="text-sm font-bold text-gray-900">{{ im.preco_venda|brl_short }}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-2.5 text-center">
+          <div class="text-xs text-gray-500 mb-0.5">Desconto</div>
+          <div class="text-sm font-bold text-green-600">{{ im.desconto_pct|floatformat:1 }}%</div>
+        </div>
+      </div>
+
+      {% if r %}
+      <!-- Resultado -->
+      <div class="rounded-lg p-3 mb-4
+        {% if r.resultado > 0 and r.roi >= 15 %}bg-green-50 border border-green-100
+        {% elif r.resultado > 0 %}bg-yellow-50 border border-yellow-100
+        {% else %}bg-red-50 border border-red-100{% endif %}">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-gray-500">Resultado ({{ im.giro_padrao }}m)</div>
+            <div class="text-base font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+              {{ r.resultado|brl_short }}
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-gray-500">ROI cap. próprio</div>
+            <div class="text-base font-bold {% if r.roi > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+              {{ r.roi|pct }}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Ações -->
+      <div class="flex items-center gap-2">
+        <a href="{% url 'detalhe' im.pk %}"
+           class="flex-1 text-center bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+          Ver simulação
+        </a>
+        <button @click="carregarTabelaLancesImovel('{{ im.pk }}')"
+                class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium px-3 py-2 rounded-lg transition-colors border border-blue-200"
+                title="Tabela de lances progressivos">
+          📊
+        </button>
+        <a href="{% url 'editar' im.pk %}"
+           class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium px-3 py-2 rounded-lg transition-colors">
+          Editar
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Modal: Tabela de Lances (reutilizável) ── #}
+<dialog id="modal-lances-lista" class="rounded-2xl shadow-2xl w-11/12 max-w-7xl p-0 backdrop:bg-black/50">
+  <div class="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
+    <h2 class="font-bold text-lg text-gray-900" id="modal-titulo">📊 Tabela de Lances Progressivos</h2>
+    <button onclick="document.getElementById('modal-lances-lista').close()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
+  </div>
+  
+  <div id="tabela-lances-lista-container" class="p-6 max-h-96 overflow-auto">
+    <div class="text-center py-8">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <p class="text-gray-500 mt-3">Carregando tabela...</p>
+    </div>
+  </div>
+  
+  <div class="border-t border-gray-200 p-4 bg-gray-50 text-xs text-gray-600 text-center">
+    Tabela mostra ROI (% a.a.) para cada lance em diferentes períodos de giro
+  </div>
+</dialog>
+
+<script>
+function carregarTabelaLancesImovel(imovelId) {
+  fetch(`/kanban/${imovelId}/tabela-lances/`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const giroMeses = data.giro_meses;
+        
+        // Atualiza título
+        document.getElementById('modal-titulo').textContent = `📊 Tabela de Lances Progressivos — ${data.imovel_endereco}`;
+        
+        let html = '<div class="overflow-x-auto"><table class="w-full text-xs border-collapse">';
+        
+        // Cabeçalho
+        html += '<thead class="sticky top-0 bg-blue-50 border-b-2 border-blue-200">';
+        html += '<tr>';
+        html += '<th class="p-2 text-left font-bold text-gray-700 border-r border-gray-200">Lance</th>';
+        
+        for (const mes of giroMeses) {
+          html += `<th class="p-2 text-center font-bold text-gray-700 border-r border-gray-200">${mes} meses</th>`;
+        }
+        
+        html += '</tr></thead>';
+        
+        // Corpo da tabela
+        html += '<tbody>' + data.html + '</tbody>';
+        html += '</table></div>';
+        
+        document.getElementById('tabela-lances-lista-container').innerHTML = html;
+        document.getElementById('modal-lances-lista').showModal();
+      } else {
+        document.getElementById('tabela-lances-lista-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro ao carregar tabela</p>';
+      }
+    })
+    .catch(err => {
+      console.error('Erro:', err);
+      document.getElementById('tabela-lances-lista-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro na requisição</p>';
+    });
+}
+</script>
+
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+{% endblock %}

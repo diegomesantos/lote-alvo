@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+preDeployCommand = ["python manage.py migrate --settings=config.settings.production"]
+startCommand = "gunicorn config.wsgi --log-file -"
+healthcheckPath = "/accounts/login/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"

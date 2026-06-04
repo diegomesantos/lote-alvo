@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+{% block title %}Gerenciador de Imóveis — LoteAlvo{% endblock %}
+{% block page_title %}Gerenciador de Imóveis{% endblock %}
+{% block page_subtitle %}Acompanhe o ciclo completo de cada operação{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-3">
+  <input type="text" id="search-input" placeholder="Pesquisar por endereço…" class="px-4 py-2.5 rounded-lg border border-gray-300 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-teal-400">
+  <a href="{% url 'listar' %}" class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">📋 Lista</a>
+  <a href="{% url 'criar' %}" class="px-6 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-sm font-bold transition-colors">➕ Novo card</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="{ aba: '{{ aba }}' }" class="space-y-4">
+
+  <!-- Abas -->
+  <div class="flex gap-0 border-b border-gray-200 bg-white">
+    <button @click="aba = 'pre'" :class="aba === 'pre' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="px-6 py-4 font-bold text-sm transition-colors">
+      🎯 Pré-Arrematação <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 font-medium">{{ total_pre }}</span>
+    </button>
+    <button @click="aba = 'pos'" :class="aba === 'pos' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="px-6 py-4 font-bold text-sm transition-colors">
+      ✅ Pós-Arrematação <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 font-medium">{{ total_pos }}</span>
+    </button>
+    <button @click="aba = 'financeiro'" :class="aba === 'financeiro' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="px-6 py-4 font-bold text-sm transition-colors">
+      💰 Financeiro
+    </button>
+  </div>
+
+  <!-- ABA PRÉ-ARREMATAÇÃO -->
+  <div x-show="aba === 'pre'" x-cloak class="bg-gray-50 rounded-xl p-5">
+    <div class="overflow-x-auto">
+      <div class="flex gap-4 pb-4" style="width: max-content;">
+        {% for coluna in colunas_pre %}
+        <div class="flex flex-col gap-3 w-80 bg-white rounded-lg p-4 border border-gray-200 shadow-sm kanban-col" data-etapa="{{ coluna.key }}">
+          <div class="rounded-lg p-3 border-l-4 bg-gray-50 col-header" style="border-left-color: {{ coluna.cor }};">
+            <div class="font-bold text-sm text-gray-900">{{ coluna.label }}</div>
+            <div class="text-xs text-gray-500 mt-1 card-count"><span class="count">{{ coluna.count }}</span> cards</div>
+          </div>
+          <div class="space-y-3 flex-1 kanban-cards" data-sortable-group="kanban">
+            {% for card in coluna.cards %}
+            {% with im=card.imovel r=card.resultado %}
+            <div class="kanban-card group" data-id="{{ im.id }}" draggable="true">
+              <a href="{% url 'detalhe' im.id %}" class="block rounded-lg border border-gray-200 shadow-sm p-3 hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
+                <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
+                <div class="text-xs text-gray-600 mb-2">💰 {{ im.lance|brl }}</div>
+                {% if im.data_leilao %}<div class="text-xs text-gray-500">📅 {{ im.data_leilao|date:"d/m/Y" }}</div>{% endif %}
+                {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">ROI 12m: <strong class="{% if r.roi >= 15 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ r.roi|pct }}</strong></div>{% endif %}
+              </a>
+            </div>
+            {% endwith %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA PÓS-ARREMATAÇÃO -->
+  <div x-show="aba === 'pos'" x-cloak class="bg-gray-50 rounded-xl p-5">
+    <div class="overflow-x-auto">
+      <div class="flex gap-4 pb-4" style="width: max-content;">
+        {% for coluna in colunas_pos %}
+        <div class="flex flex-col gap-3 w-80 bg-white rounded-lg p-4 border border-gray-200 shadow-sm kanban-col" data-etapa="{{ coluna.key }}">
+          <div class="rounded-lg p-3 border-l-4 bg-gray-50 col-header" style="border-left-color: {{ coluna.cor }};">
+            <div class="font-bold text-sm text-gray-900">{{ coluna.label }}</div>
+            <div class="text-xs text-gray-500 mt-1 card-count"><span class="count">{{ coluna.count }}</span> cards</div>
+          </div>
+          <div class="space-y-3 flex-1 kanban-cards" data-sortable-group="kanban">
+            {% for card in coluna.cards %}
+            {% with im=card.imovel r=card.resultado %}
+            <div class="kanban-card group" data-id="{{ im.id }}" draggable="true">
+              <a href="{% url 'detalhe' im.id %}" class="block rounded-lg border border-gray-200 shadow-sm p-3 hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
+                <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
+                <div class="text-xs text-gray-600 mb-2">💰 {{ im.preco_venda|brl }}</div>
+                {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">Resultado: <strong class="{% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.resultado|brl }}</strong></div>{% endif %}
+              </a>
+            </div>
+            {% endwith %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA FINANCEIRO -->
+  <div x-show="aba === 'financeiro'" x-cloak class="bg-white rounded-xl border border-gray-200 p-12 shadow-sm text-center">
+    <div class="text-5xl mb-3">💰</div>
+    <p class="font-semibold text-gray-900">Gestão Financeira</p>
+    <p class="text-sm mt-2 text-gray-500"><a href="{% url 'financeiro' %}" class="text-teal-600 hover:underline">Acessar dashboard completo →</a></p>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const containers = document.querySelectorAll('.kanban-cards');
+
+  containers.forEach(container => {
+    new Sortable(container, {
+      group: 'kanban',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      handle: '.kanban-card',
+      onEnd: function(evt) {
+        const card = evt.item;
+        const cardId = card.dataset.id;
+        const newEtapa = card.parentElement.closest('.kanban-col').dataset.etapa;
+        
+        // Atualiza contadores localmente
+        updateCounters();
+
+        fetch(`/kanban/${cardId}/etapa/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: `etapa=${newEtapa}`
+        })
+        .then(response => {
+          if (!response.ok) {
+            console.error('Erro ao atualizar etapa:', response.status);
+            location.reload();
+          }
+        })
+        .catch(error => {
+          console.error('Erro na requisição:', error);
+          location.reload();
+        });
+      }
+    });
+  });
+});
+
+function updateCounters() {
+  document.querySelectorAll('.kanban-col').forEach(col => {
+    const count = col.querySelectorAll('.kanban-card').length;
+    const countElement = col.querySelector('.count');
+    if (countElement) {
+      countElement.textContent = count;
+    }
+  });
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+{% endblock %}

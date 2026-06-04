@@ -1,0 +1,243 @@
+{% load leilao_tags %}
+{# Resultado HTMX — largura total, abaixo do formulário #}
+<div class="space-y-5" x-data>
+
+  {# ── 4 KPIs (largura total) ── #}
+  {% with r=r12 %}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-gray-100">
+      <div class="text-sm font-bold text-gray-800">Resumo do resultado</div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100">
+      <div class="p-5 text-center">
+        <div class="text-xs text-gray-400 mb-2">Resultado consolidado</div>
+        <div class="font-bold text-xl {% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+          {{ r.resultado|brl }}
+        </div>
+        <div class="text-xs text-gray-400 mt-1.5">em 12 meses</div>
+      </div>
+      <div class="p-5 text-center">
+        <div class="text-xs text-gray-400 mb-2">ROI Projetado</div>
+        <div class="font-bold text-xl {% if r.roi >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+          {{ r.roi|pct }}
+        </div>
+        <div class="text-xs text-gray-400 mt-1.5">em 12 meses</div>
+      </div>
+      <div class="p-5 text-center">
+        <div class="text-xs text-gray-400 mb-2">Taxa equiv. mensal</div>
+        <div class="font-bold text-xl {% if r.tem >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+          {{ r.tem|pct }}
+        </div>
+        <div class="text-xs text-gray-400 mt-1.5">em 12 meses</div>
+      </div>
+      <div class="p-5 text-center">
+        <div class="text-xs text-gray-400 mb-2">Custo até venda</div>
+        <div class="font-bold text-xl text-red-600">
+          -{{ r.custo_ate_venda|brl }}
+        </div>
+        <div class="text-xs text-gray-400 mt-1.5">em 12 meses</div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+
+  {# ── Botão: Tabela de Lances Progressivos ── #}
+  <button @click="carregarTabelaLances(); document.getElementById('modal-lances').showModal()" type="button"
+          class="w-full px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all font-medium text-sm text-blue-700 flex items-center justify-center gap-2">
+    📊 Ver tabela de lances progressivos
+  </button>
+
+  {# ── Cartório + Lance máximo na mesma linha ── #}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    {# Cartório (ocupa 2/3) #}
+    <div class="md:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+         x-data="{ open: false }">
+      <button @click="open = !open" type="button"
+              class="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <span class="font-bold text-sm text-gray-800">📋 Cartório — {{ p.estado }}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">{{ p.modo_cartorio }}</span>
+          <span class="text-xs text-gray-400">base: <strong class="text-gray-700">{{ base_cart|brl }}</strong></span>
+        </div>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <span class="font-bold text-red-600">{{ cart.total|brl }}</span>
+          <span class="text-gray-400 text-xs transition-transform duration-200" :class="open ? 'rotate-180' : ''">▼</span>
+        </div>
+      </button>
+      <div x-show="open" x-cloak class="border-t border-gray-100 p-5">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div class="bg-gray-50 rounded-lg p-3">
+            <div class="text-xs text-gray-500 mb-1">Escritura</div>
+            {% if cart.escritura == 0 %}
+              <div class="text-xs text-gray-400 italic">Não aplicável</div>
+            {% else %}
+              <div class="font-semibold text-red-600">{{ cart.escritura|brl }}</div>
+            {% endif %}
+            {% if cart.escritura_faixa %}<div class="text-xs text-gray-400 mt-0.5 truncate">{{ cart.escritura_faixa|truncatechars:22 }}</div>{% endif %}
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <div class="text-xs text-gray-500 mb-1">Registro</div>
+            <div class="font-semibold text-red-600">{{ cart.registro|brl }}</div>
+            {% if cart.registro_faixa %}<div class="text-xs text-gray-400 mt-0.5 truncate">{{ cart.registro_faixa|truncatechars:22 }}</div>{% endif %}
+          </div>
+          {% if cart.extra_nome %}
+          <div class="bg-gray-50 rounded-lg p-3">
+            <div class="text-xs text-gray-500 mb-1">{{ cart.extra_nome }}</div>
+            <div class="font-semibold text-red-600">{{ cart.extra|brl }}</div>
+          </div>
+          {% endif %}
+          <div class="bg-sky-50 border border-sky-100 rounded-lg p-3 {% if not cart.extra_nome %}col-span-2 md:col-span-1{% endif %}">
+            <div class="text-xs text-sky-600 font-medium mb-1">Total</div>
+            <div class="font-bold text-sky-900 text-lg">{{ cart.total|brl }}</div>
+          </div>
+        </div>
+        {% if cart.aviso %}
+        <div class="text-xs text-amber-600 bg-amber-50 rounded-lg p-2.5 mb-3">⚠️ {{ cart.aviso }}</div>
+        {% endif %}
+        {% if tab_reg %}
+        <div class="flex flex-wrap gap-4" x-data="{ showEsc: false, showReg: false }">
+          {% if tab_esc %}
+          <div>
+            <button @click="showEsc = !showEsc" type="button" class="text-xs text-sky-600 hover:text-sky-800 font-medium">
+              <span x-text="showEsc ? '▼' : '▶'"></span> Ver tabela Escritura
+            </button>
+            <div x-show="showEsc" x-cloak class="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 w-64">
+              <table class="w-full text-xs">
+                <thead><tr class="bg-stone-800 text-white"><th class="p-2 text-left">Faixa</th><th class="p-2 text-right">Custo</th></tr></thead>
+                <tbody>{% for limite, valor in tab_esc %}<tr class="{% if forloop.counter0 == idx_esc %}bg-blue-50 font-bold{% else %}hover:bg-gray-50{% endif %} border-b border-gray-100"><td class="p-2">{{ limite|brl }}</td><td class="p-2 text-right">{{ valor|brl }}{% if forloop.counter0 == idx_esc %} <span class="bg-blue-500 text-white text-xs px-1 rounded-full">✓</span>{% endif %}</td></tr>{% endfor %}</tbody>
+              </table>
+            </div>
+          </div>
+          {% endif %}
+          <div>
+            <button @click="showReg = !showReg" type="button" class="text-xs text-sky-600 hover:text-sky-800 font-medium">
+              <span x-text="showReg ? '▼' : '▶'"></span> Ver tabela Registro
+            </button>
+            <div x-show="showReg" x-cloak class="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 w-64">
+              <table class="w-full text-xs">
+                <thead><tr class="bg-stone-800 text-white"><th class="p-2 text-left">Faixa</th><th class="p-2 text-right">Custo</th></tr></thead>
+                <tbody>{% for limite, valor in tab_reg %}<tr class="{% if forloop.counter0 == idx_reg %}bg-blue-50 font-bold{% else %}hover:bg-gray-50{% endif %} border-b border-gray-100"><td class="p-2">{{ limite|brl }}</td><td class="p-2 text-right">{{ valor|brl }}{% if forloop.counter0 == idx_reg %} <span class="bg-blue-500 text-white text-xs px-1 rounded-full">✓</span>{% endif %}</td></tr>{% endfor %}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Lance máximo (1/3) + Info IR #}
+    <div class="space-y-4">
+      {% if lance_max %}
+      <div class="bg-teal-50 border border-teal-200 rounded-xl p-5">
+        <div class="text-xs font-bold text-teal-600 uppercase tracking-wide mb-1">🎯 Lance máximo</div>
+        <div class="text-2xl font-bold text-teal-700 mt-2">{{ lance_max|brl }}</div>
+        <div class="text-xs text-teal-500 mt-1.5">Para atingir o lucro mínimo</div>
+      </div>
+      {% endif %}
+      {% with r=r12 %}
+      <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Outros indicadores</div>
+        <div class="space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">ROI custo venda</span>
+            <span class="font-bold {% if r.roi_custo >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.roi_custo|pct }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">IR estimado</span>
+            <span class="font-semibold text-red-600">{{ r.ir|brl }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">ITBI</span>
+            <span class="font-semibold text-red-600">{{ r.itbi|brl }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-500">Custo total</span>
+            <span class="font-semibold text-gray-700">{{ r.custo_total|brl }}</span>
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+    </div>
+
+  </div>
+
+  {# ── Tabela Resumo — largura total ── #}
+  {% include "components/tabela_resumo.html" with tg=tg giro_meses=giro_meses %}
+
+  {# ── Tabela Detalhamento — largura total ── #}
+  {% include "components/tabela_detalhe.html" with tg=tg giro_meses=giro_meses %}
+
+</div>
+
+{# ── Modal: Tabela de Lances ── #}
+<dialog id="modal-lances" class="rounded-2xl shadow-2xl w-11/12 max-w-7xl p-0 backdrop:bg-black/50">
+  <div class="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
+    <h2 class="font-bold text-lg text-gray-900">📊 Tabela de Lances Progressivos</h2>
+    <button onclick="document.getElementById('modal-lances').close()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
+  </div>
+  
+  <div id="tabela-lances-container" class="p-6 max-h-96 overflow-auto">
+    <div class="text-center py-8">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <p class="text-gray-500 mt-3">Carregando tabela...</p>
+    </div>
+  </div>
+  
+  <div class="border-t border-gray-200 p-4 bg-gray-50 text-xs text-gray-600 text-center">
+    Tabela mostra ROI (% a.a.) para cada lance em diferentes períodos de giro
+  </div>
+</dialog>
+
+<script>
+function carregarTabelaLances() {
+  // Coleta os dados do formulário
+  const form = document.querySelector('form');
+  if (!form) return;
+  
+  const formData = new FormData(form);
+  
+  // Envia para a view
+  fetch('{% url "tabela_lances" %}', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Monta a tabela HTML
+      const giroMeses = data.giro_meses;
+      
+      let html = '<div class="overflow-x-auto"><table class="w-full text-xs border-collapse">';
+      
+      // Cabeçalho
+      html += '<thead class="sticky top-0 bg-blue-50 border-b-2 border-blue-200">';
+      html += '<tr>';
+      html += '<th class="p-2 text-left font-bold text-gray-700 border-r border-gray-200">Lance</th>';
+      
+      for (const mes of giroMeses) {
+        html += `<th class="p-2 text-center font-bold text-gray-700 border-r border-gray-200">${mes} meses</th>`;
+      }
+      
+      html += '</tr></thead>';
+      
+      // Corpo da tabela (com as linhas retornadas)
+      html += '<tbody>' + data.html + '</tbody>';
+      html += '</table></div>';
+      
+      document.getElementById('tabela-lances-container').innerHTML = html;
+    } else {
+      document.getElementById('tabela-lances-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro ao carregar tabela</p>';
+    }
+  })
+  .catch(err => {
+    console.error('Erro:', err);
+    document.getElementById('tabela-lances-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro na requisição</p>';
+  });
+}
+
+// Função chamada via @click do Alpine.js no botão
+</script>

@@ -1,0 +1,6 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "DJANGO_SETTINGS_MODULE=config.settings.production celery -A config worker -l info --concurrency=1"
+restartPolicyType = "ON_FAILURE"

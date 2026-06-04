@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+
+{% block title %}{{ imovel.endereco }} — LoteAlvo{% endblock %}
+{% block page_title %}Detalhes do Imóvel Caixa{% endblock %}
+{% block page_subtitle %}{{ imovel.cidade }} - {{ imovel.estado }}{% if imovel.bairro %} · {{ imovel.bairro }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+      <a href="{% url 'leiloes:explorador' %}" class="inline-flex items-center text-sm font-medium text-teal-600 hover:text-teal-700">← Voltar para leilões</a>
+      <h2 class="mt-2 text-2xl font-bold text-gray-900 leading-tight">{{ imovel.endereco }}</h2>
+      <p class="mt-1 text-sm text-gray-600">
+        {{ imovel.bairro|default:"Bairro não informado" }} · {{ imovel.cidade }} - {{ imovel.estado }}{% if imovel.cep %} · CEP {{ imovel.cep }}{% endif %}
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <span class="inline-flex rounded bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">{{ imovel.get_tipo_display }}</span>
+      {% if imovel.modalidade_venda %}
+        <span class="inline-flex rounded bg-teal-50 px-3 py-1 text-sm font-medium text-teal-700">{{ imovel.modalidade_venda }}</span>
+      {% endif %}
+      {% if imovel.ocupado %}
+        <span class="inline-flex rounded bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">Ocupado</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <main class="space-y-5">
+      <section class="bg-white rounded-lg border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-bold text-gray-900">Fotos do imóvel</h3>
+          <span class="text-xs text-gray-500">
+            {% if fotos_count %}{{ fotos_count }} foto{{ fotos_count|pluralize }} encontrada{{ fotos_count|pluralize }}{% else %}Imagem principal{% endif %}
+          </span>
+        </div>
+        <div class="aspect-[16/7] min-h-64 overflow-hidden rounded-lg bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center">
+          <img
+            src="{% url 'leiloes:imagem' imovel.imovel_id_caixa %}"
+            alt="{{ imovel.endereco }}"
+            class="h-full w-full object-cover"
+            onerror="this.parentElement.innerHTML='<span class=&quot;text-5xl&quot;>🏠</span>'">
+        </div>
+      </section>
+
+      {% if alertas %}
+        <section class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {% for alerta in alertas %}
+            <div class="rounded-lg border p-4 {{ alerta.classe }}">
+              <div class="text-sm font-bold">{{ alerta.titulo }}</div>
+              <p class="mt-1 text-sm leading-relaxed">{{ alerta.texto }}</p>
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-base font-bold text-gray-900">Resumo do imóvel</h3>
+        <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {% for item in caracteristicas %}
+            <div class="rounded bg-gray-50 p-3">
+              <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ item.label }}</div>
+              <div class="mt-1 text-sm font-semibold text-gray-900">{{ item.value }}</div>
+            </div>
+          {% empty %}
+            <p class="text-sm text-gray-500">Características ainda não disponíveis.</p>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-base font-bold text-gray-900">Descrição</h3>
+        {% if imovel.descricao %}
+          <p class="mt-3 text-sm leading-relaxed text-gray-700">{{ imovel.descricao }}</p>
+        {% else %}
+          <p class="mt-3 text-sm text-gray-500">Descrição ainda não disponível. O enriquecimento buscará esse texto na página individual da Caixa.</p>
+        {% endif %}
+      </section>
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h3 class="text-base font-bold text-gray-900">Documentos</h3>
+          <span class="text-xs text-gray-500">Links oficiais da Caixa quando disponíveis</span>
+        </div>
+        <div class="mt-4 divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+          {% for documento in documentos %}
+            <div class="flex flex-col gap-3 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div class="text-sm font-bold text-gray-900">{{ documento.nome }}</div>
+                <p class="mt-1 text-xs text-gray-500">{{ documento.descricao }}</p>
+              </div>
+              {% if documento.disponivel %}
+                <a
+                  href="{{ documento.url }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center justify-center rounded border border-teal-300 px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50">
+                  Abrir documento ↗
+                </a>
+              {% else %}
+                <span class="inline-flex items-center justify-center rounded bg-gray-100 px-3 py-2 text-sm font-medium text-gray-500">Pendente</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 class="text-base font-bold text-gray-900">Análise jurídica IA</h3>
+            <p class="mt-1 text-sm text-gray-600">Triagem automatizada com base na matrícula e no edital disponíveis. Não substitui parecer jurídico.</p>
+          </div>
+
+          <div class="shrink-0">
+            {% if user.is_authenticated %}
+              {% if analise_pode_gerar %}
+                <form method="post" action="{% url 'leiloes:gerar_analise_juridica' imovel.imovel_id_caixa %}">
+                  {% csrf_token %}
+                  <button
+                    type="submit"
+                    class="inline-flex w-full items-center justify-center rounded bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800">
+                    {% if analise_juridica.status == 'concluida' %}Atualizar análise{% else %}Gerar análise{% endif %}
+                  </button>
+                </form>
+              {% else %}
+                <span class="inline-flex rounded bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-500">Aguardando documentos</span>
+              {% endif %}
+            {% else %}
+              <a
+                href="{% url 'entrar' %}?next={{ request.path|urlencode }}"
+                class="inline-flex w-full items-center justify-center rounded border border-gray-300 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50">
+                Entrar para gerar análise
+              </a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if analise_juridica.status %}
+          <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex rounded-full border px-3 py-1 text-sm font-bold {{ analise_risco_classe }}">
+                  Risco {{ analise_nivel_risco|title }}
+                </span>
+                {% if analise_juridica.modelo %}
+                  <span class="inline-flex rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600">Modelo {{ analise_juridica.modelo }}</span>
+                {% endif %}
+              </div>
+              {% if analise_juridica.gerado_em_display %}
+                <span class="text-xs text-gray-500">Gerada em {{ analise_juridica.gerado_em_display }}</span>
+              {% endif %}
+            </div>
+
+            {% if analise_juridica.status == 'concluida' and analise_resultado %}
+              <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_140px]">
+                <div>
+                  <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Resumo executivo</div>
+                  <p class="mt-1 text-sm leading-relaxed text-gray-800">{{ analise_resultado.resumo_executivo }}</p>
+                </div>
+                <div class="rounded bg-white p-3 text-center">
+                  <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Score de risco</div>
+                  <div class="mt-1 text-2xl font-bold text-gray-900">{{ analise_resultado.score_risco }}/100</div>
+                </div>
+              </div>
+
+              {% if analise_resultado.principais_alertas %}
+                <div class="mt-5">
+                  <h4 class="text-sm font-bold text-gray-900">Principais alertas</h4>
+                  <div class="mt-3 space-y-3">
+                    {% for alerta in analise_resultado.principais_alertas %}
+                      <div class="rounded border border-white bg-white p-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="text-sm font-bold text-gray-900">{{ alerta.titulo }}</span>
+                          <span class="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-bold text-teal-800">{{ alerta.gravidade|title }}</span>
+                        </div>
+                        <p class="mt-2 text-sm text-gray-700">{{ alerta.evidencia }}</p>
+                        <p class="mt-1 text-xs font-medium text-gray-500">Fonte: {{ alerta.fonte }}</p>
+                        <p class="mt-2 text-sm text-gray-800"><span class="font-semibold">Recomendação:</span> {{ alerta.recomendacao }}</p>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+
+              <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div class="rounded bg-white p-4">
+                  <h4 class="text-sm font-bold text-gray-900">Ocupação</h4>
+                  <p class="mt-2 text-sm text-gray-700">{{ analise_resultado.ocupacao.situacao }}</p>
+                  <p class="mt-2 text-xs text-gray-500">{{ analise_resultado.ocupacao.evidencia }}</p>
+                  <p class="mt-2 text-sm text-gray-800">{{ analise_resultado.ocupacao.recomendacao }}</p>
+                </div>
+                <div class="rounded bg-white p-4">
+                  <h4 class="text-sm font-bold text-gray-900">Cadeia titularidade</h4>
+                  <p class="mt-2 text-sm text-gray-700">{{ analise_resultado.cadeia_titularidade.resumo }}</p>
+                  {% if analise_resultado.cadeia_titularidade.pontos_atencao %}
+                    <ul class="mt-2 space-y-1 text-sm text-gray-700">
+                      {% for ponto in analise_resultado.cadeia_titularidade.pontos_atencao %}
+                        <li>• {{ ponto }}</li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if analise_resultado.onus_restricoes %}
+                <div class="mt-5">
+                  <h4 class="text-sm font-bold text-gray-900">Ônus, gravames e restrições</h4>
+                  <div class="mt-3 divide-y divide-gray-100 rounded border border-gray-200 bg-white">
+                    {% for onus in analise_resultado.onus_restricoes %}
+                      <div class="p-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="text-sm font-bold text-gray-900">{{ onus.tipo }}</span>
+                          <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ onus.gravidade|title }}</span>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-700">{{ onus.impacto }}</p>
+                        <p class="mt-1 text-xs text-gray-500">{{ onus.evidencia }} · {{ onus.fonte }}</p>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+
+              {% if analise_resultado.debitos_responsabilidades %}
+                <div class="mt-5">
+                  <h4 class="text-sm font-bold text-gray-900">Débitos e responsabilidades</h4>
+                  <div class="mt-3 divide-y divide-gray-100 rounded border border-gray-200 bg-white">
+                    {% for debito in analise_resultado.debitos_responsabilidades %}
+                      <div class="grid grid-cols-1 gap-2 p-3 md:grid-cols-[160px_180px_minmax(0,1fr)]">
+                        <div class="text-sm font-bold text-gray-900">{{ debito.tipo }}</div>
+                        <div class="text-sm text-gray-700">{{ debito.responsavel }}</div>
+                        <div class="text-sm text-gray-700">{{ debito.impacto }}</div>
+                        <div class="text-xs text-gray-500 md:col-span-3">{{ debito.evidencia }} · {{ debito.fonte }}</div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+
+              {% if analise_resultado.processos_mencionados %}
+                <div class="mt-5">
+                  <h4 class="text-sm font-bold text-gray-900">Processos mencionados nos documentos</h4>
+                  <div class="mt-3 divide-y divide-gray-100 rounded border border-gray-200 bg-white">
+                    {% for processo in analise_resultado.processos_mencionados %}
+                      <div class="p-3">
+                        <div class="text-sm font-bold text-gray-900">{{ processo.identificador|default:"Processo sem número" }}</div>
+                        <p class="mt-1 text-sm text-gray-700">{{ processo.risco }}</p>
+                        <p class="mt-1 text-xs text-gray-500">{{ processo.parte }} · {{ processo.evidencia }} · {{ processo.fonte }}</p>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+
+              <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {% if analise_resultado.pontos_a_validar %}
+                  <div>
+                    <h4 class="text-sm font-bold text-gray-900">Pontos a validar</h4>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-700">
+                      {% for ponto in analise_resultado.pontos_a_validar %}
+                        <li>• {{ ponto }}</li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+                {% if analise_resultado.limites_da_analise %}
+                  <div>
+                    <h4 class="text-sm font-bold text-gray-900">Limites da análise</h4>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-700">
+                      {% for limite in analise_resultado.limites_da_analise %}
+                        <li>• {{ limite }}</li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+              </div>
+
+              {% if analise_juridica.fontes %}
+                <div class="mt-5 border-t border-gray-200 pt-4">
+                  <h4 class="text-sm font-bold text-gray-900">Fontes processadas</h4>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    {% for fonte in analise_juridica.fontes %}
+                      <span class="inline-flex rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600">
+                        {{ fonte.nome }} · {{ fonte.paginas }} pág. · {{ fonte.chars_extraidos }} caracteres{% if fonte.paginas_ocr %} · OCR {{ fonte.paginas_ocr }} pág.{% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+            {% else %}
+              <p class="mt-3 text-sm leading-relaxed text-gray-700">
+                {{ analise_juridica.mensagem|default:"A análise jurídica IA ainda não está disponível para este imóvel." }}
+              </p>
+              {% if analise_juridica.erro %}
+                <p class="mt-2 text-xs text-red-700">{{ analise_juridica.erro }}</p>
+              {% endif %}
+              {% if analise_juridica.fontes %}
+                <div class="mt-3 space-y-2">
+                  {% for fonte in analise_juridica.fontes %}
+                    <div class="rounded bg-white p-3 text-xs text-gray-600">
+                      <span class="font-semibold">{{ fonte.nome }}:</span>
+                      {% if fonte.erro %}{{ fonte.erro }}{% else %}{{ fonte.chars_extraidos }} caracteres extraídos{% if fonte.paginas_ocr %}, OCR em {{ fonte.paginas_ocr }} pág.{% endif %}{% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+            Nenhuma análise jurídica IA gerada para este imóvel.
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-base font-bold text-gray-900">Condições de pagamento</h3>
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {% for item in pagamentos %}
+            <div class="rounded p-3 {% if item.ok %}bg-green-50 text-green-800{% else %}bg-red-50 text-red-700{% endif %}">
+              <div class="text-xs font-semibold uppercase tracking-wide">{{ item.label }}</div>
+              <div class="mt-1 text-sm font-bold">{% if item.ok %}Sim{% else %}Não{% endif %}</div>
+            </div>
+          {% endfor %}
+        </div>
+        {% if formas_pagamento_texto %}
+          <div class="mt-4 rounded bg-gray-50 p-3 text-sm leading-relaxed text-gray-700">
+            {{ formas_pagamento_texto }}
+          </div>
+        {% endif %}
+      </section>
+
+      {% if regras_pagamento_texto %}
+        <section class="bg-white rounded-lg border border-gray-200 p-5">
+          <h3 class="text-base font-bold text-gray-900">Regras de despesas e responsabilidades</h3>
+          <p class="mt-3 text-sm leading-relaxed text-gray-700">{{ regras_pagamento_texto }}</p>
+        </section>
+      {% endif %}
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-base font-bold text-gray-900">Dados extraídos da Caixa</h3>
+        <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {% for item in dados_caixa %}
+            <div class="border-b border-gray-100 pb-2">
+              <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ item.label }}</div>
+              <div class="mt-1 break-words text-sm font-medium text-gray-900">{{ item.value }}</div>
+            </div>
+          {% empty %}
+            <p class="text-sm text-gray-500">Dados detalhados ainda não disponíveis para este imóvel.</p>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% if datas_leilao %}
+        <section class="bg-white rounded-lg border border-gray-200 p-5">
+          <h3 class="text-base font-bold text-gray-900">Datas da oferta</h3>
+          <div class="mt-4 divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+            {% for data in datas_leilao %}
+              <div class="grid grid-cols-1 gap-2 p-3 sm:grid-cols-3">
+                <div class="text-sm font-medium text-gray-900">{{ data.label|default:"Data" }}</div>
+                <div class="text-sm text-gray-700">{{ data.data|default:"-" }}</div>
+                <div class="text-sm text-gray-700">{{ data.hora|default:"-" }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </main>
+
+    <aside class="space-y-4 xl:sticky xl:top-24 self-start">
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="rounded-lg bg-teal-50 p-4">
+          <div class="text-sm font-bold uppercase text-gray-700">{{ imovel.modalidade_venda|default:"Oferta Caixa" }}</div>
+          {% if imovel.data_leilao %}
+            <div class="mt-2 text-sm text-gray-700">📅 {{ imovel.data_leilao|date:"d/m/Y" }}{% if imovel.hora_leilao %}, {{ imovel.hora_leilao|time:"H:i" }}{% endif %}</div>
+          {% endif %}
+          <div class="mt-2 text-2xl font-bold text-teal-600">{{ imovel.valor_minimo_lance|brl }}</div>
+        </div>
+
+        <div class="mt-4 space-y-3 border-t border-gray-200 pt-4">
+          <div>
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Preço de avaliação</div>
+            <div class="text-lg font-bold text-gray-900">{{ imovel.valor_avaliacao|brl }}</div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-800">-{{ imovel.percentual_desconto|floatformat:0 }}% sobre avaliação</span>
+            {% if imovel.valor_por_m2 %}
+              <span class="inline-flex rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">{{ imovel.valor_por_m2|floatformat:0|brl }}/m²</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mt-5 space-y-2">
+          <a
+            href="{{ caixa_url }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block w-full rounded bg-teal-500 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-teal-600">
+            Ver no site da Caixa ↗
+          </a>
+          <a
+            href="{{ simulador_url }}"
+            class="block w-full rounded border border-teal-300 px-4 py-2.5 text-center text-sm font-bold text-teal-700 hover:bg-teal-50">
+            Simular investimento
+          </a>
+          {% if user.is_authenticated %}
+            {% if imovel_gestao %}
+              <a
+                href="{% url 'detalhe' imovel_gestao.pk %}"
+                class="block w-full rounded border border-gray-300 px-4 py-2.5 text-center text-sm font-bold text-gray-700 hover:bg-gray-50">
+                Ver no módulo de gestão
+              </a>
+            {% else %}
+              <form method="post" action="{% url 'leiloes:cadastrar_meus_imoveis' imovel.imovel_id_caixa %}">
+                {% csrf_token %}
+                <button
+                  type="submit"
+                  class="block w-full rounded border border-gray-900 px-4 py-2.5 text-center text-sm font-bold text-gray-800 hover:bg-gray-50">
+                  Cadastrar em Meus Imóveis
+                </button>
+              </form>
+            {% endif %}
+          {% else %}
+            <a
+              href="{% url 'entrar' %}?next={{ request.path|urlencode }}"
+              class="block w-full rounded border border-gray-300 px-4 py-2.5 text-center text-sm font-bold text-gray-700 hover:bg-gray-50">
+              Entrar para cadastrar
+            </a>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-base font-bold text-gray-900">Localização</h3>
+        <p class="mt-3 text-sm leading-relaxed text-gray-700">{{ imovel.endereco }}</p>
+        <p class="mt-2 text-sm text-gray-600">{{ imovel.bairro|default:"Bairro não informado" }} · {{ imovel.cidade }} - {{ imovel.estado }}{% if imovel.cep %} · {{ imovel.cep }}{% endif %}</p>
+        <a
+          href="https://www.google.com/maps/search/?api=1&query={{ imovel.endereco|urlencode }}%20{{ imovel.cidade|urlencode }}%20{{ imovel.estado|urlencode }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-4 inline-flex w-full items-center justify-center rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Abrir no Maps ↗
+        </a>
+      </section>
+
+      <section class="bg-white rounded-lg border border-gray-200 p-5">
+        <h3 class="text-base font-bold text-gray-900">Sincronização</h3>
+        <dl class="mt-3 space-y-2 text-sm">
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Lista Caixa</dt>
+            <dd class="font-medium text-gray-900">{% if imovel.data_geracao_lista %}{{ imovel.data_geracao_lista|date:"d/m/Y" }}{% else %}-{% endif %}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Detalhes</dt>
+            <dd class="font-medium text-gray-900">{% if imovel.detalhe_atualizado_em %}{{ imovel.detalhe_atualizado_em|date:"d/m/Y H:i" }}{% else %}Pendente{% endif %}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">ID Caixa</dt>
+            <dd class="font-medium text-gray-900">{{ imovel.imovel_id_caixa }}</dd>
+          </div>
+        </dl>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

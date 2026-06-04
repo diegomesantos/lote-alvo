@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+{% block title %}{{ titulo }} — LoteAlvo{% endblock %}
+{% block page_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<style>
+  .field-label  { display:block; font-size:.875rem; font-weight:500; color:#374151; margin-bottom:.25rem; }
+  .field-select { width:100%; border:1px solid #d1d5db; border-radius:.5rem; padding:.5rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+  .field-select:focus { box-shadow:0 0 0 2px #fdba74; border-color:#fb923c; }
+  .field-money, .field-pct {
+    display:flex; align-items:center;
+    border:1px solid #d1d5db; border-radius:.5rem; overflow:hidden;
+    transition:box-shadow .15s,border-color .15s;
+  }
+  .field-money:focus-within, .field-pct:focus-within { box-shadow:0 0 0 2px #fdba74; border-color:#fb923c; }
+  .field-prefix,.field-suffix { padding:.5rem .75rem; background:#f9fafb; font-size:.875rem; color:#6b7280; font-weight:500; flex-shrink:0; border-right:1px solid #d1d5db; }
+  .field-suffix { border-right:none; border-left:1px solid #d1d5db; }
+  .field-text { flex:1; padding:.5rem .75rem; font-size:.875rem; background:#fff; outline:none; min-width:0; border:none; }
+</style>
+
+<div class="max-w-4xl"
+     x-data="{ tipoPgto: '{{ form.tipo_pgto.value|default:"À Vista" }}', modoCart: '{{ form.modo_cartorio.value|default:"Automático" }}' }">
+  <form method="post" class="space-y-5">
+    {% csrf_token %}
+
+    <!-- 1. Identificação -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+        Identificação
+      </h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2 md:col-span-1">
+          <label class="field-label">{{ form.endereco.label }}</label>{{ form.endereco }}
+          {% if form.endereco.errors %}<p class="text-red-500 text-xs mt-1">{{ form.endereco.errors|join:", " }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="field-label">{{ form.cidade.label }}</label>{{ form.cidade }}
+        </div>
+        <div>
+          <label class="field-label">{{ form.estado.label }}</label>{{ form.estado }}
+        </div>
+        <div>
+          <label class="field-label">{{ form.etapa.label }}</label>{{ form.etapa }}
+        </div>
+        <div>
+          <label class="field-label">{{ form.tipo_leilao.label }}</label>{{ form.tipo_leilao }}
+        </div>
+        <div class="col-span-2">
+          <label class="field-label">{{ form.obs.label }}</label>{{ form.obs }}
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Leilão -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+        Valores do Leilão
+      </h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>{% money_field form.avaliacao %}</div>
+        <div>{% money_field form.lance %}</div>
+      </div>
+    </div>
+
+    <!-- 3. Pagamento -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+        Pagamento
+      </h2>
+      <div class="mb-4">
+        <label class="field-label">{{ form.tipo_pgto.label }}</label>
+        <select name="{{ form.tipo_pgto.html_name }}" x-model="tipoPgto"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 outline-none bg-white">
+          {% for val, txt in form.tipo_pgto.field.choices %}
+          <option value="{{ val }}" {% if form.tipo_pgto.value == val %}selected{% endif %}>{{ txt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div x-show="tipoPgto === 'Financiamento SAC'" x-cloak class="grid grid-cols-3 gap-4">
+        <div>{% pct_field form.entrada %}</div>
+        <div>
+          <label class="field-label">{{ form.prazo_fin.label }}</label>
+          {{ form.prazo_fin }}
+        </div>
+        <div>{% pct_field form.cet_aa %}</div>
+      </div>
+    </div>
+
+    <!-- 4. Receitas -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">4</span>
+        Receitas
+      </h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>{% money_field form.preco_venda %}</div>
+        <div>{% pct_field form.pct_corretor %}</div>
+        <div>{% pct_field form.taxa_acrescimo %}</div>
+        <div>{% pct_field form.desconto_venda %}</div>
+        <div>{% money_field form.rec_aluguel_am %}</div>
+      </div>
+    </div>
+
+    <!-- 5. ITBI -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">5</span>
+        ITBI
+      </h2>
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <label class="field-label">{{ form.pct_itbi_base.label }}</label>{{ form.pct_itbi_base }}
+        </div>
+        <div>{% pct_field form.aliq_itbi %}</div>
+        <div>{% pct_field form.aliq_itbi_fin %}</div>
+      </div>
+    </div>
+
+    <!-- 6. Custos Cartoriais -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">6</span>
+        Custos Cartoriais
+      </h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="field-label">{{ form.modo_cartorio.label }}</label>
+          <select name="{{ form.modo_cartorio.html_name }}" x-model="modoCart"
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 outline-none bg-white">
+            <option value="Automático" {% if form.modo_cartorio.value == 'Automático' %}selected{% endif %}>Automático</option>
+            <option value="Manual" {% if form.modo_cartorio.value == 'Manual' %}selected{% endif %}>Manual</option>
+          </select>
+        </div>
+        <div>{% money_field form.av_fiscal %}</div>
+      </div>
+      <div x-show="modoCart === 'Manual'" x-cloak class="grid grid-cols-2 gap-4 mt-4">
+        <div>{% money_field form.escritura_manual %}</div>
+        <div>{% money_field form.registro_manual %}</div>
+      </div>
+      <div class="mt-4 w-48">
+        {% pct_field form.pct_leiloeiro %}
+      </div>
+    </div>
+
+    <!-- 7. Despesas Adicionais -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">7</span>
+        Despesas Adicionais
+      </h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>{% money_field form.reformas %}</div>
+        <div>{% money_field form.custo_desocup %}</div>
+        <div>{% money_field form.debitos %}</div>
+        <div>{% money_field form.despesas_div %}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mt-4">
+        <div>{% pct_field form.laudemio_pct %}<p class="text-xs text-gray-400 mt-0.5">Terrenos de marinha</p></div>
+      </div>
+    </div>
+
+<!-- 8. Gastos Mensais -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">8</span>
+        Gastos Mensais Recorrentes
+      </h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>{% money_field form.iptu_am %}</div>
+        <div>{% money_field form.cond_am %}</div>
+      </div>
+    </div>
+
+    <!-- 9. IR & Oportunidade -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">9</span>
+        Custo de Oportunidade & IR
+      </h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>{% pct_field form.custo_oport_aa %}<p class="text-xs text-gray-400 mt-0.5">Ex: 13% a.a. (CDI)</p></div>
+        <div>
+          <label class="field-label">{{ form.tipo_pessoa.label }}</label>{{ form.tipo_pessoa }}
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. Simulação -->
+    <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 class="font-bold text-sm text-gray-900 mb-4 flex items-center gap-2">
+        <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">10</span>
+        Parâmetros da Simulação
+      </h2>
+      <div class="grid grid-cols-4 gap-4">
+        <div>{% money_field form.lucro_minimo %}</div>
+        <div>{% money_field form.incremento_lance %}</div>
+        <div>
+          <label class="field-label">{{ form.giro_padrao.label }}</label>{{ form.giro_padrao }}
+        </div>
+        <div>
+          <label class="field-label">{{ form.meses_titulo.label }}</label>{{ form.meses_titulo }}
+          <p class="text-xs text-gray-400 mt-0.5">Meses até título</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botões -->
+    <div class="flex items-center gap-4 sticky bottom-0 bg-white/95 backdrop-blur border-t border-gray-200 p-4 -mx-6 rounded-b-none z-10">
+      <button type="submit"
+              class="bg-teal-500 hover:bg-teal-600 text-white font-bold px-8 py-3 rounded-xl transition-colors shadow-lg">
+        💾 Salvar Imóvel
+      </button>
+      {% if imovel %}
+      <a href="{% url 'detalhe' imovel.pk %}"
+         class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl transition-colors">
+        Cancelar
+      </a>
+      {% else %}
+      <a href="{% url 'kanban' %}"
+         class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl transition-colors">
+        Cancelar
+      </a>
+      {% endif %}
+    </div>
+
+  </form>
+</div>
+{% endblock %}

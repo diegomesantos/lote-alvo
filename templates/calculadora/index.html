@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+{% block title %}Calculadora — LoteAlvo{% endblock %}
+{% block page_title %}Calculadora de Leilão{% endblock %}
+{% block page_subtitle %}Preencha os dados e veja os resultados completos logo abaixo{% endblock %}
+
+{% block header_actions %}
+  <div id="calc-spinner" class="htmx-indicator flex items-center gap-2 text-teal-500 text-sm font-medium">
+    <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+    </svg>
+    Calculando…
+  </div>
+{% endblock %}
+
+{% block content %}
+{# Macro helpers — campos monetários e percentuais com máscara IMask #}
+
+<div x-data="{ tipoPgto: 'À Vista', modoCart: 'Automático' }">
+  <form id="calc-form"
+        hx-post="{% url 'calcular_htmx' %}"
+        hx-target="#resultado-panel"
+        hx-trigger="change delay:600ms from:input[type=hidden], submit"
+        hx-indicator="#calc-spinner"
+        hx-swap="innerHTML">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+
+      <!-- ═══ COLUNA 1: Básico + Receitas ═══ -->
+      <div class="space-y-4">
+
+        {# Informações Básicas #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Informações Básicas do Leilão</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Tipo leilão *</label>
+                <select name="tipo_leilao" class="field-select">
+                  <option value="Extrajudicial">Extrajudicial</option>
+                  <option value="Judicial">Judicial</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Estado *</label>
+                <select name="estado" class="field-select">
+                  {% for uf, nome in estados %}
+                  <option value="{{ uf }}" {% if uf == "BA" %}selected{% endif %}>{{ nome }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Valor do lance *</label>
+              <div class="field-money">
+                <span class="field-prefix">R$</span>
+                <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                <input type="hidden" name="lance" value="303000">
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Valor de avaliação</label>
+              <div class="field-money">
+                <span class="field-prefix">R$</span>
+                <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                <input type="hidden" name="avaliacao" value="502000">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Receitas #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Receitas</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="field-label">Preço de venda *</label>
+              <div class="field-money">
+                <span class="field-prefix">R$</span>
+                <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                <input type="hidden" name="preco_venda" value="503000">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Acréscimo venda</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="taxa_acrescimo" value="0">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Desconto venda</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="desconto_venda" value="0">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Receita aluguel (a.m.)</label>
+              <div class="field-money">
+                <span class="field-prefix">R$</span>
+                <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                <input type="hidden" name="rec_aluguel_am" value="0">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Corretor *</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="pct_corretor" value="5">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Leiloeiro *</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="pct_leiloeiro" value="5">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ═══ COLUNA 2: Pagamento + Simulação ═══ -->
+      <div class="space-y-4">
+
+        {# Pagamento #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Pagamento</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="field-label">Tipo de pagamento *</label>
+              <select name="tipo_pgto" x-model="tipoPgto" class="field-select">
+                <option value="À Vista">À Vista</option>
+                <option value="Financiamento SAC">Financiamento SAC</option>
+              </select>
+            </div>
+            <div x-show="tipoPgto === 'Financiamento SAC'" x-cloak class="space-y-4">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="field-label">Entrada *</label>
+                  <div class="field-pct">
+                    <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                    <input type="hidden" name="entrada" value="5">
+                    <span class="field-suffix">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="field-label">CET (a.a.) *</label>
+                  <div class="field-pct">
+                    <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                    <input type="hidden" name="cet_aa" value="10.5">
+                    <span class="field-suffix">%</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Prazo *</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" data-value="420" placeholder="0" class="field-text">
+                  <input type="hidden" name="prazo_fin" value="420">
+                  <span class="field-suffix px-3 py-2.5 bg-gray-50 text-sm text-gray-500 border-l border-gray-200 whitespace-nowrap">meses</span>
+                </div>
+              </div>
+            </div>
+            <div x-show="tipoPgto === 'À Vista'" x-cloak>
+              <input type="hidden" name="entrada" value="100">
+              <input type="hidden" name="prazo_fin" value="0">
+              <input type="hidden" name="cet_aa" value="0">
+              <p class="text-xs text-gray-400 bg-gray-50 rounded-lg p-3 text-center">Pagamento integral no ato da arrematação</p>
+            </div>
+          </div>
+        </div>
+
+        {# Detalhes Simulação #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Detalhes Simulação</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Giro venda</label>
+                <select name="giro_padrao_calc" class="field-select">
+                  {% for m in giro_meses %}
+                  <option value="{{ m }}" {% if m == 12 %}selected{% endif %}>{{ m }} meses</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Lucro mínimo</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="lucro_minimo" value="0">
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Incremento lance</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="incremento_lance" value="5000">
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Meses até título</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0" class="field-text">
+                  <input type="hidden" name="meses_titulo" value="3">
+                  <span class="field-suffix whitespace-nowrap">meses</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ═══ COLUNA 3: Despesas ═══ -->
+      <div class="space-y-4">
+
+        {# Custos Cartoriais #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Custos Cartoriais</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="field-label">Modo de preenchimento</label>
+              <div class="flex rounded-lg overflow-hidden border border-gray-200">
+                <button type="button" @click="modoCart = 'Automático'"
+                        :class="modoCart === 'Automático' ? 'bg-teal-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="flex-1 py-2.5 text-xs font-bold transition-colors">Automático</button>
+                <button type="button" @click="modoCart = 'Manual'"
+                        :class="modoCart === 'Manual' ? 'bg-teal-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'"
+                        class="flex-1 py-2.5 text-xs font-bold transition-colors border-l border-gray-200">Manual</button>
+                <input type="hidden" name="modo_cartorio" :value="modoCart">
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Avaliação fiscal *</label>
+              <div class="field-money">
+                <span class="field-prefix">R$</span>
+                <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                <input type="hidden" name="av_fiscal" value="502000">
+              </div>
+            </div>
+            <div x-show="modoCart === 'Manual'" x-cloak class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Escritura</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="escritura_manual" value="0">
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Registro</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="registro_manual" value="0">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# ITBI #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">ITBI</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div>
+              <label class="field-label">Base cálculo *</label>
+              <select name="pct_itbi_base" class="field-select">
+                <option value="Arrematação">Valor da Arrematação</option>
+                <option value="Avaliação Fiscal">Avaliação Fiscal</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Alíquota *</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="aliq_itbi" value="2">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Al. Fração Fin.</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="aliq_itbi_fin" value="2">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Gastos Recorrentes & IR #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Gastos Recorrentes & IR</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">IPTU (a.m.)</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="iptu_am" value="100">
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Condomínio (a.m.)</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="cond_am" value="650">
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Custo oportunidade (a.a.)</label>
+              <div class="field-pct">
+                <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                <input type="hidden" name="custo_oport_aa" value="0">
+                <span class="field-suffix">%</span>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Tipo tributação *</label>
+              <select name="tipo_pessoa" class="field-select">
+                <option value="Pessoa Física">Pessoa Física</option>
+                <option value="Pessoa Jurídica">Pessoa Jurídica (15% flat)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {# Despesas Adicionais #}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 bg-teal-50">
+            <span class="text-sm font-bold text-teal-600">Despesas Adicionais</span>
+            <span class="text-teal-400 font-bold text-lg leading-none">−</span>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Reformas</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="reformas" value="7000">
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Custo desocupação</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="custo_desocup" value="7000">
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Laudêmio</label>
+                <div class="field-pct">
+                  <input type="text" data-imask="pct" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="laudemio_pct" value="0">
+                  <span class="field-suffix">%</span>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Débitos do imóvel</label>
+                <div class="field-money">
+                  <span class="field-prefix">R$</span>
+                  <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                  <input type="hidden" name="debitos" value="0">
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Despesas diversas</label>
+              <div class="field-money">
+                <span class="field-prefix">R$</span>
+                <input type="text" data-imask="money" placeholder="0,00" class="field-text">
+                <input type="hidden" name="despesas_div" value="0">
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Barra inferior: auto-calc info + botão -->
+    <div class="flex items-center justify-between mb-6 bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
+      <p class="text-sm text-gray-500">Os resultados atualizam automaticamente ao alterar os campos acima.</p>
+      <button type="submit"
+              class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+        </svg>
+        Calcular agora
+      </button>
+    </div>
+
+  </form>
+
+  <!-- Resultados (largura total) -->
+  <div id="resultado-panel">
+    <div class="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center text-gray-400">
+      <div class="text-5xl mb-3">🧮</div>
+      <div class="font-semibold text-gray-500 text-base">Aguardando cálculo…</div>
+      <div class="text-sm mt-1">Altere qualquer campo acima ou clique em "Calcular agora"</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  /* Field helpers — usados em toda a calculadora */
+  .field-label   { display:block; font-size:.75rem; font-weight:500; color:#6b7280; margin-bottom:.375rem; }
+  .field-select  { width:100%; border:1px solid #e5e7eb; border-radius:.5rem; padding:.625rem .75rem; font-size:.875rem; background:#fff; outline:none; }
+  .field-select:focus { box-shadow:0 0 0 2px #fdba74; border-color:#fb923c; }
+  /* Wrappers */
+  .field-money, .field-pct {
+    display:flex; align-items:center;
+    border:1px solid #e5e7eb; border-radius:.5rem; overflow:hidden;
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .field-money:focus-within, .field-pct:focus-within {
+    box-shadow:0 0 0 2px #fdba74; border-color:#fb923c;
+  }
+  .field-prefix, .field-suffix {
+    padding:.625rem .75rem; background:#f9fafb;
+    font-size:.875rem; color:#6b7280; font-weight:500;
+    flex-shrink:0; white-space:nowrap;
+    border-right:1px solid #e5e7eb;
+  }
+  .field-suffix { border-right:none; border-left:1px solid #e5e7eb; }
+  .field-text {
+    flex:1; padding:.625rem .75rem; font-size:.875rem;
+    background:#fff; outline:none; min-width:0;
+    border:none; /* borda já no wrapper */
+  }
+</style>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Lê parâmetros da URL e preenche o formulário
+    const params = new URLSearchParams(window.location.search);
+    const form = document.getElementById('calc-form');
+    
+    // Preenche os campos com valores da URL
+    const fieldMap = {
+      'lance': 'lance',
+      'avaliacao': 'avaliacao',
+      'preco_venda': 'preco_venda',
+      'estado': 'estado',
+      'tipo_leilao': 'tipo_leilao',
+    };
+    
+    for (const [paramName, fieldName] of Object.entries(fieldMap)) {
+      const value = params.get(paramName);
+      if (value) {
+        // Encontra o input hidden
+        const hiddenInput = form.querySelector(`input[name="${fieldName}"][type="hidden"]`);
+        if (hiddenInput) {
+          hiddenInput.value = value;
+          // Encontra o input visível anterior (irmão anterior no wrapper)
+          const wrapper = hiddenInput.parentElement;
+          const visibleInput = wrapper.querySelector('input[data-imask]');
+          if (visibleInput) {
+            visibleInput.value = value;
+          }
+        }
+      }
+    }
+    
+    // Trigger o cálculo
+    htmx.trigger('#calc-form', 'submit');
+  });
+</script>
+{% endblock %}

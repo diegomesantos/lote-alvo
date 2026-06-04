@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+
+{% block title %}Explorador de Leilões da Caixa — LoteAlvo{% endblock %}
+{% block page_title %}🏠 Explorador de Leilões da Caixa{% endblock %}
+{% block page_subtitle %}Encontre oportunidades de investimento em imóveis do Brasil todo{% endblock %}
+
+{% block content %}
+{{ estados_opcoes|json_script:"leiloes-estados-options" }}
+{{ cidades_opcoes|json_script:"leiloes-cidades-options" }}
+{{ bairros_opcoes|json_script:"leiloes-bairros-options" }}
+{{ tipos_opcoes|json_script:"leiloes-tipos-options" }}
+{{ filtros_ativos.estados|json_script:"leiloes-selected-estados" }}
+{{ filtros_ativos.cidades|json_script:"leiloes-selected-cidades" }}
+{{ filtros_ativos.bairros|json_script:"leiloes-selected-bairros" }}
+{{ filtros_ativos.tipos|json_script:"leiloes-selected-tipos" }}
+
+<div class="flex flex-col xl:flex-row gap-6" x-data="explorador_leiloes()">
+
+  <!-- SIDEBAR: FILTROS -->
+  <aside class="w-full xl:w-80 flex-shrink-0">
+    <div class="bg-white rounded-lg border border-gray-200 p-4 xl:sticky xl:top-24">
+      <form id="filtros-form" method="get" class="space-y-4">
+        <input type="hidden" name="ordenar" value="{{ filtros_ativos.ordenar }}">
+
+        <!-- Busca Global -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Buscar</label>
+          <input
+            type="text"
+            name="q"
+            placeholder="Endereço, cidade ou bairro"
+            value="{{ filtros_ativos.q }}"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+        </div>
+
+        <div class="relative" @click.outside="estados.open = false">
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Estado</label>
+          <template x-for="value in estados.selected" :key="'estado-input-' + value">
+            <input type="hidden" name="estados" :value="value">
+          </template>
+          <button type="button" @click="togglePanel(estados)"
+                  class="w-full min-h-11 px-3 py-2 border border-gray-300 rounded-lg bg-white text-left text-sm hover:border-teal-300 focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            <span x-show="!estados.selected.length" class="text-gray-500">Todos os estados</span>
+            <span x-show="estados.selected.length" class="flex flex-wrap gap-1">
+              <template x-for="value in estados.selected.slice(0, 4)" :key="'estado-chip-' + value">
+                <span class="inline-flex items-center rounded bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700" x-text="labelFor(estados, value)"></span>
+              </template>
+              <span x-show="estados.selected.length > 4" class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600" x-text="'+' + (estados.selected.length - 4)"></span>
+            </span>
+          </button>
+          <div x-cloak x-show="estados.open" class="absolute z-30 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+            <div class="p-2 border-b border-gray-100">
+              <input type="text" x-model="estados.search" placeholder="Filtrar UF" class="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            </div>
+            <div class="max-h-64 overflow-y-auto p-1">
+              <template x-for="option in visibleOptions(estados, estados.options)" :key="'estado-option-' + option.value">
+                <button type="button" @click="toggleOption(estados, option.value)" class="flex w-full items-center justify-between rounded px-3 py-2 text-sm hover:bg-teal-50">
+                  <span x-text="option.label"></span>
+                  <span class="h-5 w-5 rounded border text-center text-xs leading-5" :class="isSelected(estados, option.value) ? 'border-teal-500 bg-teal-500 text-white' : 'border-gray-300 text-transparent'">✓</span>
+                </button>
+              </template>
+            </div>
+            <div class="flex items-center justify-between border-t border-gray-100 px-3 py-2">
+              <button type="button" @click="clearSelect(estados)" class="text-xs text-gray-500 hover:text-gray-900">Limpar</button>
+              <span class="text-xs text-gray-400" x-text="estados.selected.length + ' selecionado(s)'"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative" @click.outside="cidades.open = false">
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Cidade</label>
+          <template x-for="value in cidades.selected" :key="'cidade-input-' + value">
+            <input type="hidden" name="cidades" :value="value">
+          </template>
+          <button type="button" @click="togglePanel(cidades)"
+                  class="w-full min-h-11 px-3 py-2 border border-gray-300 rounded-lg bg-white text-left text-sm hover:border-teal-300 focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            <span x-show="!cidades.selected.length" class="text-gray-500">Selecione estado antes da cidade</span>
+            <span x-show="cidades.selected.length" class="flex flex-wrap gap-1">
+              <template x-for="value in cidades.selected.slice(0, 2)" :key="'cidade-chip-' + value">
+                <span class="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700" x-text="labelFor(cidades, value)"></span>
+              </template>
+              <span x-show="cidades.selected.length > 2" class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600" x-text="'+' + (cidades.selected.length - 2)"></span>
+            </span>
+          </button>
+          <div x-cloak x-show="cidades.open" class="absolute z-30 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+            <div class="p-2 border-b border-gray-100">
+              <input type="text" x-model="cidades.search" placeholder="Filtrar cidade" class="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            </div>
+            <div class="max-h-72 overflow-y-auto p-1">
+              <div x-show="!estados.selected.length && !cidades.selected.length" class="px-3 py-4 text-sm text-gray-500">
+                Escolha um ou mais estados para carregar as cidades.
+              </div>
+              <template x-for="option in visibleOptions(cidades, cityOptions())" :key="'cidade-option-' + option.estado + '-' + option.value">
+                <button type="button" @click="toggleOption(cidades, option.value)" class="flex w-full items-center justify-between rounded px-3 py-2 text-sm hover:bg-blue-50">
+                  <span x-text="option.label"></span>
+                  <span class="h-5 w-5 rounded border text-center text-xs leading-5" :class="isSelected(cidades, option.value) ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300 text-transparent'">✓</span>
+                </button>
+              </template>
+            </div>
+            <div class="flex items-center justify-between border-t border-gray-100 px-3 py-2">
+              <button type="button" @click="clearSelect(cidades)" class="text-xs text-gray-500 hover:text-gray-900">Limpar</button>
+              <span class="text-xs text-gray-400" x-text="visibleOptions(cidades, cityOptions()).length + ' opções'"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative" @click.outside="bairros.open = false">
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Bairro</label>
+          <template x-for="value in bairros.selected" :key="'bairro-input-' + value">
+            <input type="hidden" name="bairros" :value="value">
+          </template>
+          <button type="button" @click="togglePanel(bairros)"
+                  class="w-full min-h-11 px-3 py-2 border border-gray-300 rounded-lg bg-white text-left text-sm hover:border-teal-300 focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            <span x-show="!bairros.selected.length" class="text-gray-500">Selecione cidade antes do bairro</span>
+            <span x-show="bairros.selected.length" class="flex flex-wrap gap-1">
+              <template x-for="value in bairros.selected.slice(0, 2)" :key="'bairro-chip-' + value">
+                <span class="inline-flex items-center rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700" x-text="labelFor(bairros, value)"></span>
+              </template>
+              <span x-show="bairros.selected.length > 2" class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600" x-text="'+' + (bairros.selected.length - 2)"></span>
+            </span>
+          </button>
+          <div x-cloak x-show="bairros.open" class="absolute z-30 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+            <div class="p-2 border-b border-gray-100">
+              <input type="text" x-model="bairros.search" placeholder="Filtrar bairro" class="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            </div>
+            <div class="max-h-72 overflow-y-auto p-1">
+              <div x-show="!cidades.selected.length && !bairros.selected.length" class="px-3 py-4 text-sm text-gray-500">
+                Escolha uma cidade para carregar os bairros.
+              </div>
+              <template x-for="option in visibleOptions(bairros, neighborhoodOptions())" :key="'bairro-option-' + option.estado + '-' + option.cidade + '-' + option.value">
+                <button type="button" @click="toggleOption(bairros, option.value)" class="flex w-full items-center justify-between rounded px-3 py-2 text-sm hover:bg-emerald-50">
+                  <span x-text="option.label"></span>
+                  <span class="h-5 w-5 rounded border text-center text-xs leading-5" :class="isSelected(bairros, option.value) ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 text-transparent'">✓</span>
+                </button>
+              </template>
+            </div>
+            <div class="flex items-center justify-between border-t border-gray-100 px-3 py-2">
+              <button type="button" @click="clearSelect(bairros)" class="text-xs text-gray-500 hover:text-gray-900">Limpar</button>
+              <span class="text-xs text-gray-400" x-text="visibleOptions(bairros, neighborhoodOptions()).length + ' opções'"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative" @click.outside="tipos.open = false">
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Tipo</label>
+          <template x-for="value in tipos.selected" :key="'tipo-input-' + value">
+            <input type="hidden" name="tipos" :value="value">
+          </template>
+          <button type="button" @click="togglePanel(tipos)" class="w-full min-h-11 px-3 py-2 border border-gray-300 rounded-lg bg-white text-left text-sm hover:border-teal-300 focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            <span x-show="!tipos.selected.length" class="text-gray-500">Todos os tipos</span>
+            <span x-show="tipos.selected.length" class="flex flex-wrap gap-1">
+              <template x-for="value in tipos.selected.slice(0, 2)" :key="'tipo-chip-' + value">
+                <span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700" x-text="labelFor(tipos, value)"></span>
+              </template>
+              <span x-show="tipos.selected.length > 2" class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600" x-text="'+' + (tipos.selected.length - 2)"></span>
+            </span>
+          </button>
+          <div x-cloak x-show="tipos.open" class="absolute z-30 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+            <div class="p-1">
+              <template x-for="option in tipos.options" :key="'tipo-option-' + option.value">
+                <button type="button" @click="toggleOption(tipos, option.value)" class="flex w-full items-center justify-between rounded px-3 py-2 text-sm hover:bg-gray-50">
+                  <span x-text="option.label"></span>
+                  <span class="h-5 w-5 rounded border text-center text-xs leading-5" :class="isSelected(tipos, option.value) ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-300 text-transparent'">✓</span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtro: Valor -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Valor do lance</label>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-gray-600">Mín. R$</label>
+              <input
+                type="number"
+                name="valor_min"
+                value="{{ filtros_ativos.valor_min }}"
+                placeholder="100.000"
+                class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Máx. R$</label>
+              <input
+                type="number"
+                name="valor_max"
+                value="{{ filtros_ativos.valor_max }}"
+                placeholder="1.000.000"
+                class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtro: Desconto -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Desconto</label>
+          <div class="flex gap-2">
+            <label class="flex-1 text-center cursor-pointer">
+              <input type="radio" name="desconto" value="0-10" class="peer sr-only" {% if filtros_ativos.desconto == "0-10" %}checked{% endif %}>
+              <span class="block text-xs py-2 px-1 border border-gray-300 rounded hover:bg-gray-50 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">0-10%</span>
+            </label>
+            <label class="flex-1 text-center cursor-pointer">
+              <input type="radio" name="desconto" value="10-20" class="peer sr-only" {% if filtros_ativos.desconto == "10-20" %}checked{% endif %}>
+              <span class="block text-xs py-2 px-1 border border-gray-300 rounded hover:bg-gray-50 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">10-20%</span>
+            </label>
+            <label class="flex-1 text-center cursor-pointer">
+              <input type="radio" name="desconto" value="20-30" class="peer sr-only" {% if filtros_ativos.desconto == "20-30" %}checked{% endif %}>
+              <span class="block text-xs py-2 px-1 border border-gray-300 rounded hover:bg-gray-50 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">20-30%</span>
+            </label>
+            <label class="flex-1 text-center cursor-pointer">
+              <input type="radio" name="desconto" value="30+" class="peer sr-only" {% if filtros_ativos.desconto == "30+" %}checked{% endif %}>
+              <span class="block text-xs py-2 px-1 border border-gray-300 rounded hover:bg-gray-50 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">30%+</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Filtro: Formas de Pagamento -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Pagamento</label>
+          <div class="flex flex-wrap gap-2">
+            <label class="cursor-pointer">
+              <input type="checkbox" name="financiamento" class="peer sr-only" {% if filtros_ativos.financiamento %}checked{% endif %}>
+              <span class="inline-flex px-3 py-1.5 rounded border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:text-green-700">Financiamento</span>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" name="fgts" class="peer sr-only" {% if filtros_ativos.fgts %}checked{% endif %}>
+              <span class="inline-flex px-3 py-1.5 rounded border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700">FGTS</span>
+            </label>
+            <label class="cursor-pointer">
+              <input type="checkbox" name="consorcio" class="peer sr-only" {% if filtros_ativos.consorcio %}checked{% endif %}>
+              <span class="inline-flex px-3 py-1.5 rounded border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 peer-checked:border-purple-500 peer-checked:bg-purple-50 peer-checked:text-purple-700">Consórcio</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Botões -->
+        <div class="flex gap-2">
+          <button
+            type="submit"
+            class="flex-1 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-bold text-sm transition-colors">
+            Aplicar Filtros
+          </button>
+          <a
+            href="{% url 'leiloes:explorador' %}"
+            class="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium text-sm text-center hover:bg-gray-50">
+            Limpar
+          </a>
+        </div>
+      </form>
+    </div>
+  </aside>
+
+  <!-- ÁREA PRINCIPAL: RESULTADOS -->
+  <div class="flex-1">
+    <div class="bg-white rounded-lg border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Resultados</h2>
+          <p class="text-sm text-gray-600">{{ total }} imóvel{{ total|pluralize }}</p>
+        </div>
+        <div class="flex gap-3">
+          <select onchange="const url = new URL(window.location); url.searchParams.set('itens_por_pagina', this.value); url.searchParams.delete('page'); window.location = url.toString();" class="px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            <option value="12" {% if itens_por_pagina == 12 %}selected{% endif %}>12 por página</option>
+            <option value="24" {% if itens_por_pagina == 24 %}selected{% endif %}>24 por página</option>
+            <option value="36" {% if itens_por_pagina == 36 %}selected{% endif %}>36 por página</option>
+            <option value="48" {% if itens_por_pagina == 48 %}selected{% endif %}>48 por página</option>
+          </select>
+          <select onchange="document.getElementById('filtros-form').querySelector('[name=ordenar]').value = this.value; document.getElementById('filtros-form').submit();" class="px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+            <option value="-data_leilao" {% if filtros_ativos.ordenar == "-data_leilao" %}selected{% endif %}>Mais Recentes</option>
+            <option value="valor_minimo_lance" {% if filtros_ativos.ordenar == "valor_minimo_lance" %}selected{% endif %}>Menor Valor</option>
+            <option value="-valor_minimo_lance" {% if filtros_ativos.ordenar == "-valor_minimo_lance" %}selected{% endif %}>Maior Valor</option>
+            <option value="-percentual_desconto" {% if filtros_ativos.ordenar == "-percentual_desconto" %}selected{% endif %}>Maior Desconto</option>
+            <option value="modalidade_venda" {% if filtros_ativos.ordenar == "modalidade_venda" %}selected{% endif %}>Modalidade</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Grid de Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {% for imovel in page_obj %}
+          {% url 'leiloes:detalhe' imovel.imovel_id_caixa as detalhe_url %}
+          <div
+            role="link"
+            tabindex="0"
+            onclick="if (!event.target.closest('a,button')) window.location.href='{{ detalhe_url }}';"
+            onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button')) { event.preventDefault(); window.location.href='{{ detalhe_url }}'; }"
+            class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-teal-200 transition-shadow bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <!-- Foto -->
+            <div class="h-40 bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center overflow-hidden">
+              <img
+                src="{% url 'leiloes:imagem' imovel.imovel_id_caixa %}"
+                alt="{{ imovel.endereco }}"
+                loading="lazy"
+                class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                onerror="this.parentElement.innerHTML='<span class=&quot;text-4xl&quot;>🏠</span>'">
+            </div>
+
+            <!-- Conteúdo do Card -->
+            <div class="p-4">
+              <!-- Título e Tipo -->
+              <h3 class="font-bold text-sm text-gray-900 line-clamp-2 mb-1">{{ imovel.endereco }}</h3>
+              <p class="text-xs text-gray-600 mb-2">📍 {{ imovel.cidade }} - {{ imovel.estado }}{% if imovel.bairro %} · {{ imovel.bairro }}{% endif %}</p>
+              <div class="flex items-center gap-2 text-xs text-gray-600 mb-3 flex-wrap">
+                <span class="bg-gray-100 px-2 py-1 rounded">{{ imovel.get_tipo_display }}</span>
+                {% if imovel.modalidade_venda %}
+                  <span class="bg-teal-50 text-teal-700 px-2 py-1 rounded">{{ imovel.modalidade_venda }}</span>
+                {% endif %}
+                {% if imovel.area_util %}
+                  <span class="bg-gray-100 px-2 py-1 rounded">{{ imovel.area_util|floatformat:0 }} m²</span>
+                {% endif %}
+                {% if imovel.quartos %}
+                  <span class="bg-gray-100 px-2 py-1 rounded">{{ imovel.quartos }}q</span>
+                {% endif %}
+              </div>
+
+              <!-- Valores -->
+              <div class="mb-3 pb-3 border-t border-gray-100">
+                <div class="text-xs text-gray-600 mb-1">Avaliação</div>
+                <div class="text-lg font-bold text-gray-900">{{ imovel.valor_avaliacao|brl }}</div>
+                <div class="text-sm text-green-600 font-bold mb-2">
+                  -{{ imovel.percentual_desconto|floatformat:0 }}% 🟢
+                </div>
+                <div class="text-xs text-gray-600 mb-1">Lance mín.</div>
+                <div class="font-bold text-teal-600">{{ imovel.valor_minimo_lance|brl }}</div>
+                {% if imovel.valor_por_m2 %}
+                  <div class="text-xs text-gray-600 mt-2">{{ imovel.valor_por_m2|floatformat:0|brl }}/m²</div>
+                {% endif %}
+              </div>
+
+              <!-- Formas de Pagamento -->
+              <div class="flex flex-wrap gap-1 mb-3">
+                {% if imovel.pode_financiar %}
+                  <span class="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">💳 Financiamento</span>
+                {% endif %}
+                {% if imovel.pode_fgts %}
+                  <span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">🏢 FGTS</span>
+                {% endif %}
+                {% if imovel.pode_consorcio %}
+                  <span class="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded">🤝 Consórcio</span>
+                {% endif %}
+              </div>
+
+              <!-- Data do Leilão -->
+              <div class="text-xs text-gray-600 mb-3">
+                {% if imovel.data_leilao %}
+                  📅 {{ imovel.data_leilao|date:"d/m/Y" }}
+                  {% if imovel.hora_leilao %}
+                    às {{ imovel.hora_leilao|time:"H:i" }}
+                  {% endif %}
+                {% elif imovel.data_geracao_lista %}
+                  Lista Caixa: {{ imovel.data_geracao_lista|date:"d/m/Y" }}
+                {% else %}
+                  Dados importados da Caixa
+                {% endif %}
+              </div>
+
+              <!-- Pendências/Avisos -->
+              {% if imovel.pendencias %}
+                <div class="text-xs text-red-600 mb-3 bg-red-50 p-2 rounded">
+                  ⚠️ {{ imovel.pendencias|join:", " }}
+                </div>
+              {% endif %}
+
+              {% if imovel.ocupado %}
+                <div class="text-xs text-gray-600 mb-3 bg-gray-100 p-2 rounded">
+                  🔒 Ocupado
+                </div>
+              {% endif %}
+
+              <!-- Botões de Ação -->
+              <div class="flex flex-wrap gap-2">
+                {% if imovel.edital_url %}
+                  <a
+                    href="{{ imovel.edital_url }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex-1 min-w-20 px-2 py-1.5 text-xs border border-teal-300 text-teal-600 rounded hover:bg-teal-50 font-medium text-center transition-colors">
+                    📄 Edital
+                  </a>
+                {% endif %}
+                {% if imovel.matricula_url %}
+                  <a
+                    href="{{ imovel.matricula_url }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex-1 min-w-20 px-2 py-1.5 text-xs border border-blue-300 text-blue-600 rounded hover:bg-blue-50 font-medium text-center transition-colors">
+                    🧾 Matrícula
+                  </a>
+                {% endif %}
+                <button
+                  @click="simular_imovel('{{ imovel.imovel_id_caixa }}')"
+                  class="flex-1 min-w-20 px-2 py-1.5 text-xs bg-teal-500 text-white rounded hover:bg-teal-600 font-medium transition-colors">
+                  📊 Simular
+                </button>
+                <a
+                  href="{% if imovel.link_caixa %}{{ imovel.link_caixa }}{% else %}https://www.caixa.gov.br/imoveiscaixa{% endif %}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ver no site da Caixa"
+                  class="flex-1 min-w-20 px-2 py-1.5 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 font-medium text-center transition-colors">
+                  🔗 Caixa
+                </a>
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="col-span-3 text-center py-12">
+            <p class="text-gray-600 font-medium text-lg">🔍 Nenhum imóvel encontrado</p>
+            <p class="text-sm text-gray-500 mt-2">Tente ajustar os critérios de busca ou limpar os filtros.</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Paginação -->
+      {% if page_obj.has_other_pages %}
+        <div class="flex items-center justify-center gap-2 pt-6 border-t border-gray-200">
+          {% if page_obj.has_previous %}
+            <a href="?{% if querystring %}{{ querystring }}&{% endif %}page=1" class="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">⏮️ Primeira</a>
+            <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">◀️ Anterior</a>
+          {% endif %}
+
+          <span class="text-sm text-gray-600 px-3">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+          </span>
+
+          {% if page_obj.has_next %}
+            <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">Próxima ▶️</a>
+            <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">Última ⏭️</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+
+<script>
+function readJson(id) {
+  const element = document.getElementById(id);
+  return element ? JSON.parse(element.textContent) : [];
+}
+
+function createFilter(name, options, selected = []) {
+  return {
+    name,
+    options,
+    selected: Array.isArray(selected) ? selected.filter(Boolean) : [],
+    search: '',
+    open: false,
+  };
+}
+
+function explorador_leiloes() {
+  const estadosOptions = readJson('leiloes-estados-options');
+  const cidadesOptions = readJson('leiloes-cidades-options');
+  const bairrosOptions = readJson('leiloes-bairros-options');
+  const tiposOptions = readJson('leiloes-tipos-options');
+
+  return {
+    estados: createFilter('estados', estadosOptions, readJson('leiloes-selected-estados')),
+    cidades: createFilter('cidades', cidadesOptions, readJson('leiloes-selected-cidades')),
+    bairros: createFilter('bairros', bairrosOptions, readJson('leiloes-selected-bairros')),
+    tipos: createFilter('tipos', tiposOptions, readJson('leiloes-selected-tipos')),
+
+    togglePanel(select) {
+      this.estados.open = select === this.estados ? !select.open : false;
+      this.cidades.open = select === this.cidades ? !select.open : false;
+      this.bairros.open = select === this.bairros ? !select.open : false;
+      this.tipos.open = select === this.tipos ? !select.open : false;
+    },
+
+    isSelected(select, value) {
+      return select.selected.includes(value);
+    },
+
+    toggleOption(select, value) {
+      if (this.isSelected(select, value)) {
+        select.selected = select.selected.filter(item => item !== value);
+      } else {
+        select.selected = [...select.selected, value];
+      }
+
+      if (select === this.estados) {
+        this.pruneCities();
+        this.pruneNeighborhoods();
+      }
+      if (select === this.cidades) {
+        this.pruneNeighborhoods();
+      }
+    },
+
+    clearSelect(select) {
+      select.selected = [];
+      select.search = '';
+      if (select === this.estados) {
+        this.cidades.selected = [];
+        this.bairros.selected = [];
+      }
+      if (select === this.cidades) {
+        this.bairros.selected = [];
+      }
+    },
+
+    labelFor(select, value) {
+      const match = select.options.find(option => option.value === value);
+      if (!match) return value;
+      if (select === this.cidades || select === this.bairros) return match.value;
+      return match.label;
+    },
+
+    cityOptions() {
+      if (!this.estados.selected.length) {
+        return this.cidades.options.filter(option => this.cidades.selected.includes(option.value));
+      }
+      return this.cidades.options.filter(option => this.estados.selected.includes(option.estado));
+    },
+
+    pruneCities() {
+      if (!this.estados.selected.length) {
+        this.cidades.selected = [];
+        return;
+      }
+
+      const available = new Set(this.cityOptions().map(option => option.value));
+      this.cidades.selected = this.cidades.selected.filter(value => available.has(value));
+    },
+
+    neighborhoodOptions() {
+      if (!this.cidades.selected.length) {
+        return this.bairros.options.filter(option => this.bairros.selected.includes(option.value));
+      }
+
+      return this.bairros.options.filter(option => {
+        const cityMatch = this.cidades.selected.includes(option.cidade);
+        const stateMatch = !this.estados.selected.length || this.estados.selected.includes(option.estado);
+        return cityMatch && stateMatch;
+      });
+    },
+
+    pruneNeighborhoods() {
+      if (!this.cidades.selected.length) {
+        this.bairros.selected = [];
+        return;
+      }
+
+      const available = new Set(this.neighborhoodOptions().map(option => option.value));
+      this.bairros.selected = this.bairros.selected.filter(value => available.has(value));
+    },
+
+    visibleOptions(select, options) {
+      const query = (select.search || '').trim().toLowerCase();
+      let filtered = options;
+      if (query) {
+        filtered = filtered.filter(option => option.label.toLowerCase().includes(query));
+      }
+      return filtered.slice(0, 160);
+    },
+
+    simular_imovel(imovelId) {
+      fetch(`/leiloes/api/imovel/${imovelId}/`)
+        .then(r => r.json())
+        .then(data => {
+          const params = new URLSearchParams({
+            avaliacao: data.valor_avaliacao,
+            lance: data.valor_minimo_lance,
+            endereco: data.endereco,
+          });
+          window.location.href = `/calculadora/?${params.toString()}`;
+        })
+        .catch(err => {
+          alert('Erro ao carregar dados do imóvel');
+          console.error(err);
+        });
+    }
+  };
+}
+</script>
+{% endblock %}

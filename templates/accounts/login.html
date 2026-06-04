@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="min-h-screen bg-gradient-to-br from-stone-950 via-teal-950 to-slate-950 flex items-center justify-center p-4">
+  <div class="w-full max-w-md">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-teal-600 shadow-2xl mb-4">
+        <span class="text-xl font-black tracking-tight text-white">LA</span>
+      </div>
+      <h1 class="text-3xl font-bold text-white">LoteAlvo</h1>
+      <p class="text-stone-300 mt-1">Inteligência operacional para imóveis de leilão</p>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <h2 class="text-xl font-bold text-gray-900 mb-6">Entrar na sua conta</h2>
+      <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {{ form.non_field_errors|join:", " }}
+        </div>
+        {% endif %}
+        {% for field in form %}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+          <input type="{{ field.field.widget.input_type }}"
+                 name="{{ field.html_name }}"
+                 {% if field.value %}value="{{ field.value }}"{% endif %}
+                 class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition"
+                 autocomplete="{{ field.field.widget.attrs.autocomplete|default:field.html_name }}"
+                 {% if field.field.widget.attrs.inputmode %}inputmode="{{ field.field.widget.attrs.inputmode }}"{% endif %}>
+          {% if field.errors %}
+          <p class="text-red-500 text-xs mt-1">{{ field.errors|join:", " }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <button type="submit"
+                class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-lg transition-colors shadow-lg">
+          Entrar
+        </button>
+      </form>
+      <p class="mt-6 text-center text-sm text-gray-500">
+        Não tem conta?
+        <a href="{% url 'registro' %}" class="text-teal-500 hover:text-teal-600 font-semibold">Criar conta grátis</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

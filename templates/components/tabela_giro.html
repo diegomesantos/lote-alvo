@@ -1,0 +1,464 @@
+{% load leilao_tags %}
+{# Tabela de giro completa — usada em detalhe.html e resultado_htmx.html #}
+{# Requer: tg (dict {m: resultado}), giro_meses (list), tipo_pgto (opcional) #}
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6"
+     x-data="{ mesDetalhe: 12 }">
+
+  <!-- Cabeçalho -->
+  <div class="p-4 border-b border-gray-100">
+    <h3 class="font-bold text-gray-900">📅 Tabela de Giro — Análise completa por prazo</h3>
+    <p class="text-xs text-gray-500 mt-0.5">Todos os custos e receitas simulados simultaneamente para cada prazo de venda</p>
+  </div>
+
+  <!-- Tabela principal -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs border-collapse">
+      <thead>
+        <tr class="bg-stone-900 text-white">
+          <th class="p-3 text-left font-semibold sticky left-0 bg-stone-900 min-w-[160px]">Giro Venda</th>
+          {% for m in giro_meses %}
+          <th class="p-3 text-right font-semibold whitespace-nowrap min-w-[90px]">{{ m }}m</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- Receitas (verde) -->
+        <tr class="border-b border-gray-100 hover:bg-green-50/50">
+          <td class="p-3 font-medium text-gray-500 sticky left-0 bg-white">Receita Venda</td>
+          {% for m in giro_meses %}
+          <td class="p-3 text-right text-green-700 font-medium">{{ tg|dict_get:m|dict_get:"preco_venda"|brl_short }}</td>
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-green-50/50">
+          <td class="p-3 font-medium text-gray-500 sticky left-0 bg-white">Receita Aluguel</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"tot_aluguel" %}
+          <td class="p-3 text-right {% if v %}text-green-700{% else %}text-gray-300{% endif %}">
+            {% if v %}{{ v|brl_short }}{% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        <!-- Separador custos -->
+        <tr class="bg-gray-50">
+          <td colspan="{{ giro_meses|length|add:1 }}" class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide sticky left-0">
+            Custos de Aquisição
+          </td>
+        </tr>
+
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Valor Inicial Pago</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"val_inicial"|brl_short }})</td>{% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">ITBI</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"itbi"|brl_short }})</td>{% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Comissão Leiloeiro</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"com_leil"|brl_short }})</td>{% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Escritura</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"escritura" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Registro</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"registro"|brl_short }})</td>{% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Laudêmio</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"laudemio" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Reformas</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"reformas" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Custo Desocupação</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"custo_desocup" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Débitos do Imóvel</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"debitos" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Despesas Diversas</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"despesas_div" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        <!-- Separador recorrentes -->
+        <tr class="bg-gray-50">
+          <td colspan="{{ giro_meses|length|add:1 }}" class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide sticky left-0">
+            Custos Recorrentes
+          </td>
+        </tr>
+
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">IPTU no período</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"tot_iptu" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Condomínio no período</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"tot_cond" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Custo Oportunidade</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"cop" %}
+          <td class="p-3 text-right {% if v %}text-red-600{% else %}text-gray-300{% endif %}">
+            {% if v %}({{ v|brl_short }}){% else %}—{% endif %}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        <!-- Separador venda -->
+        <tr class="bg-gray-50">
+          <td colspan="{{ giro_meses|length|add:1 }}" class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide sticky left-0">
+            Custos de Venda & Fiscal
+          </td>
+        </tr>
+
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Corretor Venda</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"corretor"|brl_short }})</td>{% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Imposto de Renda</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"ir"|brl_short }})</td>{% endfor %}
+        </tr>
+
+        <!-- Financiamento (só mostra se há parcelas) -->
+        {% with has_fin=tg|dict_get:12|dict_get:"total_parc" %}
+        {% if has_fin %}
+        <tr class="bg-gray-50">
+          <td colspan="{{ giro_meses|length|add:1 }}" class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide sticky left-0">
+            Financiamento SAC
+          </td>
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Parcelas pagas</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"total_parc"|brl_short }})</td>{% endfor %}
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-red-50/30">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Saldo devedor (quitação)</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-red-600">({{ tg|dict_get:m|dict_get:"saldo_dev"|brl_short }})</td>{% endfor %}
+        </tr>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Separador resultado -->
+        <tr class="bg-blue-900">
+          <td colspan="{{ giro_meses|length|add:1 }}" class="px-3 py-1 sticky left-0 bg-blue-900"></td>
+        </tr>
+
+        <!-- Resultado Consolidado -->
+        <tr class="bg-blue-50 border-b-2 border-blue-200">
+          <td class="p-3 font-bold text-gray-900 text-sm sticky left-0 bg-blue-50">Resultado Consolidado</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"resultado" %}
+          <td class="p-3 text-right font-bold text-sm {% if v > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+            {{ v|brl_short }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        <!-- Custo até venda -->
+        <tr class="border-b border-gray-200 hover:bg-gray-50">
+          <td class="p-3 font-medium text-gray-600 sticky left-0 bg-white">Custo até Venda</td>
+          {% for m in giro_meses %}<td class="p-3 text-right text-gray-600">({{ tg|dict_get:m|dict_get:"custo_ate_venda"|brl_short }})</td>{% endfor %}
+        </tr>
+
+        <!-- ROI Capital Próprio -->
+        <tr class="bg-green-50 border-b border-green-100">
+          <td class="p-3 font-bold text-gray-900 text-sm sticky left-0 bg-green-50">ROI — Capital Próprio</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"roi" %}
+          <td class="p-3 text-right font-bold text-sm {% if v > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+            {{ v|pct }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="bg-green-50/50 border-b border-green-50">
+          <td class="p-3 text-gray-600 text-xs sticky left-0 bg-green-50/50">Taxa equiv. mensal</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"tem" %}
+          <td class="p-3 text-right text-xs {% if v > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ v|pct }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        <!-- ROI Custo até Venda -->
+        <tr class="bg-emerald-50 border-b border-emerald-100">
+          <td class="p-3 font-bold text-gray-900 text-sm sticky left-0 bg-emerald-50">ROI — Custo até Venda</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"roi_custo" %}
+          <td class="p-3 text-right font-bold text-sm {% if v > 0 %}text-emerald-700{% else %}text-red-700{% endif %}">
+            {{ v|pct }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+        <tr class="bg-emerald-50/50">
+          <td class="p-3 text-gray-600 text-xs sticky left-0 bg-emerald-50/50">Taxa equiv. mensal</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"tem_custo" %}
+          <td class="p-3 text-right text-xs {% if v > 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+            {{ v|pct }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Seletor de prazo + Detalhamento -->
+  <div class="border-t border-gray-200 p-4">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="text-sm font-bold text-gray-900">🔍 Detalhar prazo:</span>
+      <div class="flex gap-2 flex-wrap">
+        {% for m in giro_meses %}
+        <button @click="mesDetalhe = {{ m }}"
+                :class="mesDetalhe === {{ m }}
+                  ? 'bg-teal-500 text-white shadow'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+          {{ m }}m
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Detalhamento por prazo selecionado -->
+    {% for m in giro_meses %}
+    {% with r=tg|dict_get:m %}
+    <div x-show="mesDetalhe === {{ m }}" x-cloak>
+      <div class="bg-gray-50 rounded-xl border border-gray-200 p-4">
+        <h4 class="font-bold text-gray-900 mb-4">Detalhamento completo — {{ m }} mês{% if m > 1 %}es{% endif %}</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <!-- Custos -->
+          <div>
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Custos</div>
+            <div class="space-y-1">
+              {% if r.val_inicial %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Lance pago</span>
+                <span class="text-red-600 font-medium">({{ r.val_inicial|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.com_leil %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Comissão leiloeiro</span>
+                <span class="text-red-600 font-medium">({{ r.com_leil|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.itbi %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">ITBI</span>
+                <span class="text-red-600 font-medium">({{ r.itbi|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.escritura %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Escritura</span>
+                <span class="text-red-600 font-medium">({{ r.escritura|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.registro %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Registro</span>
+                <span class="text-red-600 font-medium">({{ r.registro|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.laudemio %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Laudêmio</span>
+                <span class="text-red-600 font-medium">({{ r.laudemio|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.reformas %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Reformas</span>
+                <span class="text-red-600 font-medium">({{ r.reformas|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.custo_desocup %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Desocupação</span>
+                <span class="text-red-600 font-medium">({{ r.custo_desocup|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.debitos %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Débitos</span>
+                <span class="text-red-600 font-medium">({{ r.debitos|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.despesas_div %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Despesas diversas</span>
+                <span class="text-red-600 font-medium">({{ r.despesas_div|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.tot_iptu %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">IPTU ({{ m }}m)</span>
+                <span class="text-red-600 font-medium">({{ r.tot_iptu|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.tot_cond %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Condomínio ({{ m }}m)</span>
+                <span class="text-red-600 font-medium">({{ r.tot_cond|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.cop %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Custo oportunidade</span>
+                <span class="text-red-600 font-medium">({{ r.cop|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.total_parc %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Financ. parcelas ({{ m }}m)</span>
+                <span class="text-red-600 font-medium">({{ r.total_parc|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.saldo_dev %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Financ. quitação (saldo)</span>
+                <span class="text-red-600 font-medium">({{ r.saldo_dev|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.corretor %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Corretor venda</span>
+                <span class="text-red-600 font-medium">({{ r.corretor|brl }})</span>
+              </div>
+              {% endif %}
+              {% if r.ir %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Imposto de Renda</span>
+                <span class="text-red-600 font-medium">({{ r.ir|brl }})</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Receitas e Resultado -->
+          <div>
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Receitas & Resultado</div>
+            <div class="space-y-1">
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Receita de venda</span>
+                <span class="text-green-700 font-medium">{{ r.preco_venda|brl }}</span>
+              </div>
+              {% if r.tot_aluguel %}
+              <div class="flex justify-between py-1.5 border-b border-gray-100 text-sm">
+                <span class="text-gray-600">Receita aluguel ({{ m }}m)</span>
+                <span class="text-green-700 font-medium">{{ r.tot_aluguel|brl }}</span>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Resultado final -->
+            <div class="mt-4 rounded-xl p-4
+              {% if r.resultado >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+              <div class="flex justify-between items-center">
+                <span class="font-bold text-gray-900">Resultado Consolidado</span>
+                <span class="text-xl font-bold {% if r.resultado >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                  {{ r.resultado|brl }}
+                </span>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-2">
+                <div class="bg-white rounded-lg p-2">
+                  <div class="text-xs text-gray-500">ROI cap. próprio</div>
+                  <div class="font-bold text-sm {% if r.roi >= 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.roi|pct }}</div>
+                </div>
+                <div class="bg-white rounded-lg p-2">
+                  <div class="text-xs text-gray-500">Taxa mensal</div>
+                  <div class="font-bold text-sm {% if r.tem >= 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.tem|pct }}</div>
+                </div>
+                <div class="bg-white rounded-lg p-2">
+                  <div class="text-xs text-gray-500">ROI custo venda</div>
+                  <div class="font-bold text-sm {% if r.roi_custo >= 0 %}text-emerald-700{% else %}text-red-700{% endif %}">{{ r.roi_custo|pct }}</div>
+                </div>
+                <div class="bg-white rounded-lg p-2">
+                  <div class="text-xs text-gray-500">Custo total</div>
+                  <div class="font-bold text-sm text-gray-900">{{ r.custo_total|brl_short }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tooltip ROI -->
+            <div class="mt-3 bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
+              <strong>ROI cap. próprio</strong>: resultado ÷ (entrada + custos obrigatórios).<br>
+              <strong>ROI custo venda</strong>: resultado ÷ custo total de saída da operação.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+</div>

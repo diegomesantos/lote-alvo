@@ -1,0 +1,68 @@
+{% load leilao_tags %}
+{# Tabela de resultados — versão compacta. #}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+    <div class="text-sm font-bold text-gray-800">Resultados</div>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-teal-100">
+          <th class="px-4 py-3 text-left font-semibold text-teal-600 bg-teal-50 text-xs w-44">Giro Venda (meses)</th>
+          {% for m in giro_meses %}
+          <th class="px-3 py-3 text-right font-bold text-teal-600 bg-teal-50 text-xs whitespace-nowrap">{{ m }} meses</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+
+        {# Resultado Consolidado #}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-bold text-gray-900 text-xs">Resultado Consolidado</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"resultado" %}
+          <td class="px-3 py-3 text-right text-xs font-bold {% if v >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ v|brl }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# Custo até Venda #}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-600 text-xs">Custo até Venda</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"custo_ate_venda" %}
+          <td class="px-3 py-3 text-right text-xs text-red-600">-{{ v|brl }}</td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# Lucro (ROI) #}
+        <tr class="hover:bg-gray-50 bg-green-50/40">
+          <td class="px-4 py-3 font-medium text-gray-600 text-xs">Lucro (%)</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"roi" %}
+          <td class="px-3 py-3 text-right text-xs font-semibold {% if v >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ v|pct }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# Taxa Equiv. Mensal #}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-600 text-xs">Taxa Equiv. Mensal</td>
+          {% for m in giro_meses %}
+          {% with v=tg|dict_get:m|dict_get:"tem" %}
+          <td class="px-3 py-3 text-right text-xs {% if v >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            {{ v|pct }}
+          </td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+</div>

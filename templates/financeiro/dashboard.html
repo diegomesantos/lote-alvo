@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% load leilao_tags %}
+{% block title %}Gestão Financeira — LoteAlvo{% endblock %}
+{% block page_title %}Gestão Financeira{% endblock %}
+{% block page_subtitle %}Relatório consolidado do seu portfólio de imóveis{% endblock %}
+
+{% block header_actions %}
+  <a href="{% url 'novo_lancamento' %}"
+     class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
+    + Novo Lançamento
+  </a>
+{% endblock %}
+
+{% block content %}
+<!-- Tabs -->
+<div class="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6">
+  <a href="?tab=ativas"
+     class="px-4 py-2 text-sm font-medium rounded-lg transition-colors
+       {% if tab_ativa == 'ativas' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+    Operações ativas
+  </a>
+  <a href="?tab=finalizadas"
+     class="px-4 py-2 text-sm font-medium rounded-lg transition-colors
+       {% if tab_ativa == 'finalizadas' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+    Operações finalizadas
+  </a>
+</div>
+
+<!-- KPIs -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-base">📥</div>
+      <div class="text-xs text-gray-500">Arrecadado</div>
+    </div>
+    <div class="text-xl font-bold text-gray-900">{{ total_receitas|brl_short }}</div>
+    <div class="text-xs text-gray-400 mt-1">em {{ total_imoveis }} {% if total_imoveis == 1 %}imóvel{% else %}imóveis{% endif %}</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-8 h-8 rounded-lg {% if lucro_liquido >= 0 %}bg-green-100{% else %}bg-red-100{% endif %} flex items-center justify-center text-base">
+        {% if lucro_liquido >= 0 %}📈{% else %}📉{% endif %}
+      </div>
+      <div class="text-xs text-gray-500">Lucro líquido</div>
+    </div>
+    <div class="text-xl font-bold {% if lucro_liquido >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+      {{ lucro_liquido|brl_short }}
+    </div>
+    <div class="text-xs text-gray-400 mt-1">receitas − despesas</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-base">📊</div>
+      <div class="text-xs text-gray-500">ROI médio</div>
+    </div>
+    <div class="text-xl font-bold text-gray-900">
+      {% if roi_medio %}{{ roi_medio|pct }}{% else %}—{% endif %}
+    </div>
+    <div class="text-xs text-gray-400 mt-1">ponderado por capital</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-base">⏱️</div>
+      <div class="text-xs text-gray-500">Tempo médio</div>
+    </div>
+    <div class="text-xl font-bold text-gray-900">
+      {% if tempo_medio %}{{ tempo_medio|floatformat:0 }}m{% else %}—{% endif %}
+    </div>
+    <div class="text-xs text-gray-400 mt-1">por operação</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <!-- Lucro por operação -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+      <div class="font-bold text-gray-900 text-sm">📊 Lucro por operação</div>
+      <span class="text-xs text-gray-400">{{ operacoes|length }} {% if operacoes|length == 1 %}operação{% else %}operações{% endif %}</span>
+    </div>
+    {% if operacoes %}
+    <div class="divide-y divide-gray-100">
+      {% for op in operacoes %}
+      <div class="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+        <div>
+          <a href="{% url 'detalhe' op.imovel.pk %}"
+             class="text-sm font-medium text-gray-900 hover:text-teal-600">
+            {{ op.imovel.endereco }}
+          </a>
+          <div class="text-xs text-gray-500">{{ op.imovel.cidade }} — {{ op.imovel.estado }}</div>
+        </div>
+        <div class="text-right">
+          <div class="font-bold {% if op.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+            {{ op.resultado|brl_short }}
+          </div>
+          <div class="text-xs text-gray-500">ROI: {{ op.roi|pct }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">
+      <div class="text-3xl mb-2">📭</div>
+      Nenhuma operação finalizada ainda.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Histórico de lançamentos -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+      <div class="font-bold text-gray-900 text-sm">📋 Histórico de operações</div>
+      <a href="{% url 'novo_lancamento' %}" class="text-xs text-teal-500 hover:text-teal-600 font-medium">
+        + Novo
+      </a>
+    </div>
+    {% if historico %}
+    <div class="divide-y divide-gray-100">
+      {% for l in historico %}
+      <div class="p-3 flex items-center justify-between hover:bg-gray-50 group">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base
+            {% if l.tipo == 'receita' %}bg-green-100{% else %}bg-red-100{% endif %}">
+            {% if l.tipo == 'receita' %}📥{% else %}📤{% endif %}
+          </div>
+          <div>
+            <div class="text-sm font-medium text-gray-900">{{ l.descricao }}</div>
+            <div class="text-xs text-gray-500">
+              {{ l.data }} · {% if l.imovel %}{{ l.imovel.endereco }}{% else %}Portfólio geral{% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="font-bold text-sm {% if l.tipo == 'receita' %}text-green-700{% else %}text-red-700{% endif %}">
+            {% if l.tipo == 'receita' %}+{% else %}-{% endif %}{{ l.valor|brl_short }}
+          </div>
+          <div class="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+            <a href="{% url 'editar_lancamento' l.pk %}" class="text-xs text-gray-400 hover:text-blue-500">✏️</a>
+            <form method="post" action="{% url 'excluir_lancamento' l.pk %}"
+                  onsubmit="return confirm('Excluir lançamento?')">
+              {% csrf_token %}
+              <button class="text-xs text-gray-400 hover:text-red-500">🗑️</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">
+      <div class="text-3xl mb-2">📭</div>
+      Nenhuma operação financeira registrada ainda.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Investido vs Planejado -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+  <button class="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          onclick="this.nextElementSibling.classList.toggle('hidden')">
+    <div class="flex items-center gap-3">
+      <span class="text-lg">📊</span>
+      <div class="text-left">
+        <div class="font-bold text-gray-900 text-sm">Investido vs Planejado</div>
+        <div class="text-xs text-gray-500">Comparação por categoria de despesa</div>
+      </div>
+    </div>
+    <span class="text-gray-400 text-sm">›</span>
+  </button>
+  <div class="hidden border-t border-gray-100">
+    {% if por_categoria %}
+    <div class="divide-y divide-gray-100">
+      {% for cat in por_categoria %}
+      <div class="p-4 flex items-center justify-between">
+        <div class="text-sm text-gray-700">
+          {% if cat.categoria__icone %}{{ cat.categoria__icone }} {% endif %}
+          {{ cat.categoria__nome|default:"Sem categoria" }}
+          <span class="ml-2 text-xs px-2 py-0.5 rounded-full
+            {% if cat.tipo == 'receita' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+            {{ cat.tipo }}
+          </span>
+        </div>
+        <div class="font-bold {% if cat.tipo == 'receita' %}text-green-700{% else %}text-red-700{% endif %}">
+          {{ cat.total|brl_short }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">Nenhum lançamento categorizado ainda.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Imposto de Renda — Gastos tributáveis por imóvel -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mt-6" x-data="{ open: false }">
+  <button @click="open = !open"
+          class="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-xl">
+    <div class="flex items-center gap-3">
+      <span class="text-lg">📄</span>
+      <div class="text-left">
+        <div class="font-bold text-gray-900 text-sm">Imposto de Renda</div>
+        <div class="text-xs text-gray-500">Gastos tributáveis por imóvel — base de cálculo do ganho de capital</div>
+      </div>
+    </div>
+    <span class="text-gray-400 text-sm transition-transform" :class="open ? 'rotate-90' : ''">›</span>
+  </button>
+
+  <div x-show="open" x-cloak class="border-t border-gray-100">
+    {% if ir_por_imovel %}
+
+    <!-- Cabeçalho informativo -->
+    <div class="px-4 py-3 bg-amber-50 border-b border-amber-100">
+      <div class="text-xs text-amber-800">
+        <strong>Como funciona:</strong> O IR incide sobre o lucro bruto da venda (preço venda − custo de aquisição − benfeitorias).
+        Reformas e melhorias documentadas com NF reduzem a base tributável.
+        Alíquota PF: 15% (até R$ 5M) | PJ: 15% flat (Lei 8.134/90 e atualizações).
+      </div>
+    </div>
+
+    <!-- Por imóvel -->
+    <div class="divide-y divide-gray-100">
+      {% for item in ir_por_imovel %}
+      <div class="p-4" x-data="{ expandIR: false }">
+        <!-- Header do imóvel -->
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <a href="{% url 'detalhe' item.imovel.pk %}"
+               class="font-bold text-gray-900 hover:text-teal-600 text-sm">
+              🏠 {{ item.imovel.endereco }}
+            </a>
+            <div class="text-xs text-gray-500 mt-0.5">
+              {{ item.imovel.cidade }} — {{ item.imovel.estado }} ·
+              <span class="font-medium">{{ item.imovel.tipo_pessoa }}</span>
+            </div>
+          </div>
+          <button @click="expandIR = !expandIR"
+                  class="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+            <span x-text="expandIR ? 'Recolher' : 'Detalhar'"></span>
+            <span x-text="expandIR ? '▲' : '▼'"></span>
+          </button>
+        </div>
+
+        <!-- KPIs IR -->
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="bg-gray-50 rounded-lg p-2.5">
+            <div class="text-xs text-gray-500">Preço de venda</div>
+            <div class="font-bold text-gray-900 text-sm mt-0.5">{{ item.preco_venda|brl_short }}</div>
+          </div>
+          <div class="bg-amber-50 rounded-lg p-2.5">
+            <div class="text-xs text-amber-700">Lucro bruto (base IR)</div>
+            <div class="font-bold text-amber-800 text-sm mt-0.5">{{ item.lucro_bruto|brl_short }}</div>
+          </div>
+          <div class="bg-red-50 rounded-lg p-2.5">
+            <div class="text-xs text-red-700">IR estimado</div>
+            <div class="font-bold text-red-700 text-sm mt-0.5">
+              {% if item.ir_estimado %}
+                {{ item.ir_estimado|brl_short }}
+              {% else %}
+                <span class="text-gray-400">—</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Detalhe gastos dedutíveis -->
+        <div x-show="expandIR" x-cloak>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+
+            <!-- Gastos dedutíveis do motor de cálculo -->
+            <div class="bg-green-50 rounded-lg border border-green-100 p-3">
+              <div class="text-xs font-bold text-green-800 mb-2 flex items-center justify-between">
+                <span>Gastos dedutíveis (simulados)</span>
+                <span class="bg-green-200 text-green-800 px-2 py-0.5 rounded-full">{{ item.total_dedutiveis|brl_short }}</span>
+              </div>
+              <div class="space-y-1">
+                {% for nome, valor in item.gastos_dedutiveis %}
+                <div class="flex justify-between text-xs py-1 border-b border-green-100">
+                  <span class="text-gray-600">{{ nome }}</span>
+                  <span class="font-medium text-green-700">{{ valor|brl }}</span>
+                </div>
+                {% empty %}
+                <div class="text-xs text-gray-400">Nenhum gasto dedutível simulado.</div>
+                {% endfor %}
+              </div>
+              <div class="mt-2 text-xs text-green-700 flex items-center gap-1">
+                ✅ Para deduzir reformas, guarde as notas fiscais.
+              </div>
+            </div>
+
+            <!-- Lançamentos financeiros registrados -->
+            <div class="bg-blue-50 rounded-lg border border-blue-100 p-3">
+              <div class="text-xs font-bold text-blue-800 mb-2 flex items-center justify-between">
+                <span>Lançamentos registrados</span>
+                {% if item.total_lancamentos %}
+                <span class="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">{{ item.total_lancamentos }}</span>
+                {% endif %}
+              </div>
+              {% if item.lancamentos %}
+              <div class="space-y-1">
+                {% for l in item.lancamentos %}
+                <div class="flex justify-between text-xs py-1 border-b border-blue-100">
+                  <span class="text-gray-600">{{ l.descricao|truncatechars:25 }}</span>
+                  <span class="font-medium text-red-600">{{ l.valor|brl_short }}</span>
+                </div>
+                {% endfor %}
+                {% if item.total_lancamentos > 5 %}
+                <a href="{% url 'novo_lancamento' %}?imovel={{ item.imovel.pk }}"
+                   class="text-xs text-blue-600 hover:text-blue-700 block mt-1">
+                  + {{ item.total_lancamentos|add:"-5" }} lançamento(s) a mais →
+                </a>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="text-xs text-gray-400 py-2">
+                Nenhum lançamento registrado para este imóvel.
+                <a href="{% url 'novo_lancamento' %}?imovel={{ item.imovel.pk }}"
+                   class="text-blue-600 hover:text-blue-700 block mt-1">
+                  + Registrar primeiro lançamento →
+                </a>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">
+      <div class="text-3xl mb-2">📄</div>
+      Nenhum imóvel cadastrado para calcular o IR.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

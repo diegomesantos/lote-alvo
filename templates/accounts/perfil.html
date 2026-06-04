@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Perfil — LoteAlvo{% endblock %}
+{% block page_title %}Configurações{% endblock %}
+{% block page_subtitle %}Gerencie sua conta e plano{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <!-- Plano -->
+  <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
+    <h2 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+      💎 Plano atual
+    </h2>
+    {% with profile=request.user.profile %}
+    <div class="flex items-center justify-between p-4 rounded-lg
+      {% if profile.is_pro %}bg-teal-50 border border-teal-200{% else %}bg-gray-50 border border-gray-200{% endif %}">
+      <div>
+        <div class="font-bold text-gray-900">
+          {% if profile.is_pro %}
+            <span class="text-teal-600">✨ Plano Pro</span>
+          {% else %}
+            Plano Gratuito
+          {% endif %}
+        </div>
+        <div class="text-sm text-gray-500 mt-1">
+          {% if profile.is_pro %}
+            Imóveis ilimitados · Gestão financeira completa · Exportação PDF
+          {% else %}
+            Até 5 imóveis · Calculadora ilimitada
+          {% endif %}
+        </div>
+      </div>
+      {% if not profile.is_pro %}
+      <button class="bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">
+        Upgrade para Pro
+      </button>
+      {% endif %}
+    </div>
+    {% endwith %}
+  </div>
+
+  <!-- Dados pessoais -->
+  <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+    <h2 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+      👤 Dados pessoais
+    </h2>
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+      {% csrf_token %}
+      {% for field in form %}
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+        <p class="text-red-500 text-xs mt-1">{{ field.errors|join:", " }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit"
+              class="bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow">
+        Salvar alterações
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
