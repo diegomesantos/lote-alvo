@@ -1,12 +1,13 @@
 # 🔐 Variáveis de Ambiente - Railway Setup
 
-## ⚡ TL;DR - Comece com Essas 4 Variáveis
+## ⚡ TL;DR - Comece com Essas 5 Variáveis
 
 ```
 SECRET_KEY=u@u7+@2^6k+yr9s6idivsxa74g=#ph+ameu(j*y=_825^f$$rz
 DEBUG=False
 ALLOWED_HOSTS=*.railway.app
 DJANGO_SETTINGS_MODULE=config.settings.production
+CSRF_TRUSTED_ORIGINS=https://*.railway.app
 ```
 
 **Banco e Cache**: Railway cria automaticamente quando você adiciona PostgreSQL e Redis
@@ -15,7 +16,7 @@ DJANGO_SETTINGS_MODULE=config.settings.production
 
 ## 📖 Guia Completo
 
-### 1️⃣ OBRIGATÓRIAS (4 variáveis)
+### 1️⃣ OBRIGATÓRIAS (5 variáveis)
 
 #### SECRET_KEY
 - **O quê**: Chave de segurança do Django
@@ -36,6 +37,12 @@ DJANGO_SETTINGS_MODULE=config.settings.production
 - **O quê**: Qual arquivo de settings usar
 - **Valor**: `config.settings.production`
 - **Não mude**: Já está configurado para produção
+
+#### CSRF_TRUSTED_ORIGINS
+- **O quê**: Origens confiáveis para CSRF protection
+- **Valor**: `https://*.railway.app`
+- **Depois**: Quando tiver domínio próprio: `https://seu-dominio.com.br,https://*.railway.app`
+- **Formato**: URLs completas com https://
 
 ---
 
@@ -130,6 +137,7 @@ DJANGO_SETTINGS_MODULE = config.settings.production
 - [ ] DEBUG = False
 - [ ] ALLOWED_HOSTS = *.railway.app
 - [ ] DJANGO_SETTINGS_MODULE = config.settings.production
+- [ ] CSRF_TRUSTED_ORIGINS = https://*.railway.app
 - [ ] PostgreSQL adicionado (DATABASE_URL auto)
 - [ ] Redis adicionado (REDIS_URL auto)
 - [ ] Deploy iniciado
