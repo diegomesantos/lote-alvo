@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-preDeployCommand = ["python manage.py migrate --settings=config.settings.production"]
+preDeployCommand = ["python manage.py migrate --settings=config.settings.production && python manage.py collectstatic --noinput --settings=config.settings.production"]
 startCommand = "gunicorn config.wsgi --log-file -"
 healthcheckPath = "/accounts/login/"
 healthcheckTimeout = 100
