@@ -5,12 +5,17 @@ from decouple import config
 DEBUG = False
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*").split(",")
 
+DATABASE_URL = config("DATABASE_URL", default="")
+
 DATABASES = {
     "default": dj_database_url.config(
-        default=config("DATABASE_URL"),
+        default=DATABASE_URL,
         conn_max_age=600,
         ssl_require=True,
-    )
+    ) if DATABASE_URL else {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": "db.sqlite3",
+    }
 }
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
