@@ -14,7 +14,7 @@ from .models import (
     Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario,
     CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR, ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
 )
-from .forms import ImovelForm, ImovelArquivoForm
+from .forms import ImovelForm, ImovelArquivoForm, ImovelFinanceiroExpressForm
 
 
 def _resultado_resumo(imovel, meses=6):
@@ -328,6 +328,15 @@ def atualizar_etapa(request, pk):
     if nova_etapa in dict(ETAPA_CHOICES):
         imovel.etapa = nova_etapa
         imovel.save(update_fields=["etapa"])
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({
+                "success": True,
+                "etapa": imovel.etapa,
+                "fase": imovel.fase,
+                "label": imovel.etapa_display,
+            })
+    elif request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"success": False, "error": "Etapa inválida."}, status=400)
     if request.headers.get("HX-Request"):
         return HttpResponse(status=204)
     return redirect("kanban")
@@ -515,9 +524,25 @@ def detalhe(request, pk):
         "checklist_operacional": checklist_operacional,
         "arquivos": arquivos,
         "arquivo_form": ImovelArquivoForm(),
+        "financeiro_express_form": ImovelFinanceiroExpressForm(instance=imovel),
         "comentarios": comentarios,
         "export_rows": export_rows,
     })
+
+
+@login_required
+@require_POST
+def atualizar_financeiro_express(request, pk):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    form = ImovelFinanceiroExpressForm(request.POST, instance=imovel)
+    destino = f"{reverse('detalhe', args=[imovel.pk])}#financeiro-express"
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Financeiro atualizado e relatório recalculado.")
+        return redirect(destino)
+
+    messages.error(request, "Não foi possível salvar os dados financeiros. Revise os campos destacados.")
+    return redirect(destino)
 
 
 @login_required

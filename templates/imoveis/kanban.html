@@ -54,6 +54,28 @@
           </div>
         </div>
         {% endfor %}
+        <div class="kanban-col kanban-drop-arrematado flex w-[18rem] flex-col rounded-lg border-2 border-dashed border-gray-300 bg-white/70 p-4 shadow-sm transition-colors sm:w-80"
+             data-etapa="registro_desocupacao"
+             data-arrematado-drop="true">
+          <div class="rounded-lg border-l-4 border-gray-300 bg-gray-50 p-3">
+            <div class="font-bold text-sm text-gray-500">Arrematado</div>
+            <div class="mt-1 text-xs text-gray-400">Solte aqui para iniciar o pós-arrematação</div>
+          </div>
+          <div class="kanban-cards flex min-h-[28rem] flex-1 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-4 text-center"
+               data-sortable-group="kanban">
+            <div class="pointer-events-none flex max-w-[14rem] flex-col items-center gap-3 text-gray-400">
+              <div class="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-white">
+                <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 11.5 12 4l9 7.5"></path>
+                  <path d="M5.5 10.5V20h13v-9.5"></path>
+                  <path d="M9 20v-6h6v6"></path>
+                </svg>
+              </div>
+              <div class="text-sm font-bold">Arrematado</div>
+              <div class="text-xs leading-relaxed">Arraste um card aprovado para criar a primeira fase operacional.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -106,11 +128,21 @@ document.addEventListener('DOMContentLoaded', function() {
       animation: 150,
       ghostClass: 'sortable-ghost',
       dragClass: 'sortable-drag',
+      draggable: '.kanban-card',
       handle: '.kanban-card',
+      onStart: function() {
+        const dropzone = document.querySelector('[data-arrematado-drop="true"]');
+        if (dropzone) dropzone.classList.add('border-teal-400', 'bg-teal-50');
+      },
       onEnd: function(evt) {
         const card = evt.item;
         const cardId = card.dataset.id;
-        const newEtapa = card.parentElement.closest('.kanban-col').dataset.etapa;
+        const targetCol = card.parentElement.closest('.kanban-col');
+        const newEtapa = targetCol.dataset.etapa;
+        const isArrematadoDrop = targetCol.dataset.arrematadoDrop === 'true';
+        document.querySelectorAll('[data-arrematado-drop="true"]').forEach(function(dropzone) {
+          dropzone.classList.remove('border-teal-400', 'bg-teal-50');
+        });
         
         // Atualiza contadores localmente
         updateCounters();
@@ -119,7 +151,8 @@ document.addEventListener('DOMContentLoaded', function() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': getCookie('csrftoken')
+            'X-CSRFToken': getCookie('csrftoken'),
+            'X-Requested-With': 'XMLHttpRequest'
           },
           body: `etapa=${newEtapa}`
         })
@@ -127,6 +160,17 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!response.ok) {
             console.error('Erro ao atualizar etapa:', response.status);
             location.reload();
+            return null;
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (!data || !data.success) return;
+          if (isArrematadoDrop) {
+            targetCol.classList.add('border-teal-500', 'bg-teal-50');
+            window.setTimeout(function() {
+              window.location.href = "{% url 'kanban' %}?aba=pos";
+            }, 450);
           }
         })
         .catch(error => {

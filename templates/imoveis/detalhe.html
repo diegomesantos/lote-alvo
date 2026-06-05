@@ -57,6 +57,35 @@
       break-inside: avoid;
     }
   }
+  #financeiro-express .field-money,
+  #financeiro-express .field-pct {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid #d1d5db;
+    border-radius: .5rem;
+    background: #fff;
+    transition: box-shadow .15s, border-color .15s;
+  }
+  #financeiro-express .field-money:focus-within,
+  #financeiro-express .field-pct:focus-within {
+    border-color: #2dd4bf;
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, .35);
+  }
+  #financeiro-express .field-prefix,
+  #financeiro-express .field-suffix {
+    flex-shrink: 0;
+    border-right: 1px solid #d1d5db;
+    background: #f9fafb;
+    padding: .5rem .75rem;
+    color: #6b7280;
+    font-size: .875rem;
+    font-weight: 600;
+  }
+  #financeiro-express .field-suffix {
+    border-left: 1px solid #d1d5db;
+    border-right: 0;
+  }
 </style>
 
 <div id="exportRows" class="hidden">
@@ -74,6 +103,7 @@
       <a href="#documentos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Documentos</a>
       <a href="#juridico" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Jurídico</a>
       <a href="#checklist" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Checklist</a>
+      <a href="#financeiro-express" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Express</a>
       <a href="#financeiro" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Financeiro</a>
       <a href="#arquivos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Arquivos</a>
       <a href="#comentarios" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Comentários</a>
@@ -433,6 +463,129 @@
             </details>
           {% endfor %}
         </div>
+      </section>
+
+      <section id="financeiro-express" class="no-print scroll-mt-24 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <form method="post" action="{% url 'atualizar_financeiro_express' imovel.pk %}" class="space-y-5">
+          {% csrf_token %}
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 class="text-base font-bold text-gray-950">Gerenciamento financeiro express</h3>
+              <p class="mt-1 max-w-3xl text-sm text-gray-600">Atualize os principais lançamentos, custos e premissas da operação sem sair do relatório.</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <a href="#financeiro"
+                 class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Ver cálculo completo
+              </a>
+              <button type="submit"
+                      class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">
+                Salvar e recalcular
+              </button>
+            </div>
+          </div>
+
+          {% if r %}
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div class="text-xs font-semibold uppercase text-gray-500">Capital na operação</div>
+                <div class="mt-1 text-lg font-bold text-gray-950">-{{ r.custo_ate_venda|brl }}</div>
+              </div>
+              <div class="rounded-lg border {% if r.resultado > 0 %}border-green-100 bg-green-50{% else %}border-red-100 bg-red-50{% endif %} p-3">
+                <div class="text-xs font-semibold uppercase {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">Resultado projetado</div>
+                <div class="mt-1 text-lg font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.resultado|brl }}</div>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div class="text-xs font-semibold uppercase text-gray-500">ROI no giro padrão</div>
+                <div class="mt-1 text-lg font-bold text-gray-950">{{ r.roi|pct }}</div>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div class="text-xs font-semibold uppercase text-gray-500">Giro usado</div>
+                <div class="mt-1 text-lg font-bold text-gray-950">{{ imovel.giro_padrao }} meses</div>
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="grid grid-cols-1 gap-4 xl:grid-cols-4">
+            <div class="rounded-lg border border-gray-200 p-4">
+              <div class="mb-4">
+                <h4 class="text-sm font-bold text-gray-950">Valores de entrada e saída</h4>
+                <p class="mt-1 text-xs text-gray-500">Base da decisão e preço alvo.</p>
+              </div>
+              <div class="space-y-3">
+                {% money_field financeiro_express_form.avaliacao "Avaliação" %}
+                {% money_field financeiro_express_form.lance "Lance / arrematação" %}
+                {% money_field financeiro_express_form.preco_venda "Venda prevista" %}
+                {% money_field financeiro_express_form.rec_aluguel_am "Aluguel mensal previsto" %}
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.giro_padrao.label }}</label>
+                  {{ financeiro_express_form.giro_padrao }}
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-4">
+              <div class="mb-4">
+                <h4 class="text-sm font-bold text-gray-950">Custos e recorrentes</h4>
+                <p class="mt-1 text-xs text-gray-500">Despesas que consomem caixa até a venda.</p>
+              </div>
+              <div class="space-y-3">
+                {% money_field financeiro_express_form.reformas "Reformas" %}
+                {% money_field financeiro_express_form.custo_desocup "Desocupação" %}
+                {% money_field financeiro_express_form.debitos "Débitos do imóvel" %}
+                {% money_field financeiro_express_form.despesas_div "Outras despesas" %}
+                {% money_field financeiro_express_form.iptu_am "IPTU mensal" %}
+                {% money_field financeiro_express_form.cond_am "Condomínio mensal" %}
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-4">
+              <div class="mb-4">
+                <h4 class="text-sm font-bold text-gray-950">Taxas e cartório</h4>
+                <p class="mt-1 text-xs text-gray-500">Premissas de aquisição e venda.</p>
+              </div>
+              <div class="space-y-3">
+                {% pct_field financeiro_express_form.pct_leiloeiro "Leiloeiro" %}
+                {% pct_field financeiro_express_form.pct_corretor "Corretor" %}
+                {% money_field financeiro_express_form.av_fiscal "Avaliação fiscal" %}
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.pct_itbi_base.label }}</label>
+                  {{ financeiro_express_form.pct_itbi_base }}
+                </div>
+                {% pct_field financeiro_express_form.aliq_itbi "ITBI" %}
+                {% money_field financeiro_express_form.incremento_lance "Incremento de lance" %}
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 p-4">
+              <div class="mb-4">
+                <h4 class="text-sm font-bold text-gray-950">Pagamento e alvo</h4>
+                <p class="mt-1 text-xs text-gray-500">Financiamento, entrada e retorno mínimo.</p>
+              </div>
+              <div class="space-y-3">
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.tipo_pgto.label }}</label>
+                  {{ financeiro_express_form.tipo_pgto }}
+                </div>
+                {% pct_field financeiro_express_form.entrada "Entrada" %}
+                <div>
+                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.prazo_fin.label }}</label>
+                  {{ financeiro_express_form.prazo_fin }}
+                </div>
+                {% pct_field financeiro_express_form.cet_aa "CET a.a." %}
+                {% money_field financeiro_express_form.lucro_minimo "Lucro mínimo" %}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-xs text-gray-500">Depois de salvar, os KPIs, tabelas e relatório usam os novos valores.</p>
+            <button type="submit"
+                    class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700">
+              Salvar financeiro express
+            </button>
+          </div>
+        </form>
       </section>
 
       <section id="financeiro" class="space-y-6">

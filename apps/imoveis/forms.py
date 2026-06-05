@@ -113,10 +113,36 @@ class ImovelForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        if args and args[0] is not None:
+            args = list(args)
+            args[0] = self._normalize_br_payload(args[0])
+            args = tuple(args)
+        elif kwargs.get("data") is not None:
+            kwargs["data"] = self._normalize_br_payload(kwargs["data"])
+
         super().__init__(*args, **kwargs)
         # Torna todos os campos opcionais no formulário (eles têm defaults no model)
         for field_name in self.fields:
             self.fields[field_name].required = False
+
+    @classmethod
+    def _normalize_br_payload(cls, data):
+        try:
+            normalized = data.copy()
+        except AttributeError:
+            normalized = data.copy() if isinstance(data, dict) else data
+
+        for fname in cls._MONEY_FIELDS + cls._PCT_FIELDS:
+            try:
+                raw = normalized.get(fname, "")
+            except AttributeError:
+                return data
+            if raw in (None, ""):
+                continue
+            value = str(raw).strip()
+            if "," in value:
+                normalized[fname] = value.replace(".", "").replace(",", ".")
+        return normalized
 
     def _clean_br_decimal(self, field_name):
         """Converte formato BR (303.000,00) para Decimal aceito pelo Django."""
@@ -186,6 +212,44 @@ class ImovelForm(forms.ModelForm):
                     del cleaned[fname]
 
         return cleaned
+
+
+FINANCEIRO_EXPRESS_FIELDS = (
+    "avaliacao",
+    "lance",
+    "preco_venda",
+    "rec_aluguel_am",
+    "giro_padrao",
+    "tipo_pgto",
+    "entrada",
+    "prazo_fin",
+    "cet_aa",
+    "reformas",
+    "custo_desocup",
+    "debitos",
+    "despesas_div",
+    "iptu_am",
+    "cond_am",
+    "pct_leiloeiro",
+    "pct_corretor",
+    "av_fiscal",
+    "pct_itbi_base",
+    "aliq_itbi",
+    "lucro_minimo",
+    "incremento_lance",
+)
+
+
+class ImovelFinanceiroExpressForm(ImovelForm):
+    class Meta:
+        model = Imovel
+        fields = FINANCEIRO_EXPRESS_FIELDS
+        widgets = {
+            field_name: ImovelForm.Meta.widgets[field_name]
+            for field_name in FINANCEIRO_EXPRESS_FIELDS
+            if field_name in ImovelForm.Meta.widgets
+        }
+        labels = ImovelForm.Meta.labels
 
 
 class ImovelArquivoForm(forms.ModelForm):
