@@ -6,14 +6,14 @@
 
 {% block header_actions %}
   <a href="{% url 'novo_lancamento' %}"
-     class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
+     class="flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
     + Novo Lançamento
   </a>
 {% endblock %}
 
 {% block content %}
 <!-- Tabs -->
-<div class="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6">
+<div class="mb-6 grid w-full grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 sm:inline-grid sm:w-auto">
   <a href="?tab=ativas"
      class="px-4 py-2 text-sm font-medium rounded-lg transition-colors
        {% if tab_ativa == 'ativas' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-500 hover:text-gray-700{% endif %}">
@@ -27,7 +27,7 @@
 </div>
 
 <!-- KPIs -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 xl:grid-cols-4">
   <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
     <div class="flex items-center gap-2 mb-2">
       <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-base">📥</div>
@@ -80,15 +80,15 @@
     {% if operacoes %}
     <div class="divide-y divide-gray-100">
       {% for op in operacoes %}
-      <div class="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-        <div>
+      <div class="p-4 flex flex-col gap-3 hover:bg-gray-50 transition-colors sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
           <a href="{% url 'detalhe' op.imovel.pk %}"
              class="text-sm font-medium text-gray-900 hover:text-teal-600">
             {{ op.imovel.endereco }}
           </a>
           <div class="text-xs text-gray-500">{{ op.imovel.cidade }} — {{ op.imovel.estado }}</div>
         </div>
-        <div class="text-right">
+        <div class="text-left sm:text-right">
           <div class="font-bold {% if op.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">
             {{ op.resultado|brl_short }}
           </div>
@@ -116,8 +116,8 @@
     {% if historico %}
     <div class="divide-y divide-gray-100">
       {% for l in historico %}
-      <div class="p-3 flex items-center justify-between hover:bg-gray-50 group">
-        <div class="flex items-center gap-3">
+      <div class="p-3 flex flex-col gap-3 hover:bg-gray-50 group sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex min-w-0 items-center gap-3">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base
             {% if l.tipo == 'receita' %}bg-green-100{% else %}bg-red-100{% endif %}">
             {% if l.tipo == 'receita' %}📥{% else %}📤{% endif %}
@@ -129,7 +129,7 @@
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center justify-between gap-3 sm:justify-end">
           <div class="font-bold text-sm {% if l.tipo == 'receita' %}text-green-700{% else %}text-red-700{% endif %}">
             {% if l.tipo == 'receita' %}+{% else %}-{% endif %}{{ l.valor|brl_short }}
           </div>
@@ -171,7 +171,7 @@
     {% if por_categoria %}
     <div class="divide-y divide-gray-100">
       {% for cat in por_categoria %}
-      <div class="p-4 flex items-center justify-between">
+      <div class="p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div class="text-sm text-gray-700">
           {% if cat.categoria__icone %}{{ cat.categoria__icone }} {% endif %}
           {{ cat.categoria__nome|default:"Sem categoria" }}
@@ -223,8 +223,8 @@
       {% for item in ir_por_imovel %}
       <div class="p-4" x-data="{ expandIR: false }">
         <!-- Header do imóvel -->
-        <div class="flex items-start justify-between mb-3">
-          <div>
+        <div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
             <a href="{% url 'detalhe' item.imovel.pk %}"
                class="font-bold text-gray-900 hover:text-teal-600 text-sm">
               🏠 {{ item.imovel.endereco }}
@@ -242,7 +242,7 @@
         </div>
 
         <!-- KPIs IR -->
-        <div class="grid grid-cols-3 gap-3 mb-3">
+        <div class="grid grid-cols-1 gap-3 mb-3 sm:grid-cols-3">
           <div class="bg-gray-50 rounded-lg p-2.5">
             <div class="text-xs text-gray-500">Preço de venda</div>
             <div class="font-bold text-gray-900 text-sm mt-0.5">{{ item.preco_venda|brl_short }}</div>

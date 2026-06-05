@@ -2,6 +2,7 @@ import csv
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Iterable
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
+from django.db import close_old_connections
 from django.db.models import Q
 from django.utils import timezone
 from playwright.sync_api import sync_playwright
@@ -514,11 +516,20 @@ def aplicar_detalhes(imovel: ImovelCaixa, detalhes: dict) -> ImovelCaixa:
     return imovel
 
 
+def aplicar_detalhes_por_pk(imovel_pk: int, detalhes: dict) -> ImovelCaixa:
+    close_old_connections()
+    try:
+        imovel = ImovelCaixa.objects.get(pk=imovel_pk)
+        return aplicar_detalhes(imovel, detalhes)
+    finally:
+        close_old_connections()
+
+
 def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, headless=True) -> dict:
     erros = []
-    detalhes_coletados = []
+    atualizados = 0
 
-    with sync_playwright() as playwright:
+    with sync_playwright() as playwright, ThreadPoolExecutor(max_workers=1) as executor:
         browser = playwright.chromium.launch(
             headless=headless,
             args=["--disable-blink-features=AutomationControlled"],
@@ -531,14 +542,18 @@ def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, head
             ),
         )
         page = context.new_page()
+        page.set_default_timeout(30_000)
 
         for imovel in imoveis:
             url = imovel.link_caixa or DETALHE_URL.format(imovel_id=imovel.imovel_id_caixa)
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+                logger.info("Enriquecendo imóvel Caixa %s", imovel.imovel_id_caixa)
+                page.goto(url, wait_until="domcontentloaded", timeout=45_000)
                 page.wait_for_timeout(2_000)
                 detalhes = extrair_detalhes_html(page.content(), url=page.url)
-                detalhes_coletados.append((imovel.pk, detalhes))
+                executor.submit(aplicar_detalhes_por_pk, imovel.pk, detalhes).result()
+                atualizados += 1
+                logger.info("Imóvel Caixa %s enriquecido com sucesso", imovel.imovel_id_caixa)
             except Exception as exc:
                 logger.exception("Erro ao enriquecer imóvel %s", imovel.imovel_id_caixa)
                 erros.append(f"{imovel.imovel_id_caixa}: {exc}")
@@ -547,15 +562,5 @@ def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, head
                 time.sleep(intervalo)
 
         browser.close()
-
-    atualizados = 0
-    for imovel_pk, detalhes in detalhes_coletados:
-        try:
-            imovel = ImovelCaixa.objects.get(pk=imovel_pk)
-            aplicar_detalhes(imovel, detalhes)
-            atualizados += 1
-        except Exception as exc:
-            logger.exception("Erro ao salvar detalhes do imóvel %s", imovel_pk)
-            erros.append(f"{imovel_pk}: {exc}")
 
     return {"atualizados": atualizados, "erros": erros}

@@ -38,7 +38,7 @@
             <span class="text-teal-400 font-bold text-lg leading-none">−</span>
           </div>
           <div class="p-5 space-y-4">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Tipo leilão *</label>
                 <select name="tipo_leilao" class="field-select">
@@ -89,7 +89,7 @@
                 <input type="hidden" name="preco_venda" value="503000">
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Acréscimo venda</label>
                 <div class="field-pct">
@@ -115,7 +115,7 @@
                 <input type="hidden" name="rec_aluguel_am" value="0">
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Corretor *</label>
                 <div class="field-pct">
@@ -156,7 +156,7 @@
               </select>
             </div>
             <div x-show="tipoPgto === 'Financiamento SAC'" x-cloak class="space-y-4">
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label class="field-label">Entrada *</label>
                   <div class="field-pct">
@@ -199,7 +199,7 @@
             <span class="text-teal-400 font-bold text-lg leading-none">−</span>
           </div>
           <div class="p-5 space-y-4">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Giro venda</label>
                 <select name="giro_padrao_calc" class="field-select">
@@ -217,7 +217,7 @@
                 </div>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Incremento lance</label>
                 <div class="field-money">
@@ -270,7 +270,7 @@
                 <input type="hidden" name="av_fiscal" value="502000">
               </div>
             </div>
-            <div x-show="modoCart === 'Manual'" x-cloak class="grid grid-cols-2 gap-3">
+            <div x-show="modoCart === 'Manual'" x-cloak class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Escritura</label>
                 <div class="field-money">
@@ -305,7 +305,7 @@
                 <option value="Avaliação Fiscal">Avaliação Fiscal</option>
               </select>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Alíquota *</label>
                 <div class="field-pct">
@@ -333,7 +333,7 @@
             <span class="text-teal-400 font-bold text-lg leading-none">−</span>
           </div>
           <div class="p-5 space-y-4">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">IPTU (a.m.)</label>
                 <div class="field-money">
@@ -376,7 +376,7 @@
             <span class="text-teal-400 font-bold text-lg leading-none">−</span>
           </div>
           <div class="p-5 space-y-4">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Reformas</label>
                 <div class="field-money">
@@ -394,7 +394,7 @@
                 </div>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="field-label">Laudêmio</label>
                 <div class="field-pct">
@@ -427,10 +427,10 @@
     </div>
 
     <!-- Barra inferior: auto-calc info + botão -->
-    <div class="flex items-center justify-between mb-6 bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
+    <div class="mb-6 flex flex-col gap-3 bg-white rounded-xl border border-gray-200 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <p class="text-sm text-gray-500">Os resultados atualizam automaticamente ao alterar os campos acima.</p>
       <button type="submit"
-              class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm text-sm">
+              class="flex w-full items-center justify-center gap-2 bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-2.5 rounded-lg transition-colors shadow-sm text-sm sm:w-auto">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
         </svg>

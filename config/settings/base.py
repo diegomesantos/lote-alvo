@@ -101,13 +101,25 @@ APIFY_API_TOKEN = config("APIFY_API_TOKEN", default="")
 APIFY_ACTOR_ID = "l3QeUiJVEtg15dpH2"  # leadercorp/caixa-leiloes-scraper - dados reais da Caixa
 APIFY_API_URL = "https://api.apify.com/v2/acts/{actor_id}/run-sync"
 
-# OpenAI - analise juridica sob demanda dos documentos da Caixa
-OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
-OPENAI_LEGAL_ANALYSIS_MODEL = config("OPENAI_LEGAL_ANALYSIS_MODEL", default="gpt-5.5")
-OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT = config(
-    "OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT",
-    default="medium",
+# IA - analise juridica sob demanda dos documentos da Caixa
+AI_LEGAL_ANALYSIS_PROVIDER = config("AI_LEGAL_ANALYSIS_PROVIDER", default="openai").strip().lower()
+AI_LEGAL_ANALYSIS_API_KEY = config("AI_LEGAL_ANALYSIS_API_KEY", default="")
+AI_LEGAL_ANALYSIS_MODEL = config(
+    "AI_LEGAL_ANALYSIS_MODEL",
+    default=config("OPENAI_LEGAL_ANALYSIS_MODEL", default="gpt-5.5"),
 )
+AI_LEGAL_ANALYSIS_REASONING_EFFORT = config(
+    "AI_LEGAL_ANALYSIS_REASONING_EFFORT",
+    default=config("OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT", default="medium"),
+)
+OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
+ANTHROPIC_API_VERSION = config("ANTHROPIC_API_VERSION", default="2023-06-01")
+GEMINI_API_KEY = config("GEMINI_API_KEY", default=config("GOOGLE_API_KEY", default=""))
+
+# Aliases antigos mantidos para nao quebrar ambientes ja configurados.
+OPENAI_LEGAL_ANALYSIS_MODEL = AI_LEGAL_ANALYSIS_MODEL
+OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT = AI_LEGAL_ANALYSIS_REASONING_EFFORT
 OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT = config(
     "OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT",
     default=50000,

@@ -6,7 +6,7 @@
 
 {% block header_actions %}
   <a href="{% url 'criar' %}"
-     class="flex items-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
+     class="flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
     + Novo Imóvel
   </a>
 {% endblock %}
@@ -22,16 +22,16 @@
   </a>
 </div>
 {% else %}
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
   {% for card in cards %}
   {% with im=card.imovel r=card.resultado %}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-teal-200 transition-all duration-200 overflow-hidden group">
     <!-- Status bar -->
     <div class="h-1.5" style="background: {{ im.etapa_cor }}"></div>
-    <div class="p-5">
+    <div class="p-4 sm:p-5">
       <!-- Header -->
-      <div class="flex items-start justify-between mb-3">
-        <div>
+      <div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
           <a href="{% url 'detalhe' im.pk %}"
              class="font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
             {{ im.endereco }}
@@ -45,7 +45,7 @@
       </div>
 
       <!-- KPIs -->
-      <div class="grid grid-cols-3 gap-3 mb-4">
+      <div class="grid grid-cols-3 gap-2 mb-4 sm:gap-3">
         <div class="bg-gray-50 rounded-lg p-2.5 text-center">
           <div class="text-xs text-gray-500 mb-0.5">Lance</div>
           <div class="text-sm font-bold text-gray-900">{{ im.lance|brl_short }}</div>
@@ -84,9 +84,9 @@
       {% endif %}
 
       <!-- Ações -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <a href="{% url 'detalhe' im.pk %}"
-           class="flex-1 text-center bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+           class="min-w-28 flex-1 text-center bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold py-2 rounded-lg transition-colors">
           Ver simulação
         </a>
         <button @click="carregarTabelaLancesImovel('{{ im.pk }}')"

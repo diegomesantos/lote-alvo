@@ -15,13 +15,23 @@
 {{ filtros_ativos.bairros|json_script:"leiloes-selected-bairros" }}
 {{ filtros_ativos.tipos|json_script:"leiloes-selected-tipos" }}
 
-<div class="flex flex-col xl:flex-row gap-6" x-data="explorador_leiloes()">
+<div class="flex flex-col gap-4 xl:flex-row xl:gap-6" x-data="explorador_leiloes()">
 
   <!-- SIDEBAR: FILTROS -->
-  <aside class="w-full xl:w-80 flex-shrink-0">
-    <div class="bg-white rounded-lg border border-gray-200 p-4 xl:sticky xl:top-24">
+  <aside class="w-full flex-shrink-0 xl:w-80">
+    <button
+      type="button"
+      @click="filtersOpen = !filtersOpen"
+      :aria-expanded="filtersOpen.toString()"
+      class="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-800 shadow-sm xl:hidden">
+      <span>Filtros</span>
+      <span class="text-gray-400" x-text="filtersOpen ? 'Recolher' : 'Abrir'"></span>
+    </button>
+    <div class="mt-3 rounded-lg border border-gray-200 bg-white p-4 xl:sticky xl:top-24 xl:mt-0"
+         :class="filtersOpen ? 'block' : 'hidden xl:block'">
       <form id="filtros-form" method="get" class="space-y-4">
         <input type="hidden" name="ordenar" value="{{ filtros_ativos.ordenar }}">
+        <input type="hidden" name="itens_por_pagina" value="{{ itens_por_pagina }}">
 
         <!-- Busca Global -->
         <div>
@@ -221,15 +231,15 @@
           <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Pagamento</label>
           <div class="flex flex-wrap gap-2">
             <label class="cursor-pointer">
-              <input type="checkbox" name="financiamento" class="peer sr-only" {% if filtros_ativos.financiamento %}checked{% endif %}>
+              <input type="checkbox" name="pagamento" value="financiamento" class="peer sr-only" {% if filtros_ativos.financiamento %}checked{% endif %}>
               <span class="inline-flex px-3 py-1.5 rounded border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:text-green-700">Financiamento</span>
             </label>
             <label class="cursor-pointer">
-              <input type="checkbox" name="fgts" class="peer sr-only" {% if filtros_ativos.fgts %}checked{% endif %}>
+              <input type="checkbox" name="pagamento" value="fgts" class="peer sr-only" {% if filtros_ativos.fgts %}checked{% endif %}>
               <span class="inline-flex px-3 py-1.5 rounded border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700">FGTS</span>
             </label>
             <label class="cursor-pointer">
-              <input type="checkbox" name="consorcio" class="peer sr-only" {% if filtros_ativos.consorcio %}checked{% endif %}>
+              <input type="checkbox" name="pagamento" value="consorcio" class="peer sr-only" {% if filtros_ativos.consorcio %}checked{% endif %}>
               <span class="inline-flex px-3 py-1.5 rounded border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 peer-checked:border-purple-500 peer-checked:bg-purple-50 peer-checked:text-purple-700">Consórcio</span>
             </label>
           </div>
@@ -253,21 +263,21 @@
   </aside>
 
   <!-- ÁREA PRINCIPAL: RESULTADOS -->
-  <div class="flex-1">
-    <div class="bg-white rounded-lg border border-gray-200 p-6">
-      <div class="flex items-center justify-between mb-6">
+  <div class="min-w-0 flex-1">
+    <div class="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 class="text-lg font-bold text-gray-900">Resultados</h2>
           <p class="text-sm text-gray-600">{{ total }} imóvel{{ total|pluralize }}</p>
         </div>
-        <div class="flex gap-3">
-          <select onchange="const url = new URL(window.location); url.searchParams.set('itens_por_pagina', this.value); url.searchParams.delete('page'); window.location = url.toString();" class="px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+        <div class="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2 sm:gap-3">
+          <select onchange="setExplorerControl('itens_por_pagina', this.value)" class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none sm:w-auto">
             <option value="12" {% if itens_por_pagina == 12 %}selected{% endif %}>12 por página</option>
             <option value="24" {% if itens_por_pagina == 24 %}selected{% endif %}>24 por página</option>
             <option value="36" {% if itens_por_pagina == 36 %}selected{% endif %}>36 por página</option>
             <option value="48" {% if itens_por_pagina == 48 %}selected{% endif %}>48 por página</option>
           </select>
-          <select onchange="document.getElementById('filtros-form').querySelector('[name=ordenar]').value = this.value; document.getElementById('filtros-form').submit();" class="px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none">
+          <select onchange="setExplorerControl('ordenar', this.value)" class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-400 focus:outline-none sm:w-auto">
             <option value="-data_leilao" {% if filtros_ativos.ordenar == "-data_leilao" %}selected{% endif %}>Mais Recentes</option>
             <option value="valor_minimo_lance" {% if filtros_ativos.ordenar == "valor_minimo_lance" %}selected{% endif %}>Menor Valor</option>
             <option value="-valor_minimo_lance" {% if filtros_ativos.ordenar == "-valor_minimo_lance" %}selected{% endif %}>Maior Valor</option>
@@ -278,7 +288,7 @@
       </div>
 
       <!-- Grid de Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div class="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 2xl:grid-cols-3">
         {% for imovel in page_obj %}
           {% url 'leiloes:detalhe' imovel.imovel_id_caixa as detalhe_url %}
           <div
@@ -406,7 +416,7 @@
             </div>
           </div>
         {% empty %}
-          <div class="col-span-3 text-center py-12">
+          <div class="text-center py-12 sm:col-span-2 2xl:col-span-3">
             <p class="text-gray-600 font-medium text-lg">🔍 Nenhum imóvel encontrado</p>
             <p class="text-sm text-gray-500 mt-2">Tente ajustar os critérios de busca ou limpar os filtros.</p>
           </div>
@@ -415,7 +425,7 @@
 
       <!-- Paginação -->
       {% if page_obj.has_other_pages %}
-        <div class="flex items-center justify-center gap-2 pt-6 border-t border-gray-200">
+        <div class="flex flex-wrap items-center justify-center gap-2 pt-6 border-t border-gray-200">
           {% if page_obj.has_previous %}
             <a href="?{% if querystring %}{{ querystring }}&{% endif %}page=1" class="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">⏮️ Primeira</a>
             <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">◀️ Anterior</a>
@@ -452,6 +462,25 @@ function createFilter(name, options, selected = []) {
   };
 }
 
+function setExplorerControl(name, value) {
+  const form = document.getElementById('filtros-form');
+  if (!form) return;
+
+  let input = form.querySelector(`[name="${name}"]`);
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    form.appendChild(input);
+  }
+  input.value = value;
+  if (typeof form.requestSubmit === 'function') {
+    form.requestSubmit();
+  } else {
+    HTMLFormElement.prototype.submit.call(form);
+  }
+}
+
 function explorador_leiloes() {
   const estadosOptions = readJson('leiloes-estados-options');
   const cidadesOptions = readJson('leiloes-cidades-options');
@@ -459,6 +488,7 @@ function explorador_leiloes() {
   const tiposOptions = readJson('leiloes-tipos-options');
 
   return {
+    filtersOpen: false,
     estados: createFilter('estados', estadosOptions, readJson('leiloes-selected-estados')),
     cidades: createFilter('cidades', cidadesOptions, readJson('leiloes-selected-cidades')),
     bairros: createFilter('bairros', bairrosOptions, readJson('leiloes-selected-bairros')),

@@ -120,6 +120,8 @@ Paramentros relevantes:
 - `--intervalo 1.0`: pausa entre acessos para reduzir risco de bloqueio.
 - `--headful`: abre navegador visivel para depuracao local.
 
+O enriquecimento salva cada imovel assim que a pagina individual e processada. Assim, fotos, edital, matricula e campos detalhados aparecem gradualmente, sem esperar o lote inteiro terminar.
+
 ## Producao com Celery
 
 As tasks de producao ficam em `apps/leiloes/tasks.py`.
@@ -134,14 +136,14 @@ Tasks principais:
 Agenda atual em `config/celery.py`:
 
 - CSV geral a cada 6 horas.
-- Enriquecimento de pendentes a cada hora, com lote de 300 e intervalo de 1 segundo.
+- Enriquecimento de pendentes a cada hora, com lote de 50 e intervalo de 1 segundo.
 
 Processos definidos no `Procfile`:
 
 ```Procfile
-web: gunicorn config.wsgi --log-file -
-worker: DJANGO_SETTINGS_MODULE=config.settings.production celery -A config worker -l info --concurrency=1
-beat: DJANGO_SETTINGS_MODULE=config.settings.production celery -A config beat -l info
+web: PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright gunicorn config.wsgi --log-file -
+worker: PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright DJANGO_SETTINGS_MODULE=config.settings.production celery -A config worker -l info --concurrency=1
+beat: PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright DJANGO_SETTINGS_MODULE=config.settings.production celery -A config beat -l info
 ```
 
 Em Railway ou plataforma equivalente, o ideal e ter servicos separados:
@@ -158,6 +160,8 @@ Arquivos preparados:
 - `railway.worker.toml`: servico Worker. Inicia `celery -A config worker -l info --concurrency=1`.
 - `railway.beat.toml`: servico Beat. Inicia `celery -A config beat -l info`.
 - `nixpacks.toml`: build compartilhado, instalando Chromium/Playwright e Tesseract OCR.
+
+Os tres comandos de start definem `PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright`, mantendo o runtime no mesmo diretorio em que o build instalou o Chromium.
 
 No Railway, crie tres servicos apontando para o mesmo repositorio:
 
@@ -192,15 +196,18 @@ Variaveis principais:
 - `REDIS_URL`: Redis usado por Celery.
 - `CELERY_BROKER_URL`: opcional; se ausente usa `REDIS_URL`.
 - `CELERY_RESULT_BACKEND`: opcional; se ausente usa o broker.
-- `OPENAI_API_KEY`: chave usada somente quando o usuario gerar a analise juridica IA.
+- `AI_LEGAL_ANALYSIS_PROVIDER`: provedor da analise juridica IA. Padrao `openai`. Valores aceitos: `openai`, `anthropic`, `gemini`.
+- `AI_LEGAL_ANALYSIS_MODEL`: modelo usado na analise juridica IA. Padrao `gpt-5.5`.
+- `AI_LEGAL_ANALYSIS_API_KEY`: chave generica opcional para o provedor escolhido.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` ou `GEMINI_API_KEY`: alternativa por provedor quando `AI_LEGAL_ANALYSIS_API_KEY` nao for usada.
 
 O projeto tambem define:
 
 - `CELERY_TASK_TIME_LIMIT`: padrao de 3 horas.
 - `CELERY_TASK_SOFT_TIME_LIMIT`: padrao de 2 horas.
 - `CELERY_WORKER_PREFETCH_MULTIPLIER=1`.
-- `OPENAI_LEGAL_ANALYSIS_MODEL`: padrao `gpt-5.5`.
-- `OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT`: padrao `medium`.
+- `AI_LEGAL_ANALYSIS_REASONING_EFFORT`: padrao `medium`.
+- `OPENAI_LEGAL_ANALYSIS_MODEL` e `OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT`: aliases antigos ainda aceitos para compatibilidade.
 - `OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT`: padrao `50000` caracteres de texto extraido.
 - `OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS`: padrao `4500`.
 - `OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB`: padrao `20`.
@@ -224,6 +231,7 @@ nixpacks.toml
 O setup instala os pacotes APT:
 
 ```text
+libstdc++6
 tesseract-ocr
 tesseract-ocr-por
 ```
@@ -243,6 +251,8 @@ Se o worker falhar com erro de navegador ausente, verificar:
 - se o provedor manteve `PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright` na imagem/runtime.
 
 Se a analise juridica falhar por OCR ausente, verificar no log de build a instalacao de `tesseract-ocr` e `tesseract-ocr-por`.
+
+Se o Worker falhar ao importar Playwright/greenlet com erro `libstdc++.so.6`, verificar no log de build a instalacao de `libstdc++6`.
 
 ## CSVs, fotos e PDFs
 
@@ -314,7 +324,7 @@ Caracteristicas:
 - gera a analise apenas por clique do usuario;
 - cacheia o ultimo resultado no JSON `detalhes`;
 - permite atualizar a analise pelo mesmo botao;
-- se `OPENAI_API_KEY` nao estiver configurada, salva status `sem_api_key` e mostra mensagem controlada;
+- se a chave do provedor configurado nao estiver presente, salva status `sem_api_key` e mostra mensagem controlada;
 - se matricula/edital nao existirem, salva status `sem_documentos`;
 - se o PDF for escaneado, tenta OCR local antes de declarar `sem_texto`;
 - se mesmo com OCR nao houver texto util, salva status `sem_texto`.
@@ -348,7 +358,7 @@ OCR:
 - limita o OCR por documento com `OPENAI_LEGAL_ANALYSIS_OCR_MAX_PAGES`;
 - registra em `fontes` quantas paginas foram processadas com OCR e eventuais erros.
 
-Importante: quando `OPENAI_API_KEY` estiver ativa, o texto extraido da matricula/edital sera enviado para a OpenAI para processamento. Se a politica do produto exigir retencao local, trilha probatoria ou revisao humana, implementar Backblaze B2 e tabela de documentos antes de habilitar em producao.
+Importante: quando a IA estiver ativa, o texto extraido da matricula/edital sera enviado para o provedor configurado em `AI_LEGAL_ANALYSIS_PROVIDER`. Se a politica do produto exigir retencao local, trilha probatoria ou revisao humana, implementar Backblaze B2 e tabela de documentos antes de habilitar em producao.
 
 ## Regra de atualizacao e substituicao
 
@@ -525,7 +535,7 @@ Antes do deploy:
 
 - rotacionar qualquer chave OpenAI que tenha sido compartilhada fora do cofre de segredos;
 - criar PostgreSQL e Redis no Railway;
-- configurar `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, `DJANGO_SETTINGS_MODULE=config.settings.production` e `OPENAI_API_KEY` nos tres servicos;
+- configurar `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, `DJANGO_SETTINGS_MODULE=config.settings.production`, `AI_LEGAL_ANALYSIS_PROVIDER`, `AI_LEGAL_ANALYSIS_MODEL` e a chave do provedor de IA nos servicos que geram analise;
 - confirmar que Worker e Beat usam os arquivos `railway.worker.toml` e `railway.beat.toml`;
 - confirmar que o build executa `python -m playwright install --with-deps chromium`;
 - confirmar no log de build a instalacao de `tesseract-ocr` e `tesseract-ocr-por`;

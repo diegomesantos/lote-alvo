@@ -64,19 +64,22 @@ Quando você adicionar serviços no Railway, ele preenche automaticamente:
 
 ### 3️⃣ OPCIONAIS (Funcionalidades extras)
 
-#### OPENAI_API_KEY
-- **Para quê**: Análise jurídica automática de documentos
-- **Status**: Opcional - deixe vazio por enquanto
-- **Como obter**: https://platform.openai.com/api-keys
-- **Usar depois**: Quando quiser análise de edital/matrícula
+#### AI_LEGAL_ANALYSIS_PROVIDER
+- **Para quê**: Define o provedor da análise jurídica IA
+- **Padrão**: `openai`
+- **Opções**: `openai`, `anthropic`, `gemini`
 
-#### OPENAI_LEGAL_ANALYSIS_MODEL
-- **Padrão**: `gpt-5.5`
-- **Alternativas**: `gpt-4o` (melhor custo), `gpt-4-turbo`, `gpt-4`
-- **Recomendado**: `gpt-4o`
+#### AI_LEGAL_ANALYSIS_MODEL
+- **Para quê**: Define o modelo usado na análise jurídica IA
+- **Padrão OpenAI**: `gpt-5.5`
+- **Exemplos**: `gpt-5.5` para OpenAI, ou qualquer modelo válido do provedor configurado
 
-Outros parâmetros OpenAI:
-- `OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT=medium`
+#### Chave da IA
+- Use `AI_LEGAL_ANALYSIS_API_KEY` para uma chave genérica do provedor escolhido; ou
+- use a variável específica: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` ou `GEMINI_API_KEY`.
+
+Outros parâmetros IA:
+- `AI_LEGAL_ANALYSIS_REASONING_EFFORT=medium`
 - `OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT=50000`
 - `OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS=4500`
 - `OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB=20`

@@ -30,8 +30,8 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">1</span>
         Identificação
       </h2>
-      <div class="grid grid-cols-2 gap-4">
-        <div class="col-span-2 md:col-span-1">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
           <label class="field-label">{{ form.endereco.label }}</label>{{ form.endereco }}
           {% if form.endereco.errors %}<p class="text-red-500 text-xs mt-1">{{ form.endereco.errors|join:", " }}</p>{% endif %}
         </div>
@@ -47,7 +47,7 @@
         <div>
           <label class="field-label">{{ form.tipo_leilao.label }}</label>{{ form.tipo_leilao }}
         </div>
-        <div class="col-span-2">
+        <div class="md:col-span-2">
           <label class="field-label">{{ form.obs.label }}</label>{{ form.obs }}
         </div>
       </div>
@@ -59,7 +59,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">2</span>
         Valores do Leilão
       </h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>{% money_field form.avaliacao %}</div>
         <div>{% money_field form.lance %}</div>
       </div>
@@ -80,7 +80,7 @@
           {% endfor %}
         </select>
       </div>
-      <div x-show="tipoPgto === 'Financiamento SAC'" x-cloak class="grid grid-cols-3 gap-4">
+      <div x-show="tipoPgto === 'Financiamento SAC'" x-cloak class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>{% pct_field form.entrada %}</div>
         <div>
           <label class="field-label">{{ form.prazo_fin.label }}</label>
@@ -96,7 +96,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">4</span>
         Receitas
       </h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>{% money_field form.preco_venda %}</div>
         <div>{% pct_field form.pct_corretor %}</div>
         <div>{% pct_field form.taxa_acrescimo %}</div>
@@ -111,7 +111,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">5</span>
         ITBI
       </h2>
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label class="field-label">{{ form.pct_itbi_base.label }}</label>{{ form.pct_itbi_base }}
         </div>
@@ -126,7 +126,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">6</span>
         Custos Cartoriais
       </h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="field-label">{{ form.modo_cartorio.label }}</label>
           <select name="{{ form.modo_cartorio.html_name }}" x-model="modoCart"
@@ -137,11 +137,11 @@
         </div>
         <div>{% money_field form.av_fiscal %}</div>
       </div>
-      <div x-show="modoCart === 'Manual'" x-cloak class="grid grid-cols-2 gap-4 mt-4">
+      <div x-show="modoCart === 'Manual'" x-cloak class="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2">
         <div>{% money_field form.escritura_manual %}</div>
         <div>{% money_field form.registro_manual %}</div>
       </div>
-      <div class="mt-4 w-48">
+      <div class="mt-4 w-full sm:w-48">
         {% pct_field form.pct_leiloeiro %}
       </div>
     </div>
@@ -152,13 +152,13 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">7</span>
         Despesas Adicionais
       </h2>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>{% money_field form.reformas %}</div>
         <div>{% money_field form.custo_desocup %}</div>
         <div>{% money_field form.debitos %}</div>
         <div>{% money_field form.despesas_div %}</div>
       </div>
-      <div class="grid grid-cols-2 gap-4 mt-4">
+      <div class="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2">
         <div>{% pct_field form.laudemio_pct %}<p class="text-xs text-gray-400 mt-0.5">Terrenos de marinha</p></div>
       </div>
     </div>
@@ -169,7 +169,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">8</span>
         Gastos Mensais Recorrentes
       </h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>{% money_field form.iptu_am %}</div>
         <div>{% money_field form.cond_am %}</div>
       </div>
@@ -181,7 +181,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">9</span>
         Custo de Oportunidade & IR
       </h2>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>{% pct_field form.custo_oport_aa %}<p class="text-xs text-gray-400 mt-0.5">Ex: 13% a.a. (CDI)</p></div>
         <div>
           <label class="field-label">{{ form.tipo_pessoa.label }}</label>{{ form.tipo_pessoa }}
@@ -195,7 +195,7 @@
         <span class="w-6 h-6 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center text-xs font-bold">10</span>
         Parâmetros da Simulação
       </h2>
-      <div class="grid grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>{% money_field form.lucro_minimo %}</div>
         <div>{% money_field form.incremento_lance %}</div>
         <div>
@@ -209,19 +209,19 @@
     </div>
 
     <!-- Botões -->
-    <div class="flex items-center gap-4 sticky bottom-0 bg-white/95 backdrop-blur border-t border-gray-200 p-4 -mx-6 rounded-b-none z-10">
+    <div class="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-gray-200 bg-white/95 p-4 backdrop-blur rounded-b-none sm:-mx-6 sm:flex-row sm:items-center sm:gap-4">
       <button type="submit"
-              class="bg-teal-500 hover:bg-teal-600 text-white font-bold px-8 py-3 rounded-xl transition-colors shadow-lg">
+              class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold px-8 py-3 rounded-xl transition-colors shadow-lg sm:w-auto">
         💾 Salvar Imóvel
       </button>
       {% if imovel %}
       <a href="{% url 'detalhe' imovel.pk %}"
-         class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl transition-colors">
+         class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl transition-colors text-center sm:w-auto">
         Cancelar
       </a>
       {% else %}
       <a href="{% url 'kanban' %}"
-         class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl transition-colors">
+         class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-xl transition-colors text-center sm:w-auto">
         Cancelar
       </a>
       {% endif %}

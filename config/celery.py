@@ -17,7 +17,7 @@ app.conf.beat_schedule = {
     'enriquecer-leiloes-caixa-pendentes-cada-hora': {
         'task': 'apps.leiloes.tasks.enriquecer_leiloes_caixa_pendentes_task',
         'schedule': crontab(minute=20, hour='*'),
-        'args': (300, 1.0),
+        'args': (50, 1.0),
     },
 }
 

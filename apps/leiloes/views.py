@@ -25,6 +25,12 @@ from .scrapers_professional import scrape_caixa_profissional
 
 logger = logging.getLogger(__name__)
 
+PAGAMENTOS_FILTRO = {
+    'financiamento': 'Financiamento',
+    'fgts': 'FGTS',
+    'consorcio': 'Consórcio',
+}
+
 
 def _valor_presente(valor):
     return valor not in (None, '', [], {})
@@ -184,9 +190,25 @@ def explorador_leiloes(request):
             queryset = queryset.filter(percentual_desconto__gte=30)
 
     # 💳 Filtro por formas de pagamento
-    permite_financiamento = request.GET.get('financiamento') == 'on'
-    permite_fgts = request.GET.get('fgts') == 'on'
-    permite_consorcio = request.GET.get('consorcio') == 'on'
+    pagamentos = [
+        pagamento
+        for pagamento in request.GET.getlist('pagamento')
+        if pagamento in PAGAMENTOS_FILTRO
+    ]
+
+    # Compatibilidade com links antigos: ?financiamento=on&fgts=on
+    pagamentos_legados = {
+        'financiamento': request.GET.get('financiamento') == 'on',
+        'fgts': request.GET.get('fgts') == 'on',
+        'consorcio': request.GET.get('consorcio') == 'on',
+    }
+    for pagamento, ativo in pagamentos_legados.items():
+        if ativo and pagamento not in pagamentos:
+            pagamentos.append(pagamento)
+
+    permite_financiamento = 'financiamento' in pagamentos
+    permite_fgts = 'fgts' in pagamentos
+    permite_consorcio = 'consorcio' in pagamentos
 
     if permite_financiamento:
         queryset = queryset.filter(formas_pagamento__financiamento=True)
@@ -283,6 +305,10 @@ def explorador_leiloes(request):
             {'value': value, 'label': label}
             for value, label in ImovelCaixa.TIPO_CHOICES
         ],
+        'pagamentos_opcoes': [
+            {'value': value, 'label': label}
+            for value, label in PAGAMENTOS_FILTRO.items()
+        ],
         'filtros_ativos': {
             'q': busca,
             'estados': estados,
@@ -292,10 +318,12 @@ def explorador_leiloes(request):
             'desconto': desconto_faixa,
             'valor_min': valor_min or '',
             'valor_max': valor_max or '',
+            'pagamentos': pagamentos,
             'financiamento': permite_financiamento,
             'fgts': permite_fgts,
             'consorcio': permite_consorcio,
             'ordenar': ordenar_por,
+            'itens_por_pagina': itens_por_pagina,
         }
     }
 

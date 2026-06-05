@@ -127,6 +127,63 @@ ANALISE_JURIDICA_SCHEMA = {
     ],
 }
 
+AI_PROVIDERS_SUPORTADOS = {"openai", "anthropic", "gemini"}
+
+
+def _setting_str(nome, default=""):
+    return str(getattr(settings, nome, default) or "").strip()
+
+
+def _provider_ia():
+    provider = _setting_str("AI_LEGAL_ANALYSIS_PROVIDER", "openai").lower()
+    aliases = {
+        "open_ai": "openai",
+        "claude": "anthropic",
+        "anthropic_claude": "anthropic",
+        "google": "gemini",
+        "google_gemini": "gemini",
+    }
+    return aliases.get(provider, provider)
+
+
+def _modelo_ia():
+    return _setting_str(
+        "AI_LEGAL_ANALYSIS_MODEL",
+        _setting_str("OPENAI_LEGAL_ANALYSIS_MODEL", "gpt-5.5"),
+    )
+
+
+def _api_key_ia(provider):
+    chave_generica = _setting_str("AI_LEGAL_ANALYSIS_API_KEY")
+    if chave_generica:
+        return chave_generica
+
+    if provider == "openai":
+        return _setting_str("OPENAI_API_KEY")
+    if provider == "anthropic":
+        return _setting_str("ANTHROPIC_API_KEY")
+    if provider == "gemini":
+        return _setting_str("GEMINI_API_KEY", _setting_str("GOOGLE_API_KEY"))
+    return ""
+
+
+def _nome_variavel_chave(provider):
+    return {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+    }.get(provider, "AI_LEGAL_ANALYSIS_API_KEY")
+
+
+def _system_prompt_ia():
+    return (
+        "Voce e um especialista brasileiro em leiloes de imoveis, "
+        "execucao judicial/extrajudicial, matricula imobiliaria e "
+        "edital da Caixa. Seu papel e identificar riscos provaveis, "
+        "lacunas de validacao e responsabilidades do arrematante com "
+        "base somente nas evidencias fornecidas."
+    )
+
 
 def _agora_payload():
     agora = timezone.now()
@@ -141,7 +198,8 @@ def _payload_status(status, mensagem, fontes=None, erro=""):
         "status": status,
         "mensagem": mensagem,
         "erro": erro,
-        "modelo": getattr(settings, "OPENAI_LEGAL_ANALYSIS_MODEL", ""),
+        "provider": _provider_ia(),
+        "modelo": _modelo_ia(),
         "fontes": fontes or [],
         "resultado": None,
         **_agora_payload(),
@@ -463,16 +521,85 @@ def _extrair_texto_resposta(response):
     return "\n".join(partes).strip()
 
 
-def _gerar_com_openai(imovel, fontes):
+def _json_de_texto(texto, mensagem_erro):
+    texto = (texto or "").strip()
+    if texto.startswith("```"):
+        linhas = texto.splitlines()
+        if linhas and linhas[0].startswith("```"):
+            linhas = linhas[1:]
+        if linhas and linhas[-1].startswith("```"):
+            linhas = linhas[:-1]
+        texto = "\n".join(linhas).strip()
+
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError as exc:
+        raise AnaliseJuridicaErro(mensagem_erro) from exc
+
+
+def _post_json(url, payload, headers=None, params=None):
+    try:
+        resposta = requests.post(
+            url,
+            headers=headers or {},
+            params=params or {},
+            json=payload,
+            timeout=(10, 180),
+        )
+        resposta.raise_for_status()
+    except requests.HTTPError as exc:
+        corpo = ""
+        if exc.response is not None:
+            corpo = (exc.response.text or "")[:700]
+        raise AnaliseJuridicaErro(f"Falha na API de IA: {corpo or exc}") from exc
+    except requests.RequestException as exc:
+        raise AnaliseJuridicaErro(f"Falha de comunicacao com a API de IA: {exc}") from exc
+
+    try:
+        return resposta.json()
+    except ValueError as exc:
+        raise AnaliseJuridicaErro("A API de IA retornou resposta sem JSON valido") from exc
+
+
+def _schema_gemini(schema):
+    tipo_map = {
+        "object": "OBJECT",
+        "array": "ARRAY",
+        "string": "STRING",
+        "integer": "INTEGER",
+        "number": "NUMBER",
+        "boolean": "BOOLEAN",
+    }
+    convertido = {}
+    tipo = schema.get("type")
+    if tipo:
+        convertido["type"] = tipo_map.get(tipo, str(tipo).upper())
+    if "description" in schema:
+        convertido["description"] = schema["description"]
+    if "enum" in schema:
+        convertido["enum"] = schema["enum"]
+    if "required" in schema:
+        convertido["required"] = schema["required"]
+    if "properties" in schema:
+        convertido["properties"] = {
+            nome: _schema_gemini(valor)
+            for nome, valor in schema["properties"].items()
+        }
+    if "items" in schema:
+        convertido["items"] = _schema_gemini(schema["items"])
+    return convertido
+
+
+def _gerar_com_openai(imovel, fontes, api_key, modelo):
     try:
         from openai import OpenAI
     except ImportError as exc:
         raise AnaliseJuridicaErro("Pacote openai nao instalado") from exc
 
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = OpenAI(api_key=api_key)
     response = client.responses.create(
-        model=settings.OPENAI_LEGAL_ANALYSIS_MODEL,
-        reasoning={"effort": settings.OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT},
+        model=modelo,
+        reasoning={"effort": settings.AI_LEGAL_ANALYSIS_REASONING_EFFORT},
         max_output_tokens=settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
         text={
             "verbosity": "low",
@@ -486,13 +613,7 @@ def _gerar_com_openai(imovel, fontes):
         input=[
             {
                 "role": "system",
-                "content": (
-                    "Voce e um especialista brasileiro em leiloes de imoveis, "
-                    "execucao judicial/extrajudicial, matricula imobiliaria e "
-                    "edital da Caixa. Seu papel e identificar riscos provaveis, "
-                    "lacunas de validacao e responsabilidades do arrematante com "
-                    "base somente nas evidencias fornecidas."
-                ),
+                "content": _system_prompt_ia(),
             },
             {
                 "role": "user",
@@ -504,17 +625,126 @@ def _gerar_com_openai(imovel, fontes):
     if not texto:
         raise AnaliseJuridicaErro("A IA nao retornou texto estruturado")
 
-    try:
-        return json.loads(texto)
-    except json.JSONDecodeError as exc:
-        raise AnaliseJuridicaErro("A IA retornou JSON invalido") from exc
+    return _json_de_texto(texto, "A IA retornou JSON invalido")
+
+
+def _gerar_com_anthropic(imovel, fontes, api_key, modelo):
+    payload = {
+        "model": modelo,
+        "max_tokens": settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
+        "temperature": 0,
+        "system": _system_prompt_ia(),
+        "messages": [
+            {
+                "role": "user",
+                "content": _prompt_usuario(imovel, fontes),
+            }
+        ],
+        "tools": [
+            {
+                "name": "analise_juridica_leilao_caixa",
+                "description": "Retorna uma analise juridica estruturada de imovel de leilao Caixa.",
+                "input_schema": ANALISE_JURIDICA_SCHEMA,
+            }
+        ],
+        "tool_choice": {
+            "type": "tool",
+            "name": "analise_juridica_leilao_caixa",
+        },
+    }
+    data = _post_json(
+        "https://api.anthropic.com/v1/messages",
+        payload,
+        headers={
+            "content-type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": _setting_str("ANTHROPIC_API_VERSION", "2023-06-01"),
+        },
+    )
+
+    textos = []
+    for item in data.get("content", []) or []:
+        if item.get("type") == "tool_use" and item.get("name") == "analise_juridica_leilao_caixa":
+            resultado = item.get("input")
+            if isinstance(resultado, dict):
+                return resultado
+        if item.get("type") == "text" and item.get("text"):
+            textos.append(item["text"])
+
+    return _json_de_texto("\n".join(textos), "A IA retornou resposta Anthropic sem JSON valido")
+
+
+def _gerar_com_gemini(imovel, fontes, api_key, modelo):
+    model_path = modelo if modelo.startswith("models/") else f"models/{modelo}"
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": _system_prompt_ia()}],
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": _prompt_usuario(imovel, fontes)}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
+            "responseMimeType": "application/json",
+            "responseSchema": _schema_gemini(ANALISE_JURIDICA_SCHEMA),
+        },
+    }
+    data = _post_json(
+        f"https://generativelanguage.googleapis.com/v1beta/{model_path}:generateContent",
+        payload,
+        headers={"content-type": "application/json"},
+        params={"key": api_key},
+    )
+
+    partes = (
+        ((data.get("candidates") or [{}])[0].get("content") or {}).get("parts")
+        or []
+    )
+    texto = "\n".join(parte.get("text", "") for parte in partes if parte.get("text"))
+    if not texto:
+        raise AnaliseJuridicaErro("A IA nao retornou conteudo Gemini estruturado")
+    return _json_de_texto(texto, "A IA retornou resposta Gemini sem JSON valido")
+
+
+def _gerar_com_ia(imovel, fontes, provider, api_key, modelo):
+    if not modelo:
+        raise AnaliseJuridicaErro("Configure AI_LEGAL_ANALYSIS_MODEL com o modelo da IA.")
+    if provider != "openai" and modelo.startswith("gpt-"):
+        raise AnaliseJuridicaErro(
+            "Configure AI_LEGAL_ANALYSIS_MODEL com um modelo compativel com o provider escolhido."
+        )
+    if provider == "openai":
+        return _gerar_com_openai(imovel, fontes, api_key, modelo)
+    if provider == "anthropic":
+        return _gerar_com_anthropic(imovel, fontes, api_key, modelo)
+    if provider == "gemini":
+        return _gerar_com_gemini(imovel, fontes, api_key, modelo)
+    raise AnaliseJuridicaErro(f"Provider de IA nao suportado: {provider}")
 
 
 def analisar_imovel_caixa(imovel):
-    if not settings.OPENAI_API_KEY:
+    provider = _provider_ia()
+    modelo = _modelo_ia()
+
+    if provider not in AI_PROVIDERS_SUPORTADOS:
+        return _payload_status(
+            "erro_configuracao",
+            "Provider de IA nao suportado. Use openai, anthropic ou gemini.",
+            erro=f"AI_LEGAL_ANALYSIS_PROVIDER={provider}",
+        )
+
+    api_key = _api_key_ia(provider)
+    if not api_key:
         return _payload_status(
             "sem_api_key",
-            "Configure OPENAI_API_KEY para gerar a analise juridica IA.",
+            (
+                "Configure AI_LEGAL_ANALYSIS_API_KEY ou "
+                f"{_nome_variavel_chave(provider)} para gerar a analise juridica IA."
+            ),
         )
 
     if not _documentos_do_imovel(imovel):
@@ -533,11 +763,13 @@ def analisar_imovel_caixa(imovel):
         )
 
     try:
-        resultado = _gerar_com_openai(imovel, fontes)
+        resultado = _gerar_com_ia(imovel, fontes, provider, api_key, modelo)
     except AnaliseJuridicaErro as exc:
         logger.warning(
-            "Analise juridica IA falhou para imovel %s: %s",
+            "Analise juridica IA falhou para imovel %s (%s/%s): %s",
             imovel.imovel_id_caixa,
+            provider,
+            modelo,
             exc,
         )
         return _payload_status(
@@ -562,7 +794,8 @@ def analisar_imovel_caixa(imovel):
         "status": "concluida",
         "mensagem": "Analise juridica IA concluida.",
         "erro": "",
-        "modelo": settings.OPENAI_LEGAL_ANALYSIS_MODEL,
+        "provider": provider,
+        "modelo": modelo,
         "fontes": fontes_metadata,
         "resultado": resultado,
         **_agora_payload(),

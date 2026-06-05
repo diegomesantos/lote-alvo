@@ -2,7 +2,7 @@
 PLAYWRIGHT_BROWSERS_PATH = "/app/.cache/ms-playwright"
 
 [phases.setup]
-aptPkgs = ["...", "tesseract-ocr", "tesseract-ocr-por"]
+aptPkgs = ["...", "libstdc++6", "tesseract-ocr", "tesseract-ocr-por"]
 
 [phases.build]
 cmds = [
