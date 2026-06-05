@@ -18,7 +18,7 @@ import random
 
 from .models import ImovelCaixa
 from apps.imoveis.models import Imovel
-from .analise_juridica import analisar_imovel_caixa
+from .tasks import gerar_analise_juridica_caixa_task
 from .scrapers import CaixaLeiloesScraper
 from .scrapers_playwright import CaixaLeiloeScraperPlaywright
 from .scrapers_professional import scrape_caixa_profissional
@@ -84,6 +84,27 @@ def _classe_risco_analise(nivel):
         'critico': 'bg-red-100 text-red-800 border-red-200',
         'indeterminado': 'bg-gray-100 text-gray-700 border-gray-200',
     }.get(nivel or 'indeterminado', 'bg-gray-100 text-gray-700 border-gray-200')
+
+
+def _payload_analise_processando(task_id=''):
+    from django.utils import timezone
+
+    agora = timezone.now()
+    return {
+        'status': 'processando',
+        'mensagem': (
+            'A análise jurídica IA está em processamento. '
+            'Você pode permanecer nesta página ou voltar depois.'
+        ),
+        'erro': '',
+        'provider': getattr(settings, 'AI_LEGAL_ANALYSIS_PROVIDER', 'openai'),
+        'modelo': getattr(settings, 'AI_LEGAL_ANALYSIS_MODEL', ''),
+        'task_id': task_id,
+        'fontes': [],
+        'resultado': None,
+        'gerado_em': agora.isoformat(),
+        'gerado_em_display': timezone.localtime(agora).strftime('%d/%m/%Y %H:%M'),
+    }
 
 
 def gerar_dados_teste_caixa(estado):
@@ -478,21 +499,62 @@ def gerar_analise_juridica_ia(request, imovel_id):
         ativo_caixa=True,
     )
 
-    resultado = analisar_imovel_caixa(imovel)
     detalhes = dict(imovel.detalhes or {})
-    detalhes['analise_juridica_ia'] = resultado
+    analise_atual = detalhes.get('analise_juridica_ia') or {}
+    if analise_atual.get('status') == 'processando':
+        messages.info(request, "A análise jurídica IA já está em processamento.")
+        return redirect('leiloes:detalhe', imovel_id=imovel.imovel_id_caixa)
+
+    task_id = ''
+    detalhes['analise_juridica_ia'] = _payload_analise_processando()
     imovel.detalhes = detalhes
     imovel.save(update_fields=['detalhes', 'atualizado_em'])
 
-    status = resultado.get('status')
-    if status == 'concluida':
-        messages.success(request, "Analise juridica IA gerada com sucesso.")
-    elif status in {'sem_api_key', 'sem_documentos', 'sem_texto'}:
-        messages.warning(request, resultado.get('mensagem') or "Analise juridica indisponivel.")
-    else:
-        messages.error(request, resultado.get('erro') or "Nao foi possivel gerar a analise juridica IA.")
+    try:
+        async_result = gerar_analise_juridica_caixa_task.delay(imovel.imovel_id_caixa)
+        task_id = async_result.id or ''
+        imovel.refresh_from_db()
+        detalhes = dict(imovel.detalhes or {})
+        analise_enfileirada = detalhes.get('analise_juridica_ia') or {}
+        if analise_enfileirada.get('status') == 'processando':
+            analise_enfileirada['task_id'] = task_id
+            detalhes['analise_juridica_ia'] = analise_enfileirada
+            imovel.detalhes = detalhes
+            imovel.save(update_fields=['detalhes', 'atualizado_em'])
+        messages.info(request, "Análise jurídica IA iniciada. A página será atualizada quando terminar.")
+    except Exception as exc:
+        logger.exception("Falha ao enfileirar analise juridica IA do imovel %s", imovel.imovel_id_caixa)
+        detalhes = dict(imovel.detalhes or {})
+        detalhes['analise_juridica_ia'] = {
+            **_payload_analise_processando(task_id=task_id),
+            'status': 'erro',
+            'mensagem': 'Não foi possível iniciar a análise jurídica IA.',
+            'erro': str(exc)[:500],
+        }
+        imovel.detalhes = detalhes
+        imovel.save(update_fields=['detalhes', 'atualizado_em'])
+        messages.error(request, "Não foi possível iniciar a análise jurídica IA.")
 
     return redirect('leiloes:detalhe', imovel_id=imovel.imovel_id_caixa)
+
+
+@login_required
+def analise_juridica_status(request, imovel_id):
+    imovel = get_object_or_404(
+        ImovelCaixa,
+        imovel_id_caixa=imovel_id,
+        ativo_caixa=True,
+    )
+    analise = (imovel.detalhes or {}).get('analise_juridica_ia') or {}
+    return JsonResponse({
+        'status': analise.get('status') or 'nao_iniciada',
+        'mensagem': analise.get('mensagem') or '',
+        'erro': analise.get('erro') or '',
+        'provider': analise.get('provider') or '',
+        'modelo': analise.get('modelo') or '',
+        'gerado_em_display': analise.get('gerado_em_display') or '',
+        'detail_url': reverse('leiloes:detalhe', args=[imovel.imovel_id_caixa]),
+    })
 
 
 @login_required

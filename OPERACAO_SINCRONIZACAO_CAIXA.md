@@ -322,6 +322,9 @@ Caracteristicas:
 - nao roda automaticamente na sincronizacao;
 - nao roda ao abrir a pagina;
 - gera a analise apenas por clique do usuario;
+- o clique apenas enfileira uma task Celery e marca a analise como `processando`;
+- a chamada ao provedor de IA roda no Worker, fora do processo web/Gunicorn;
+- a pagina de detalhe consulta o status e recarrega automaticamente quando a task termina;
 - cacheia o ultimo resultado no JSON `detalhes`;
 - permite atualizar a analise pelo mesmo botao;
 - se a chave do provedor configurado nao estiver presente, salva status `sem_api_key` e mostra mensagem controlada;

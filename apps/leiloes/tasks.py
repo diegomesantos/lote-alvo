@@ -3,6 +3,7 @@ from pathlib import Path
 
 from django.utils import timezone
 
+from .analise_juridica import analisar_imovel_caixa
 from .caixa_csv import (
     ESTADOS,
     baixar_csv_caixa,
@@ -179,3 +180,58 @@ def enriquecer_leiloes_caixa_pendentes_task(max_detalhes=300, intervalo=1.0):
     }
     logger.info("Enriquecimento Caixa concluído: %s", resultado)
     return resultado
+
+
+def _payload_analise_task(status, mensagem, erro="", task_id=""):
+    agora = timezone.now()
+    return {
+        "status": status,
+        "mensagem": mensagem,
+        "erro": erro,
+        "task_id": task_id,
+        "fontes": [],
+        "resultado": None,
+        "gerado_em": agora.isoformat(),
+        "gerado_em_display": timezone.localtime(agora).strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+@shared_task(bind=True)
+def gerar_analise_juridica_caixa_task(self, imovel_id):
+    """Gera a analise juridica IA fora do ciclo HTTP."""
+    task_id = getattr(getattr(self, "request", None), "id", "") or ""
+    try:
+        imovel = ImovelCaixa.objects.get(imovel_id_caixa=imovel_id, ativo_caixa=True)
+    except ImovelCaixa.DoesNotExist:
+        logger.warning("Analise juridica ignorada: imovel Caixa %s nao encontrado", imovel_id)
+        return {"status": "nao_encontrado", "imovel_id": imovel_id}
+
+    try:
+        resultado = analisar_imovel_caixa(imovel)
+        if task_id and not resultado.get("task_id"):
+            resultado["task_id"] = task_id
+    except Exception as exc:
+        logger.exception("Falha inesperada na task de analise juridica do imovel %s", imovel_id)
+        resultado = _payload_analise_task(
+            "erro",
+            "Nao foi possivel concluir a analise juridica IA.",
+            erro=str(exc)[:500],
+            task_id=task_id,
+        )
+
+    imovel.refresh_from_db()
+    detalhes = dict(imovel.detalhes or {})
+    detalhes["analise_juridica_ia"] = resultado
+    imovel.detalhes = detalhes
+    imovel.save(update_fields=["detalhes", "atualizado_em"])
+
+    logger.info(
+        "Analise juridica IA concluida para imovel %s com status %s",
+        imovel_id,
+        resultado.get("status"),
+    )
+    return {
+        "imovel_id": imovel_id,
+        "status": resultado.get("status"),
+        "task_id": task_id,
+    }

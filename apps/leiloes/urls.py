@@ -11,5 +11,6 @@ urlpatterns = [
     path('sync/', views.sincronizar_view, name='sincronizar'),
     path('cadastrar/<str:imovel_id>/', views.cadastrar_em_meus_imoveis, name='cadastrar_meus_imoveis'),
     path('analise-juridica/<str:imovel_id>/', views.gerar_analise_juridica_ia, name='gerar_analise_juridica'),
+    path('analise-juridica/<str:imovel_id>/status/', views.analise_juridica_status, name='analise_juridica_status'),
     path('<str:imovel_id>/', views.detalhe_imovel, name='detalhe'),
 ]

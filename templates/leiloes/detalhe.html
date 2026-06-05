@@ -120,8 +120,9 @@
                   {% csrf_token %}
                   <button
                     type="submit"
-                    class="inline-flex w-full items-center justify-center rounded bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800">
-                    {% if analise_juridica.status == 'concluida' %}Atualizar análise{% else %}Gerar análise{% endif %}
+                    {% if analise_juridica.status == 'processando' %}disabled{% endif %}
+                    class="inline-flex w-full items-center justify-center rounded px-4 py-2.5 text-sm font-bold {% if analise_juridica.status == 'processando' %}cursor-not-allowed bg-gray-200 text-gray-500{% else %}bg-gray-900 text-white hover:bg-gray-800{% endif %}">
+                    {% if analise_juridica.status == 'processando' %}Análise em andamento{% elif analise_juridica.status == 'concluida' %}Atualizar análise{% else %}Gerar análise{% endif %}
                   </button>
                 </form>
               {% else %}
@@ -137,7 +138,42 @@
           </div>
         </div>
 
-        {% if analise_juridica.status %}
+        {% if analise_juridica.status == 'processando' %}
+          <div
+            id="analise-juridica-processando"
+            data-status-url="{% url 'leiloes:analise_juridica_status' imovel.imovel_id_caixa %}"
+            class="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-4">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-white">
+                <div class="h-7 w-7 animate-spin rounded-full border-4 border-teal-100 border-t-teal-600"></div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h4 class="text-sm font-bold text-gray-900">Análise jurídica IA em processamento</h4>
+                  {% if analise_juridica.modelo %}
+                    <span class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600">
+                      {% if analise_juridica.provider %}{{ analise_juridica.provider|title }} · {% endif %}{{ analise_juridica.modelo }}
+                    </span>
+                  {% endif %}
+                </div>
+                <p id="analise-status-message" class="mt-2 text-sm leading-relaxed text-gray-700">
+                  {{ analise_juridica.mensagem|default:"Estamos baixando os documentos, extraindo texto/OCR e gerando a triagem." }}
+                </p>
+                <p class="mt-2 text-xs text-gray-500">
+                  Você pode manter esta página aberta. Quando a análise terminar, a página será atualizada automaticamente.
+                </p>
+                <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <a href="{{ request.path }}" class="inline-flex items-center justify-center rounded border border-teal-300 bg-white px-3 py-2 text-sm font-bold text-teal-700 hover:bg-teal-50">
+                    Atualizar agora
+                  </a>
+                  <a href="{% url 'leiloes:explorador' %}" class="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Voltar para garimpar
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% elif analise_juridica.status %}
           <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex flex-wrap items-center gap-2">
@@ -315,6 +351,51 @@
           </div>
         {% endif %}
       </section>
+
+      {% if analise_juridica.status == 'processando' %}
+        <script>
+          (function () {
+            const panel = document.getElementById('analise-juridica-processando');
+            if (!panel) return;
+
+            const statusUrl = panel.dataset.statusUrl;
+            const message = document.getElementById('analise-status-message');
+            let running = false;
+
+            async function pollAnalysisStatus() {
+              if (running) return;
+              running = true;
+              try {
+                const response = await fetch(statusUrl, {
+                  headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                  credentials: 'same-origin',
+                });
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (message && data.mensagem) {
+                  message.textContent = data.mensagem;
+                }
+                if (data.status && data.status !== 'processando') {
+                  if (message) {
+                    message.textContent = 'Análise finalizada. Carregando o resultado...';
+                  }
+                  window.setTimeout(function () {
+                    window.location.href = data.detail_url || window.location.href;
+                  }, 900);
+                }
+              } catch (error) {
+                console.warn('Falha ao consultar status da análise jurídica IA', error);
+              } finally {
+                running = false;
+              }
+            }
+
+            window.setTimeout(pollAnalysisStatus, 1500);
+            window.setInterval(pollAnalysisStatus, 6000);
+          })();
+        </script>
+      {% endif %}
 
       <section class="bg-white rounded-lg border border-gray-200 p-5">
         <h3 class="text-base font-bold text-gray-900">Condições de pagamento</h3>

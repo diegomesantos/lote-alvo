@@ -294,8 +294,8 @@
           <div
             role="link"
             tabindex="0"
-            onclick="if (!event.target.closest('a,button')) window.location.href='{{ detalhe_url }}';"
-            onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button')) { event.preventDefault(); window.location.href='{{ detalhe_url }}'; }"
+            onclick="if (!event.target.closest('a,button')) window.open('{{ detalhe_url }}', '_blank', 'noopener');"
+            onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button')) { event.preventDefault(); window.open('{{ detalhe_url }}', '_blank', 'noopener'); }"
             class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-teal-200 transition-shadow bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400">
             <!-- Foto -->
             <div class="h-40 bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center overflow-hidden">
