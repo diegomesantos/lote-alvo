@@ -201,6 +201,29 @@ Variaveis principais:
 - `AI_LEGAL_ANALYSIS_API_KEY`: chave generica opcional para o provedor escolhido.
 - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` ou `GEMINI_API_KEY`: alternativa por provedor quando `AI_LEGAL_ANALYSIS_API_KEY` nao for usada.
 
+Midia e uploads de cards:
+
+- `USE_S3_MEDIA_STORAGE=True`: habilita bucket S3-compatible para fotos, matriculas anexadas, editais e arquivos de apoio enviados pelo usuario.
+- `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, `B2_ENDPOINT_URL`, `B2_REGION_NAME`: variaveis recomendadas para Backblaze B2.
+- Tambem sao aceitos os nomes `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL` e `AWS_S3_REGION_NAME`.
+- `AWS_LOCATION`: prefixo dentro do bucket. Padrao `media`.
+- `AWS_QUERYSTRING_AUTH`: padrao `False`, indicado para bucket publico. Use `True` se o bucket for privado e a aplicacao precisar gerar URLs assinadas.
+
+Exemplo Backblaze B2:
+
+```env
+USE_S3_MEDIA_STORAGE=True
+B2_KEY_ID=...
+B2_APPLICATION_KEY=...
+B2_BUCKET_NAME=...
+B2_ENDPOINT_URL=https://s3.us-east-005.backblazeb2.com
+B2_REGION_NAME=us-east-005
+AWS_LOCATION=media
+AWS_QUERYSTRING_AUTH=False
+```
+
+Enquanto o bucket nao estiver configurado, o sistema consegue servir midia local autenticada pelo Django, mas esse modo depende do filesystem do container e nao deve ser tratado como armazenamento permanente.
+
 O projeto tambem define:
 
 - `CELERY_TASK_TIME_LIMIT`: padrao de 3 horas.
