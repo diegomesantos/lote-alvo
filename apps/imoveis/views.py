@@ -2,11 +2,14 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
+from django.urls import reverse
 from django.views.decorators.http import require_POST
+from urllib.parse import urlencode
 from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, tabela_lances
 from core.calculos.cartorio import (
     calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS
 )
+from apps.leiloes.models import ImovelCaixa
 from .models import (
     Imovel, ETAPA_CHOICES, ETAPA_COR, ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
 )
@@ -19,6 +22,197 @@ def _resultado_resumo(imovel, meses=6):
         return r
     except Exception:
         return None
+
+
+def _valor_presente(value):
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict, set)):
+        return bool(value)
+    return True
+
+
+def _fmt_m2(value):
+    if not value:
+        return None
+    try:
+        texto = f"{float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        texto = texto.rstrip("0").rstrip(",")
+        return f"{texto} m²"
+    except (TypeError, ValueError):
+        return f"{value} m²"
+
+
+def _fmt_data_hora(data, hora=None):
+    if not data:
+        return None
+    texto = data.strftime("%d/%m/%Y")
+    if hora:
+        texto = f"{texto}, {hora.strftime('%H:%M')}"
+    return texto
+
+
+def _dict_filtrado(items):
+    return [
+        {"label": label, "value": value}
+        for label, value in items
+        if _valor_presente(value)
+    ]
+
+
+def _classe_risco_analise(nivel_risco):
+    nivel = (nivel_risco or "").lower()
+    if nivel in {"baixo", "baixo risco"}:
+        return "ok"
+    if nivel in {"medio", "médio", "moderado", "medio risco", "médio risco"}:
+        return "warn"
+    if nivel in {"alto", "critico", "crítico", "alto risco"}:
+        return "bad"
+    return "neutral"
+
+
+def _indicador_financeiro(r):
+    if not r:
+        return {
+            "titulo": "Financeiro",
+            "status": "neutral",
+            "valor": "Não calculado",
+            "texto": "Complete a simulação para enxergar retorno, capital exposto e custo até a venda.",
+        }
+
+    resultado = float(r.get("resultado") or 0)
+    roi = float(r.get("roi") or 0)
+    if resultado > 0 and roi >= 15:
+        status = "ok"
+        texto = "Retorno acima do alvo usual para uma triagem inicial."
+    elif resultado > 0:
+        status = "warn"
+        texto = "Operação positiva, mas exige validação de preço, prazo e custos."
+    else:
+        status = "bad"
+        texto = "Resultado projetado negativo no giro padrão."
+    return {
+        "titulo": "Financeiro",
+        "status": status,
+        "valor": fmt_pct(roi),
+        "texto": texto,
+    }
+
+
+def _indicadores_decisao(imovel, imovel_caixa, r, analise_resultado):
+    desconto = float(imovel.desconto_pct or 0)
+    documentos_ok = bool(imovel_caixa and imovel_caixa.matricula_url and imovel_caixa.edital_url)
+    risco = (analise_resultado or {}).get("nivel_risco") or ""
+    risco_status = _classe_risco_analise(risco)
+
+    if desconto >= 30:
+        contexto_status = "ok"
+        contexto_texto = "Desconto relevante sobre a avaliação cadastrada."
+    elif desconto > 0:
+        contexto_status = "warn"
+        contexto_texto = "Desconto existe, mas precisa ser comparado com mercado local."
+    else:
+        contexto_status = "neutral"
+        contexto_texto = "Sem desconto calculado a partir dos dados atuais."
+
+    if documentos_ok:
+        docs_status = "ok"
+        docs_texto = "Matrícula e edital disponíveis para conferência."
+    elif imovel_caixa and (imovel_caixa.matricula_url or imovel_caixa.edital_url):
+        docs_status = "warn"
+        docs_texto = "Há documento parcial; complete a validação antes da decisão."
+    else:
+        docs_status = "bad"
+        docs_texto = "Documentos essenciais ainda não estão vinculados."
+
+    if imovel_caixa and imovel_caixa.ocupado:
+        operacao_status = "warn"
+        operacao_texto = "Ocupação indicada nos dados Caixa; estime prazo e custo de desocupação."
+    elif imovel.custo_desocup and imovel.custo_desocup > 0:
+        operacao_status = "warn"
+        operacao_texto = "Há custo de desocupação previsto na simulação."
+    else:
+        operacao_status = "neutral"
+        operacao_texto = "Sem alerta operacional forte nos dados atuais."
+
+    if risco_status == "neutral":
+        risco_valor = "Pendente"
+        risco_texto = "Gere ou revise a análise jurídica para qualificar riscos documentais."
+    else:
+        risco_valor = risco.title()
+        risco_texto = (analise_resultado or {}).get("resumo_executivo") or "Resumo jurídico disponível."
+
+    return [
+        _indicador_financeiro(r),
+        {
+            "titulo": "Desconto",
+            "status": contexto_status,
+            "valor": fmt_pct(desconto),
+            "texto": contexto_texto,
+        },
+        {
+            "titulo": "Documentos",
+            "status": docs_status,
+            "valor": "Completo" if documentos_ok else "Pendente",
+            "texto": docs_texto,
+        },
+        {
+            "titulo": "Jurídico IA",
+            "status": risco_status,
+            "valor": risco_valor,
+            "texto": risco_texto,
+        },
+        {
+            "titulo": "Operação",
+            "status": operacao_status,
+            "valor": imovel.etapa_display,
+            "texto": operacao_texto,
+        },
+    ]
+
+
+def _alertas_relatorio(imovel, imovel_caixa, r, analise_resultado):
+    alertas = []
+    if r and float(r.get("resultado") or 0) < 0:
+        alertas.append({
+            "titulo": "Resultado financeiro negativo",
+            "texto": "Revise preço de venda, lance máximo, custos recorrentes e prazo de giro.",
+            "classe": "bad",
+        })
+    if imovel_caixa and imovel_caixa.ocupado:
+        alertas.append({
+            "titulo": "Imóvel possivelmente ocupado",
+            "texto": "Inclua prazo, custo de desocupação e risco de resistência na decisão.",
+            "classe": "warn",
+        })
+    if imovel_caixa and imovel_caixa.possui_penhora:
+        alertas.append({
+            "titulo": "Penhora mencionada",
+            "texto": "Valide a matrícula e o edital antes de avançar para habilitação.",
+            "classe": "bad",
+        })
+    if imovel_caixa and imovel_caixa.pendencias:
+        alertas.append({
+            "titulo": "Pendências informadas",
+            "texto": ", ".join(imovel_caixa.pendencias),
+            "classe": "bad",
+        })
+    if imovel_caixa and not imovel_caixa.matricula_url:
+        alertas.append({
+            "titulo": "Matrícula indisponível",
+            "texto": "O relatório fica incompleto sem a leitura da matrícula.",
+            "classe": "warn",
+        })
+    risco = _classe_risco_analise((analise_resultado or {}).get("nivel_risco"))
+    if risco == "bad":
+        alertas.append({
+            "titulo": "Risco jurídico alto",
+            "texto": (analise_resultado or {}).get("resumo_executivo") or "A análise IA sinalizou risco elevado.",
+            "classe": "bad",
+        })
+    return alertas
 
 
 @login_required
@@ -101,6 +295,11 @@ def detalhe(request, pk):
     p = imovel.to_calc_dict()
     tg = tabela_giro(p)
     r_padrao = tg.get(imovel.giro_padrao, tg.get(12))
+    imovel_caixa = None
+    if imovel.caixa_imovel_id:
+        imovel_caixa = ImovelCaixa.objects.filter(
+            imovel_id_caixa=imovel.caixa_imovel_id,
+        ).first()
 
     base_cart = max(float(imovel.lance), float(imovel.av_fiscal)) if imovel.av_fiscal > 0 else float(imovel.lance)
     cart = calcular_cartorio(imovel.estado, base_cart, imovel.tipo_leilao)
@@ -117,8 +316,143 @@ def detalhe(request, pk):
         tab_reg = dados_est["registro"]
         _, _, idx_reg = buscar_faixa(tab_reg, base_cart)
 
+    endereco_query = " ".join(
+        parte for parte in [imovel.endereco, imovel.cidade, imovel.estado] if parte
+    )
+    maps_url = f"https://www.google.com/maps/search/?api=1&{urlencode({'query': endereco_query})}"
+    maps_embed_url = f"https://maps.google.com/maps?{urlencode({'q': endereco_query, 'output': 'embed'})}"
+
+    imagem_url = None
+    if imovel.foto:
+        try:
+            imagem_url = imovel.foto.url
+        except ValueError:
+            imagem_url = None
+    if not imagem_url and imovel_caixa:
+        imagem_url = reverse("leiloes:imagem", args=[imovel_caixa.imovel_id_caixa])
+
+    detalhe_caixa = (imovel_caixa.detalhes or {}).get("detalhe_caixa") if imovel_caixa else {}
+    analise_juridica = (imovel_caixa.detalhes or {}).get("analise_juridica_ia") if imovel_caixa else {}
+    detalhe_caixa = detalhe_caixa or {}
+    analise_juridica = analise_juridica or {}
+    analise_resultado = analise_juridica.get("resultado") or {}
+    analise_nivel_risco = analise_resultado.get("nivel_risco") or "indeterminado"
+
+    caixa_url = None
+    caixa_detalhe_url = None
+    if imovel_caixa:
+        caixa_url = imovel_caixa.link_caixa or imovel.link_leilao or "https://www.caixa.gov.br/imoveiscaixa"
+        caixa_detalhe_url = reverse("leiloes:detalhe", args=[imovel_caixa.imovel_id_caixa])
+    elif imovel.link_leilao:
+        caixa_url = imovel.link_leilao
+
+    documentos = []
+    if imovel_caixa:
+        documentos = [
+            {
+                "nome": "Matrícula",
+                "url": imovel_caixa.matricula_url,
+                "descricao": "Registro, titularidade, averbações, ônus e restrições.",
+                "disponivel": bool(imovel_caixa.matricula_url),
+            },
+            {
+                "nome": "Edital",
+                "url": imovel_caixa.edital_url,
+                "descricao": "Condições da oferta, responsabilidades e prazos.",
+                "disponivel": bool(imovel_caixa.edital_url),
+            },
+        ]
+
+    dados_imovel = _dict_filtrado([
+        ("Tipo", imovel.get_tipo_imovel_display()),
+        ("Quartos", imovel_caixa.quartos if imovel_caixa else None),
+        ("Área privativa", _fmt_m2(imovel_caixa.area_util) if imovel_caixa else None),
+        ("Área total", _fmt_m2(imovel_caixa.area_total) if imovel_caixa else None),
+        ("Área terreno", _fmt_m2(imovel_caixa.area_terreno) if imovel_caixa else None),
+        ("Bairro", imovel_caixa.bairro if imovel_caixa else None),
+        ("CEP", imovel_caixa.cep if imovel_caixa else None),
+        ("Situação", imovel_caixa.situacao if imovel_caixa else None),
+        ("Ocupado", "Sim" if imovel_caixa and imovel_caixa.ocupado else "Não" if imovel_caixa else None),
+        ("ID Caixa", imovel.caixa_imovel_id),
+    ])
+
+    dados_leilao = _dict_filtrado([
+        ("Vendedor", "CAIXA" if imovel_caixa else None),
+        ("Tipo de leilão", imovel.tipo_leilao),
+        ("Modalidade", imovel_caixa.modalidade_venda if imovel_caixa else None),
+        ("Data da oferta", _fmt_data_hora(
+            imovel_caixa.data_leilao,
+            imovel_caixa.hora_leilao,
+        ) if imovel_caixa else _fmt_data_hora(imovel.data_leilao)),
+        ("Avaliação", fmt_brl(imovel_caixa.valor_avaliacao if imovel_caixa else imovel.avaliacao)),
+        ("Lance mínimo", fmt_brl(imovel_caixa.valor_minimo_lance if imovel_caixa else imovel.lance)),
+        ("Desconto", fmt_pct(imovel_caixa.percentual_desconto if imovel_caixa else imovel.desconto_pct)),
+        ("Matrícula", detalhe_caixa.get("matriculas")),
+        ("Comarca", detalhe_caixa.get("comarca")),
+        ("Ofício", detalhe_caixa.get("oficio")),
+        ("Leiloeiro", detalhe_caixa.get("leiloeiro")),
+    ])
+
+    formas = (imovel_caixa.formas_pagamento or {}) if imovel_caixa else {}
+    pagamentos = [
+        {"label": "À vista", "ok": bool(formas.get("a_vista", True)) if imovel_caixa else imovel.tipo_pgto == "À Vista"},
+        {"label": "Financiamento", "ok": imovel_caixa.pode_financiar if imovel_caixa else imovel.tipo_pgto == "Financiamento SAC"},
+        {"label": "FGTS", "ok": imovel_caixa.pode_fgts if imovel_caixa else False},
+        {"label": "Consórcio", "ok": imovel_caixa.pode_consorcio if imovel_caixa else False},
+        {"label": "Parcelamento", "ok": bool(formas.get("parcelado", False)) if imovel_caixa else False},
+    ]
+
+    checklist_relatorio = [
+        {
+            "grupo": "Dados essenciais",
+            "itens": [
+                {"label": "Simulação financeira preenchida", "ok": bool(imovel.lance and imovel.preco_venda)},
+                {"label": "Custo até a venda calculado", "ok": bool(r_padrao and r_padrao.get("custo_ate_venda") is not None)},
+                {"label": "Endereço pronto para conferência no Maps", "ok": bool(endereco_query)},
+            ],
+        },
+        {
+            "grupo": "Documentos e riscos",
+            "itens": [
+                {"label": "Matrícula vinculada", "ok": bool(imovel_caixa and imovel_caixa.matricula_url)},
+                {"label": "Edital vinculado", "ok": bool(imovel_caixa and imovel_caixa.edital_url)},
+                {"label": "Análise jurídica IA concluída", "ok": analise_juridica.get("status") == "concluida"},
+            ],
+        },
+        {
+            "grupo": "Operação",
+            "itens": [
+                {"label": "Débitos considerados", "ok": bool(imovel.debitos) or not (imovel_caixa and imovel_caixa.pendencias)},
+                {"label": "Desocupação precificada quando aplicável", "ok": not (imovel_caixa and imovel_caixa.ocupado) or bool(imovel.custo_desocup)},
+                {"label": "Reforma estimada", "ok": bool(imovel.reformas)},
+            ],
+        },
+    ]
+
+    indicadores_decisao = _indicadores_decisao(imovel, imovel_caixa, r_padrao, analise_resultado)
+    alertas_relatorio = _alertas_relatorio(imovel, imovel_caixa, r_padrao, analise_resultado)
+
+    export_rows = [
+        ("Imóvel", imovel.titulo_card),
+        ("Endereço", f"{imovel.endereco}, {imovel.cidade}/{imovel.estado}"),
+        ("Etapa", imovel.etapa_display),
+        ("Prioridade", imovel.get_prioridade_display()),
+        ("Avaliação", fmt_brl(imovel.avaliacao)),
+        ("Lance", fmt_brl(imovel.lance)),
+        ("Preço de venda", fmt_brl(imovel.preco_venda)),
+    ]
+    if r_padrao:
+        export_rows.extend([
+            ("Giro padrão", f"{imovel.giro_padrao} meses"),
+            ("Resultado", fmt_brl(r_padrao.get("resultado"))),
+            ("Custo até a venda", f"-{fmt_brl(r_padrao.get('custo_ate_venda'))}"),
+            ("ROI", fmt_pct(r_padrao.get("roi"))),
+            ("Taxa mensal equivalente", fmt_pct(r_padrao.get("tem"))),
+        ])
+
     return render(request, "imoveis/detalhe.html", {
         "imovel": imovel,
+        "imovel_caixa": imovel_caixa,
         "tg": tg,
         "r_padrao": r_padrao,
         "cart": cart,
@@ -131,6 +465,24 @@ def detalhe(request, pk):
         "etapas": ETAPA_CHOICES,
         "fmt_brl": fmt_brl,
         "fmt_pct": fmt_pct,
+        "imagem_url": imagem_url,
+        "maps_url": maps_url,
+        "maps_embed_url": maps_embed_url,
+        "caixa_url": caixa_url,
+        "caixa_detalhe_url": caixa_detalhe_url,
+        "documentos": documentos,
+        "dados_imovel": dados_imovel,
+        "dados_leilao": dados_leilao,
+        "pagamentos": pagamentos,
+        "detalhe_caixa": detalhe_caixa,
+        "analise_juridica": analise_juridica,
+        "analise_resultado": analise_resultado,
+        "analise_nivel_risco": analise_nivel_risco,
+        "analise_risco_status": _classe_risco_analise(analise_nivel_risco),
+        "indicadores_decisao": indicadores_decisao,
+        "alertas_relatorio": alertas_relatorio,
+        "checklist_relatorio": checklist_relatorio,
+        "export_rows": export_rows,
     })
 
 

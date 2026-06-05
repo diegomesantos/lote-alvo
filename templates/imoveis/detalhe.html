@@ -1,208 +1,592 @@
 {% extends "base.html" %}
 {% load leilao_tags %}
-{% block title %}{{ imovel.endereco }} — LoteAlvo{% endblock %}
-{% block page_title %}{{ imovel.endereco }}{% endblock %}
-{% block page_subtitle %}📍 {{ imovel.cidade }} — {{ imovel.estado }} · {{ imovel.tipo_leilao }} · cadastrado em {{ imovel.data_cadastro }}{% endblock %}
+{% block title %}{{ imovel.titulo_card }} — LoteAlvo{% endblock %}
+{% block page_title %}{{ imovel.titulo_card }}{% endblock %}
+{% block page_subtitle %}{{ imovel.cidade }} — {{ imovel.estado }} · {{ imovel.tipo_leilao }} · cadastrado em {{ imovel.data_cadastro|date:"d/m/Y" }}{% endblock %}
 
 {% block header_actions %}
-  <form method="post" action="{% url 'atualizar_etapa' imovel.pk %}" class="flex w-full items-center gap-2 sm:w-auto">
+  <form method="post" action="{% url 'atualizar_etapa' imovel.pk %}" class="no-print flex w-full items-center gap-2 sm:w-auto">
     {% csrf_token %}
     <select name="etapa" onchange="this.form.submit()"
-            class="w-full text-sm rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 sm:w-auto">
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 sm:w-auto">
       {% for key, label in etapas %}
       <option value="{{ key }}" {% if imovel.etapa == key %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
   </form>
+  <button type="button"
+          onclick="window.print()"
+          class="no-print rounded-lg border border-gray-300 bg-white px-4 py-2 text-center text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
+    Gerar PDF
+  </button>
+  <button type="button"
+          onclick="baixarResumoImovelCsv()"
+          class="no-print rounded-lg border border-gray-300 bg-white px-4 py-2 text-center text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
+    Exportar CSV
+  </button>
   <a href="{% url 'editar' imovel.pk %}"
-     class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors text-center">
-    ✏️ Editar
+     class="no-print rounded-lg bg-gray-900 px-4 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-gray-800">
+    Editar
   </a>
   <form method="post" action="{% url 'excluir' imovel.pk %}"
+        class="no-print"
         onsubmit="return confirm('Excluir {{ imovel.endereco }}? Esta ação não pode ser desfeita.')">
     {% csrf_token %}
     <button type="submit"
-            class="w-full bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-      🗑️ Excluir
+            class="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100">
+      Excluir
     </button>
   </form>
 {% endblock %}
 
 {% block content %}
-{% with r=r_padrao %}
-<!-- KPIs principais -->
-<div class="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 xl:grid-cols-4">
-  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-    <div class="text-xs text-gray-500 mb-1">Lance pago</div>
-    <div class="text-xl font-bold text-gray-900">{{ imovel.lance|brl }}</div>
-    <div class="text-xs text-green-600 mt-1">{{ imovel.desconto_pct|floatformat:1 }}% abaixo da avaliação</div>
-  </div>
-  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-    <div class="text-xs text-gray-500 mb-1">Preço de venda</div>
-    <div class="text-xl font-bold text-gray-900">{{ imovel.preco_venda|brl }}</div>
-  </div>
-  {% if r %}
-  <div class="rounded-xl border p-4 shadow-sm
-    {% if r.resultado > 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %}">
-    <div class="text-xs text-gray-500 mb-1">Resultado ({{ imovel.giro_padrao }}m)</div>
-    <div class="text-xl font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">
-      {{ r.resultado|brl }}
-    </div>
-  </div>
-  <div class="rounded-xl border p-4 shadow-sm
-    {% if r.roi >= 15 %}bg-green-50 border-green-200{% elif r.roi > 0 %}bg-yellow-50 border-yellow-200{% else %}bg-red-50 border-red-200{% endif %}">
-    <div class="text-xs text-gray-500 mb-1">ROI cap. próprio</div>
-    <div class="text-xl font-bold {% if r.roi >= 15 %}text-green-700{% elif r.roi > 0 %}text-yellow-700{% else %}text-red-700{% endif %}">
-      {{ r.roi|pct }}
-    </div>
-    <div class="text-xs text-gray-500 mt-0.5">{{ r.tem|pct }} / mês</div>
-  </div>
-  {% endif %}
+<style>
+  @media print {
+    .no-print,
+    .app-sidebar,
+    #modal-lances-imovel {
+      display: none !important;
+    }
+    body {
+      background: #fff !important;
+    }
+    .app-content {
+      margin-left: 0 !important;
+    }
+    .print-break-inside-avoid {
+      break-inside: avoid;
+    }
+  }
+</style>
+
+<div id="exportRows" class="hidden">
+  {% for row in export_rows %}
+    <span data-export-label="{{ row.0 }}" data-export-value="{{ row.1 }}"></span>
+  {% endfor %}
 </div>
 
-<!-- Cartório box -->
-<div class="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-6">
-  <div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
-    <div class="font-bold text-sky-800 flex flex-wrap items-center gap-2">
-      📋 Custos Cartoriais — {{ imovel.estado }}
-      <span class="text-xs bg-sky-200 text-sky-700 px-2 py-0.5 rounded-full">
-        {{ imovel.modo_cartorio }}
-      </span>
+{% with r=r_padrao %}
+<div class="space-y-6">
+  <nav class="no-print sticky top-0 z-10 -mx-2 overflow-x-auto border-b border-gray-200 bg-gray-50/95 px-2 py-2 backdrop-blur">
+    <div class="flex min-w-max gap-2 text-sm">
+      <a href="#resumo" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Resumo</a>
+      <a href="#imovel" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Imóvel</a>
+      <a href="#documentos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Documentos</a>
+      <a href="#juridico" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Jurídico</a>
+      <a href="#financeiro" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Financeiro</a>
+      <a href="#checklist" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Checklist</a>
     </div>
-    <div class="text-xs text-sky-700">Base: <strong>{{ base_cart|brl }}</strong> (maior entre lance e av. fiscal)</div>
-  </div>
-  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    <div class="bg-white rounded-lg p-3">
-      <div class="text-xs text-gray-500">Escritura</div>
-      <div class="font-bold text-gray-900 mt-0.5">
-        {% if cart.escritura == 0 %}
-          <span class="text-gray-400 text-xs">Não aplicável</span>
+  </nav>
+
+  <section id="resumo" class="print-break-inside-avoid overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div class="grid grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div class="p-5 sm:p-6">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold uppercase text-teal-700">{{ imovel.etapa_display }}</span>
+          <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase text-gray-700">Prioridade {{ imovel.get_prioridade_display }}</span>
+          {% if imovel_caixa and imovel_caixa.ativo_caixa %}
+            <span class="rounded-full bg-green-50 px-3 py-1 text-xs font-bold uppercase text-green-700">Ativo na Caixa</span>
+          {% elif imovel.caixa_imovel_id %}
+            <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold uppercase text-amber-700">Validar status Caixa</span>
+          {% endif %}
+        </div>
+        <h2 class="mt-4 text-2xl font-bold text-gray-950 sm:text-3xl">{{ imovel.titulo_card }}</h2>
+        <p class="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600">{{ imovel.endereco }}, {{ imovel.cidade }} - {{ imovel.estado }}</p>
+
+        <div class="no-print mt-5 flex flex-wrap gap-2">
+          <a href="{{ maps_url }}" target="_blank" rel="noopener noreferrer"
+             class="inline-flex items-center justify-center rounded-lg border border-teal-300 bg-white px-4 py-2 text-sm font-bold text-teal-700 hover:bg-teal-50">
+            Abrir no Google Maps
+          </a>
+          {% if caixa_url %}
+            <a href="{{ caixa_url }}" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Ver imóvel original
+            </a>
+          {% endif %}
+          {% if caixa_detalhe_url %}
+            <a href="{{ caixa_detalhe_url }}" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Página Caixa no sistema
+            </a>
+          {% endif %}
+          {% for documento in documentos %}
+            {% if documento.disponivel %}
+              <a href="{{ documento.url }}" target="_blank" rel="noopener noreferrer"
+                 class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                {{ documento.nome }}
+              </a>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="bg-gray-100">
+        {% if imagem_url %}
+          <img src="{{ imagem_url }}" alt="{{ imovel.titulo_card }}" class="h-full max-h-[320px] min-h-[220px] w-full object-cover"
+               loading="lazy"
+               onerror="this.closest('div').innerHTML='<div class=&quot;flex h-full min-h-[220px] items-center justify-center bg-gray-100 px-6 text-center text-sm font-medium text-gray-500&quot;>Imagem indisponível</div>'">
         {% else %}
-          {{ cart.escritura|brl }}
+          <div class="flex h-full min-h-[220px] items-center justify-center bg-gray-100 px-6 text-center text-sm font-medium text-gray-500">Imagem não cadastrada</div>
         {% endif %}
       </div>
     </div>
-    <div class="bg-white rounded-lg p-3">
-      <div class="text-xs text-gray-500">Registro</div>
-      <div class="font-bold text-red-600 mt-0.5">{{ cart.registro|brl }}</div>
-    </div>
-    {% if cart.extra_nome %}
-    <div class="bg-white rounded-lg p-3">
-      <div class="text-xs text-gray-500">{{ cart.extra_nome }}</div>
-      <div class="font-bold text-red-600 mt-0.5">{{ cart.extra|brl }}</div>
-    </div>
-    {% endif %}
-    <div class="bg-sky-100 rounded-lg p-3">
-      <div class="text-xs text-sky-700">Total Cartório</div>
-      <div class="font-bold text-sky-900 mt-0.5 text-lg">{{ cart.total|brl }}</div>
-    </div>
-  </div>
-  {% if cart.aviso %}
-  <p class="text-xs text-amber-600 mt-2 flex items-center gap-1">⚠️ {{ cart.aviso }}</p>
-  {% endif %}
+  </section>
 
-  <!-- Tabelas expandíveis -->
-  {% if tab_reg %}
-  <div class="mt-4 space-y-2" x-data="{ showEsc: false, showReg: false }">
-    {% if tab_esc %}
-    <div>
-      <button @click="showEsc = !showEsc"
-              class="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1">
-        <span x-text="showEsc ? '▼' : '▶'"></span> Tabela completa — Escritura {{ imovel.estado }}
-      </button>
-      <div x-show="showEsc" x-cloak class="mt-2 overflow-auto max-h-60 rounded-lg border border-sky-200">
-        <table class="w-full text-xs">
-          <thead><tr class="bg-stone-900 text-white">
-            <th class="p-2 text-left">Faixa de valor</th><th class="p-2 text-right">Custo</th>
-          </tr></thead>
-          <tbody>
-            {% for limite, valor in tab_esc %}
-            <tr class="{% if forloop.counter0 == idx_esc %}bg-blue-50 font-bold{% else %}hover:bg-gray-50{% endif %} border-b border-gray-100">
-              <td class="p-2">
-                {% if forloop.last %}Acima de {{ tab_esc|length|add:"-2" }}
-                {% else %}
-                  {% if not forloop.first %}{{ tab_esc|slice:forloop.counter0|last|first|brl }}{% else %}Até {% endif %} — {{ limite|brl }}
-                {% endif %}
-              </td>
-              <td class="p-2 text-right">
-                {{ valor|brl }}
-                {% if forloop.counter0 == idx_esc %}
-                <span class="ml-1 bg-blue-500 text-white text-xs px-1.5 rounded-full">✓</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="text-xs font-semibold uppercase text-gray-500">Lance pago</div>
+      <div class="mt-2 text-lg font-bold text-gray-950">{{ imovel.lance|brl }}</div>
+      <div class="mt-1 text-xs text-green-700">{{ imovel.desconto_pct|pct }} abaixo da avaliação</div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="text-xs font-semibold uppercase text-gray-500">Avaliação</div>
+      <div class="mt-2 text-lg font-bold text-gray-950">{{ imovel.avaliacao|brl }}</div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="text-xs font-semibold uppercase text-gray-500">Preço venda</div>
+      <div class="mt-2 text-lg font-bold text-gray-950">{{ imovel.preco_venda|brl }}</div>
+    </div>
+    {% if r %}
+      <div class="rounded-lg border border-red-100 bg-red-50 p-4 shadow-sm">
+        <div class="text-xs font-semibold uppercase text-red-700">Custo até a venda</div>
+        <div class="mt-2 text-lg font-bold text-red-700">-{{ r.custo_ate_venda|brl }}</div>
+        <div class="mt-1 text-xs text-red-600">{{ imovel.giro_padrao }} meses</div>
       </div>
-    </div>
-    {% endif %}
-    <div>
-      <button @click="showReg = !showReg"
-              class="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1">
-        <span x-text="showReg ? '▼' : '▶'"></span> Tabela completa — Registro {{ imovel.estado }}
-      </button>
-      <div x-show="showReg" x-cloak class="mt-2 overflow-auto max-h-60 rounded-lg border border-sky-200">
-        <table class="w-full text-xs">
-          <thead><tr class="bg-stone-900 text-white">
-            <th class="p-2 text-left">Faixa de valor</th><th class="p-2 text-right">Custo</th>
-          </tr></thead>
-          <tbody>
-            {% for limite, valor in tab_reg %}
-            <tr class="{% if forloop.counter0 == idx_reg %}bg-blue-50 font-bold{% else %}hover:bg-gray-50{% endif %} border-b border-gray-100">
-              <td class="p-2">{{ limite|brl }}</td>
-              <td class="p-2 text-right">
-                {{ valor|brl }}
-                {% if forloop.counter0 == idx_reg %}
-                <span class="ml-1 bg-blue-500 text-white text-xs px-1.5 rounded-full">✓</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="rounded-lg border p-4 shadow-sm {% if r.resultado > 0 %}border-green-100 bg-green-50{% else %}border-red-100 bg-red-50{% endif %}">
+        <div class="text-xs font-semibold uppercase {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">Resultado</div>
+        <div class="mt-2 text-lg font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.resultado|brl }}</div>
+        <div class="mt-1 text-xs text-gray-600">{{ imovel.giro_padrao }} meses</div>
       </div>
-    </div>
+      <div class="rounded-lg border p-4 shadow-sm {% if r.roi >= 15 %}border-green-100 bg-green-50{% elif r.roi > 0 %}border-amber-100 bg-amber-50{% else %}border-red-100 bg-red-50{% endif %}">
+        <div class="text-xs font-semibold uppercase text-gray-600">ROI</div>
+        <div class="mt-2 text-lg font-bold {% if r.roi >= 15 %}text-green-700{% elif r.roi > 0 %}text-amber-700{% else %}text-red-700{% endif %}">{{ r.roi|pct }}</div>
+        <div class="mt-1 text-xs text-gray-600">{{ r.tem|pct }} ao mês</div>
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <main class="space-y-6">
+      <section class="print-break-inside-avoid rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-base font-bold text-gray-950">Painel de decisão</h3>
+            <p class="mt-1 text-sm text-gray-600">Resumo dos sinais que impactam a tomada de decisão deste imóvel.</p>
+          </div>
+          {% if r %}
+            <div class="rounded-lg bg-gray-950 px-4 py-3 text-white">
+              <div class="text-xs font-semibold uppercase text-gray-300">Giro padrão</div>
+              <div class="text-lg font-bold">{{ imovel.giro_padrao }} meses</div>
+            </div>
+          {% endif %}
+        </div>
+        <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {% for indicador in indicadores_decisao %}
+            <div class="rounded-lg border p-4 {% if indicador.status == 'ok' %}border-green-200 bg-green-50{% elif indicador.status == 'warn' %}border-amber-200 bg-amber-50{% elif indicador.status == 'bad' %}border-red-200 bg-red-50{% else %}border-gray-200 bg-gray-50{% endif %}">
+              <div class="text-xs font-bold uppercase {% if indicador.status == 'ok' %}text-green-800{% elif indicador.status == 'warn' %}text-amber-800{% elif indicador.status == 'bad' %}text-red-800{% else %}text-gray-600{% endif %}">{{ indicador.titulo }}</div>
+              <div class="mt-2 text-xl font-bold text-gray-950">{{ indicador.valor }}</div>
+              <p class="mt-2 text-xs leading-relaxed text-gray-700">{{ indicador.texto }}</p>
+            </div>
+          {% endfor %}
+        </div>
+        {% if alertas_relatorio %}
+          <div class="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {% for alerta in alertas_relatorio %}
+              <div class="rounded-lg border p-4 {% if alerta.classe == 'bad' %}border-red-200 bg-red-50 text-red-800{% elif alerta.classe == 'warn' %}border-amber-200 bg-amber-50 text-amber-800{% else %}border-blue-200 bg-blue-50 text-blue-800{% endif %}">
+                <div class="text-sm font-bold">{{ alerta.titulo }}</div>
+                <p class="mt-1 text-sm leading-relaxed">{{ alerta.texto }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </section>
+
+      <section id="imovel" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <h3 class="text-base font-bold text-gray-950">Informações do imóvel</h3>
+          <dl class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {% for item in dados_imovel %}
+              <div class="border-b border-gray-100 pb-3">
+                <dt class="text-xs font-semibold uppercase text-gray-500">{{ item.label }}</dt>
+                <dd class="mt-1 break-words text-sm font-bold text-gray-900">{{ item.value }}</dd>
+              </div>
+            {% empty %}
+              <div class="text-sm text-gray-500">Dados do imóvel ainda não enriquecidos.</div>
+            {% endfor %}
+          </dl>
+          {% if imovel_caixa and imovel_caixa.descricao %}
+            <div class="mt-5 rounded-lg bg-gray-50 p-4">
+              <div class="text-xs font-semibold uppercase text-gray-500">Descrição Caixa</div>
+              <p class="mt-2 text-sm leading-relaxed text-gray-700">{{ imovel_caixa.descricao }}</p>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-base font-bold text-gray-950">Localização</h3>
+              <p class="mt-1 text-sm text-gray-600">{{ imovel.endereco }}</p>
+            </div>
+            <a href="{{ maps_url }}" target="_blank" rel="noopener noreferrer"
+               class="no-print inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Abrir no Maps
+            </a>
+          </div>
+          <iframe title="Mapa do imóvel" src="{{ maps_embed_url }}" class="h-72 w-full border-0" loading="lazy"></iframe>
+        </div>
+      </section>
+
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Informações do leilão</h3>
+        <dl class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {% for item in dados_leilao %}
+            <div class="border-b border-gray-100 pb-3">
+              <dt class="text-xs font-semibold uppercase text-gray-500">{{ item.label }}</dt>
+              <dd class="mt-1 break-words text-sm font-bold text-gray-900">{{ item.value }}</dd>
+            </div>
+          {% empty %}
+            <div class="text-sm text-gray-500">Dados de leilão ainda não vinculados.</div>
+          {% endfor %}
+        </dl>
+        <div class="mt-5">
+          <div class="text-xs font-semibold uppercase text-gray-500">Formas de pagamento</div>
+          <div class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
+            {% for item in pagamentos %}
+              <div class="rounded-lg px-3 py-2 text-sm font-bold {% if item.ok %}bg-green-50 text-green-800{% else %}bg-red-50 text-red-700{% endif %}">
+                {{ item.label }}: {% if item.ok %}Sim{% else %}Não{% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section id="documentos" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-base font-bold text-gray-950">Documentos e origem</h3>
+            <p class="mt-1 text-sm text-gray-600">Links oficiais mantidos para consulta e auditoria do relatório.</p>
+          </div>
+          {% if caixa_url %}
+            <a href="{{ caixa_url }}" target="_blank" rel="noopener noreferrer"
+               class="no-print inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">
+              Consultar Caixa
+            </a>
+          {% endif %}
+        </div>
+        <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {% for documento in documentos %}
+            <div class="rounded-lg border border-gray-200 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm font-bold text-gray-950">{{ documento.nome }}</div>
+                  <p class="mt-1 text-sm leading-relaxed text-gray-600">{{ documento.descricao }}</p>
+                </div>
+                <span class="rounded-full px-2.5 py-1 text-xs font-bold {% if documento.disponivel %}bg-green-50 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+                  {% if documento.disponivel %}Disponível{% else %}Pendente{% endif %}
+                </span>
+              </div>
+              {% if documento.disponivel %}
+                <a href="{{ documento.url }}" target="_blank" rel="noopener noreferrer"
+                   class="no-print mt-4 inline-flex rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  Abrir {{ documento.nome }}
+                </a>
+              {% endif %}
+            </div>
+          {% empty %}
+            <div class="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">Nenhum documento Caixa vinculado a este card.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section id="juridico" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-base font-bold text-gray-950">Análise jurídica IA</h3>
+            <p class="mt-1 text-sm text-gray-600">Síntese derivada dos documentos Caixa quando a análise já foi gerada.</p>
+          </div>
+          {% if caixa_detalhe_url %}
+            <a href="{{ caixa_detalhe_url }}#analise-juridica" target="_blank" rel="noopener noreferrer"
+               class="no-print inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Abrir análise completa
+            </a>
+          {% endif %}
+        </div>
+
+        {% if analise_juridica.status == 'concluida' and analise_resultado %}
+          <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
+            <div>
+              <div class="text-xs font-semibold uppercase text-gray-500">Resumo executivo</div>
+              <p class="mt-2 text-sm leading-relaxed text-gray-800">{{ analise_resultado.resumo_executivo }}</p>
+            </div>
+            <div class="rounded-lg border p-4 text-center {% if analise_risco_status == 'bad' %}border-red-200 bg-red-50{% elif analise_risco_status == 'warn' %}border-amber-200 bg-amber-50{% elif analise_risco_status == 'ok' %}border-green-200 bg-green-50{% else %}border-gray-200 bg-gray-50{% endif %}">
+              <div class="text-xs font-semibold uppercase text-gray-500">Risco</div>
+              <div class="mt-2 text-xl font-bold text-gray-950">{{ analise_nivel_risco|title }}</div>
+              {% if analise_resultado.score_risco %}
+                <div class="mt-1 text-sm text-gray-600">{{ analise_resultado.score_risco }}/100</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if analise_resultado.principais_alertas %}
+            <div class="mt-5">
+              <h4 class="text-sm font-bold text-gray-950">Principais alertas</h4>
+              <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {% for alerta in analise_resultado.principais_alertas %}
+                  <div class="rounded-lg border border-gray-200 p-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm font-bold text-gray-950">{{ alerta.titulo }}</span>
+                      <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-700">{{ alerta.gravidade|title }}</span>
+                    </div>
+                    <p class="mt-2 text-sm leading-relaxed text-gray-700">{{ alerta.evidencia }}</p>
+                    <p class="mt-2 text-sm text-gray-800"><span class="font-semibold">Recomendação:</span> {{ alerta.recomendacao }}</p>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {% if analise_resultado.ocupacao %}
+              <div class="rounded-lg bg-gray-50 p-4">
+                <h4 class="text-sm font-bold text-gray-950">Ocupação</h4>
+                <p class="mt-2 text-sm leading-relaxed text-gray-700">{{ analise_resultado.ocupacao.situacao }}</p>
+                <p class="mt-2 text-sm leading-relaxed text-gray-800">{{ analise_resultado.ocupacao.recomendacao }}</p>
+              </div>
+            {% endif %}
+            {% if analise_resultado.cadeia_titularidade %}
+              <div class="rounded-lg bg-gray-50 p-4">
+                <h4 class="text-sm font-bold text-gray-950">Cadeia de titularidade</h4>
+                <p class="mt-2 text-sm leading-relaxed text-gray-700">{{ analise_resultado.cadeia_titularidade.resumo }}</p>
+              </div>
+            {% endif %}
+          </div>
+        {% elif analise_juridica.status == 'processando' %}
+          <div class="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4">
+            <div class="flex items-center gap-3">
+              <div class="h-5 w-5 animate-spin rounded-full border-2 border-teal-200 border-t-teal-700"></div>
+              <div>
+                <div class="text-sm font-bold text-teal-900">Análise em processamento</div>
+                <p class="mt-1 text-sm text-teal-800">{{ analise_juridica.mensagem|default:"Os documentos estão sendo lidos em background." }}</p>
+              </div>
+            </div>
+          </div>
+        {% elif imovel_caixa %}
+          <div class="mt-5 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+            Nenhuma análise jurídica IA concluída para este imóvel. Gere a análise pela página Caixa do imóvel.
+          </div>
+        {% else %}
+          <div class="mt-5 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+            Este card não está vinculado a um imóvel Caixa, então a análise jurídica automatizada não está disponível.
+          </div>
+        {% endif %}
+      </section>
+
+      <section id="financeiro" class="space-y-6">
+        <div class="rounded-lg border border-sky-200 bg-sky-50 p-5">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="font-bold text-sky-900">Custos cartoriais — {{ imovel.estado }}</div>
+            <div class="text-xs text-sky-800">Base: <strong>{{ base_cart|brl }}</strong></div>
+          </div>
+          <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-lg bg-white p-3">
+              <div class="text-xs font-semibold uppercase text-gray-500">Escritura</div>
+              <div class="mt-1 font-bold text-gray-950">
+                {% if cart.escritura == 0 %}Não aplicável{% else %}{{ cart.escritura|brl }}{% endif %}
+              </div>
+            </div>
+            <div class="rounded-lg bg-white p-3">
+              <div class="text-xs font-semibold uppercase text-gray-500">Registro</div>
+              <div class="mt-1 font-bold text-red-600">{{ cart.registro|brl }}</div>
+            </div>
+            {% if cart.extra_nome %}
+              <div class="rounded-lg bg-white p-3">
+                <div class="text-xs font-semibold uppercase text-gray-500">{{ cart.extra_nome }}</div>
+                <div class="mt-1 font-bold text-red-600">{{ cart.extra|brl }}</div>
+              </div>
+            {% endif %}
+            <div class="rounded-lg bg-sky-100 p-3">
+              <div class="text-xs font-semibold uppercase text-sky-800">Total cartório</div>
+              <div class="mt-1 text-lg font-bold text-sky-950">{{ cart.total|brl }}</div>
+            </div>
+          </div>
+          {% if cart.aviso %}
+            <p class="mt-3 text-xs text-amber-700">{{ cart.aviso }}</p>
+          {% endif %}
+
+          {% if tab_reg %}
+            <div class="no-print mt-4 space-y-2" x-data="{ showEsc: false, showReg: false }">
+              {% if tab_esc %}
+                <button type="button" @click="showEsc = !showEsc"
+                        class="text-xs font-bold text-sky-700 hover:text-sky-900">
+                  Tabela completa de escritura
+                </button>
+                <div x-show="showEsc" x-cloak class="mt-2 max-h-60 overflow-auto rounded-lg border border-sky-200 bg-white">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="bg-gray-900 text-white">
+                        <th class="p-2 text-left">Faixa</th>
+                        <th class="p-2 text-right">Custo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for limite, valor in tab_esc %}
+                        <tr class="border-b border-gray-100 {% if forloop.counter0 == idx_esc %}bg-blue-50 font-bold{% endif %}">
+                          <td class="p-2">{{ limite|brl }}</td>
+                          <td class="p-2 text-right">{{ valor|brl }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+              <button type="button" @click="showReg = !showReg"
+                      class="block text-xs font-bold text-sky-700 hover:text-sky-900">
+                Tabela completa de registro
+              </button>
+              <div x-show="showReg" x-cloak class="mt-2 max-h-60 overflow-auto rounded-lg border border-sky-200 bg-white">
+                <table class="w-full text-xs">
+                  <thead>
+                    <tr class="bg-gray-900 text-white">
+                      <th class="p-2 text-left">Faixa</th>
+                      <th class="p-2 text-right">Custo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for limite, valor in tab_reg %}
+                      <tr class="border-b border-gray-100 {% if forloop.counter0 == idx_reg %}bg-blue-50 font-bold{% endif %}">
+                        <td class="p-2">{{ limite|brl }}</td>
+                        <td class="p-2 text-right">{{ valor|brl }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        {% include "components/tabela_resumo.html" with tg=tg giro_meses=giro_meses %}
+
+        <button @click="carregarTabelaLancesImovel(); document.getElementById('modal-lances-imovel').showModal()" type="button"
+                class="no-print flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 transition-all hover:border-blue-300 hover:bg-blue-100">
+          Ver tabela de lances progressivos
+        </button>
+
+        {% include "components/tabela_detalhe.html" with tg=tg giro_meses=giro_meses %}
+      </section>
+
+      {% if imovel.obs %}
+        <section class="rounded-lg border border-amber-200 bg-amber-50 p-5">
+          <h3 class="text-base font-bold text-amber-900">Observações do card</h3>
+          <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-amber-800">{{ imovel.obs }}</p>
+        </section>
+      {% endif %}
+    </main>
+
+    <aside class="space-y-6 xl:sticky xl:top-20 xl:self-start">
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Resumo operacional</h3>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Etapa</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.etapa_display }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Prioridade</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.get_prioridade_display }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Pagamento</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.tipo_pgto }}</dd>
+          </div>
+          {% if r %}
+            <div class="flex justify-between gap-3 border-t border-gray-100 pt-3">
+              <dt class="text-gray-500">Capital/custo até venda</dt>
+              <dd class="font-bold text-red-600">-{{ r.custo_ate_venda|brl }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+              <dt class="text-gray-500">Resultado</dt>
+              <dd class="font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.resultado|brl }}</dd>
+            </div>
+          {% endif %}
+        </dl>
+        <div class="no-print mt-5 grid grid-cols-1 gap-2">
+          <a href="{% url 'editar' imovel.pk %}" class="rounded-lg bg-gray-900 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-gray-800">Editar simulação</a>
+          <a href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Abrir no Maps</a>
+          {% if caixa_detalhe_url %}
+            <a href="{{ caixa_detalhe_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Abrir dossiê Caixa</a>
+          {% endif %}
+        </div>
+      </section>
+
+      <section id="checklist" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Checklist de triagem</h3>
+        <div class="mt-4 space-y-5">
+          {% for grupo in checklist_relatorio %}
+            <div>
+              <div class="text-xs font-bold uppercase text-gray-500">{{ grupo.grupo }}</div>
+              <div class="mt-2 space-y-2">
+                {% for item in grupo.itens %}
+                  <div class="flex gap-2 text-sm">
+                    <span class="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold {% if item.ok %}border-green-500 bg-green-500 text-white{% else %}border-gray-300 bg-white text-white{% endif %}">
+                      {% if item.ok %}✓{% endif %}
+                    </span>
+                    <span class="{% if item.ok %}text-gray-800{% else %}text-gray-500{% endif %}">{{ item.label }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Gestão financeira</h3>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Débitos</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.debitos|brl }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Reformas</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.reformas|brl }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Desocupação</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.custo_desocup|brl }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">Condomínio mensal</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.cond_am|brl }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-gray-500">IPTU mensal</dt>
+            <dd class="font-bold text-gray-900">{{ imovel.iptu_am|brl }}</dd>
+          </div>
+        </dl>
+      </section>
+    </aside>
   </div>
-  {% endif %}
 </div>
-
-<!-- Tabela resumo + detalhamento completo -->
-{% include "components/tabela_resumo.html" with tg=tg giro_meses=giro_meses %}
-
-<!-- Botão: Tabela de Lances Progressivos -->
-<button @click="carregarTabelaLancesImovel(); document.getElementById('modal-lances-imovel').showModal()" type="button"
-        class="w-full px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all font-medium text-sm text-blue-700 flex items-center justify-center gap-2 mb-6">
-  📊 Ver tabela de lances progressivos
-</button>
-
-{% include "components/tabela_detalhe.html" with tg=tg giro_meses=giro_meses %}
-
-{% if imovel.obs %}
-<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-6">
-  <div class="text-sm font-medium text-amber-800">📝 Observações</div>
-  <div class="text-sm text-amber-700 mt-1">{{ imovel.obs }}</div>
-</div>
-{% endif %}
-
 {% endwith %}
 
-{# ── Modal: Tabela de Lances para Imóvel ── #}
-<dialog id="modal-lances-imovel" class="rounded-2xl shadow-2xl w-11/12 max-w-7xl p-0 backdrop:bg-black/50">
-  <div class="flex items-start justify-between gap-3 p-4 border-b border-gray-200 sticky top-0 bg-white sm:p-6">
-    <h2 class="font-bold text-base text-gray-900 sm:text-lg">📊 Tabela de Lances Progressivos — {{ imovel.endereco }}</h2>
-    <button onclick="document.getElementById('modal-lances-imovel').close()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
+<dialog id="modal-lances-imovel" class="rounded-lg shadow-2xl w-11/12 max-w-7xl p-0 backdrop:bg-black/50">
+  <div class="sticky top-0 flex items-start justify-between gap-3 border-b border-gray-200 bg-white p-4 sm:p-6">
+    <h2 class="text-base font-bold text-gray-900 sm:text-lg">Tabela de lances progressivos — {{ imovel.endereco }}</h2>
+    <button onclick="document.getElementById('modal-lances-imovel').close()" class="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
   </div>
-  
-  <div id="tabela-lances-imovel-container" class="p-4 max-h-96 overflow-auto sm:p-6">
-    <div class="text-center py-8">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <p class="text-gray-500 mt-3">Carregando tabela...</p>
+
+  <div id="tabela-lances-imovel-container" class="max-h-96 overflow-auto p-4 sm:p-6">
+    <div class="py-8 text-center">
+      <div class="inline-block h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+      <p class="mt-3 text-gray-500">Carregando tabela...</p>
     </div>
   </div>
-  
-  <div class="border-t border-gray-200 p-4 bg-gray-50 text-xs text-gray-600 text-center">
-    Tabela mostra ROI (% a.a.) para cada lance em diferentes períodos de giro
+
+  <div class="border-t border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-600">
+    Tabela mostra ROI para cada lance em diferentes períodos de giro.
   </div>
 </dialog>
 
@@ -211,37 +595,52 @@ function carregarTabelaLancesImovel() {
   fetch('{% url "tabela_lances_imovel" imovel.pk %}')
     .then(response => response.json())
     .then(data => {
+      const container = document.getElementById('tabela-lances-imovel-container');
+      if (!container) return;
       if (data.success) {
         const giroMeses = data.giro_meses;
-        
-        let html = '<div class="overflow-x-auto"><table class="w-full text-xs border-collapse">';
-        
-        // Cabeçalho
-        html += '<thead class="sticky top-0 bg-blue-50 border-b-2 border-blue-200">';
+        let html = '<div class="overflow-x-auto"><table class="w-full border-collapse text-xs">';
+        html += '<thead class="sticky top-0 border-b-2 border-blue-200 bg-blue-50">';
         html += '<tr>';
-        html += '<th class="p-2 text-left font-bold text-gray-700 border-r border-gray-200">Lance</th>';
-        
+        html += '<th class="border-r border-gray-200 p-2 text-left font-bold text-gray-700">Lance</th>';
         for (const mes of giroMeses) {
-          html += `<th class="p-2 text-center font-bold text-gray-700 border-r border-gray-200">${mes} meses</th>`;
+          html += `<th class="border-r border-gray-200 p-2 text-center font-bold text-gray-700">${mes} meses</th>`;
         }
-        
         html += '</tr></thead>';
-        
-        // Corpo da tabela
         html += '<tbody>' + data.html + '</tbody>';
         html += '</table></div>';
-        
-        document.getElementById('tabela-lances-imovel-container').innerHTML = html;
+        container.innerHTML = html;
       } else {
-        document.getElementById('tabela-lances-imovel-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro ao carregar tabela</p>';
+        container.innerHTML = '<p class="p-4 text-center text-red-600">Erro ao carregar tabela.</p>';
       }
     })
     .catch(err => {
       console.error('Erro:', err);
-      document.getElementById('tabela-lances-imovel-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro na requisição</p>';
+      const container = document.getElementById('tabela-lances-imovel-container');
+      if (container) container.innerHTML = '<p class="p-4 text-center text-red-600">Erro na requisição.</p>';
     });
 }
 
-// Função já é chamada diretamente via @click no botão
+function baixarResumoImovelCsv() {
+  const rows = [['Campo', 'Valor']];
+  document.querySelectorAll('#exportRows [data-export-label]').forEach((item) => {
+    rows.push([item.dataset.exportLabel || '', item.dataset.exportValue || '']);
+  });
+
+  const csv = rows.map((row) => row.map((value) => {
+    const text = String(value).replace(/"/g, '""');
+    return `"${text}"`;
+  }).join(';')).join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'relatorio-imovel-{{ imovel.pk }}.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 </script>
 {% endblock %}
