@@ -11,9 +11,10 @@ from core.calculos.cartorio import (
 )
 from apps.leiloes.models import ImovelCaixa
 from .models import (
-    Imovel, ETAPA_CHOICES, ETAPA_COR, ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
+    Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario,
+    CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR, ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
 )
-from .forms import ImovelForm
+from .forms import ImovelForm, ImovelArquivoForm
 
 
 def _resultado_resumo(imovel, meses=6):
@@ -215,6 +216,59 @@ def _alertas_relatorio(imovel, imovel_caixa, r, analise_resultado):
     return alertas
 
 
+def _garantir_checklist_padrao(imovel, user):
+    etapas_existentes = set(
+        imovel.checklist_items.values_list("etapa", flat=True).distinct()
+    )
+    novos = []
+    for etapa, itens in CHECKLIST_PADRAO.items():
+        if etapa in etapas_existentes:
+            continue
+        for ordem, texto in enumerate(itens, start=1):
+            novos.append(ImovelChecklistItem(
+                imovel=imovel,
+                etapa=etapa,
+                texto=texto,
+                ordem=ordem,
+                criado_por=user,
+            ))
+    if novos:
+        ImovelChecklistItem.objects.bulk_create(novos)
+
+
+def _checklist_context(imovel):
+    itens = list(imovel.checklist_items.all())
+    por_etapa = {}
+    for item in itens:
+        por_etapa.setdefault(item.etapa, []).append(item)
+
+    grupos = []
+    total = concluido = 0
+    for etapa, label in ETAPA_CHOICES:
+        if etapa == "arquivado":
+            continue
+        etapa_itens = por_etapa.get(etapa, [])
+        etapa_total = len(etapa_itens)
+        etapa_concluido = sum(1 for item in etapa_itens if item.concluido)
+        total += etapa_total
+        concluido += etapa_concluido
+        grupos.append({
+            "key": etapa,
+            "label": label,
+            "items": etapa_itens,
+            "total": etapa_total,
+            "concluido": etapa_concluido,
+            "aberto": etapa == imovel.etapa,
+        })
+
+    return {
+        "grupos": grupos,
+        "total": total,
+        "concluido": concluido,
+        "percentual": round((concluido / total) * 100) if total else 0,
+    }
+
+
 @login_required
 def kanban(request):
     imoveis = Imovel.objects.filter(user=request.user).exclude(etapa="arquivado")
@@ -292,6 +346,7 @@ def listar(request):
 @login_required
 def detalhe(request, pk):
     imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    _garantir_checklist_padrao(imovel, request.user)
     p = imovel.to_calc_dict()
     tg = tabela_giro(p)
     r_padrao = tg.get(imovel.giro_padrao, tg.get(12))
@@ -402,35 +457,11 @@ def detalhe(request, pk):
         {"label": "Parcelamento", "ok": bool(formas.get("parcelado", False)) if imovel_caixa else False},
     ]
 
-    checklist_relatorio = [
-        {
-            "grupo": "Dados essenciais",
-            "itens": [
-                {"label": "Simulação financeira preenchida", "ok": bool(imovel.lance and imovel.preco_venda)},
-                {"label": "Custo até a venda calculado", "ok": bool(r_padrao and r_padrao.get("custo_ate_venda") is not None)},
-                {"label": "Endereço pronto para conferência no Maps", "ok": bool(endereco_query)},
-            ],
-        },
-        {
-            "grupo": "Documentos e riscos",
-            "itens": [
-                {"label": "Matrícula vinculada", "ok": bool(imovel_caixa and imovel_caixa.matricula_url)},
-                {"label": "Edital vinculado", "ok": bool(imovel_caixa and imovel_caixa.edital_url)},
-                {"label": "Análise jurídica IA concluída", "ok": analise_juridica.get("status") == "concluida"},
-            ],
-        },
-        {
-            "grupo": "Operação",
-            "itens": [
-                {"label": "Débitos considerados", "ok": bool(imovel.debitos) or not (imovel_caixa and imovel_caixa.pendencias)},
-                {"label": "Desocupação precificada quando aplicável", "ok": not (imovel_caixa and imovel_caixa.ocupado) or bool(imovel.custo_desocup)},
-                {"label": "Reforma estimada", "ok": bool(imovel.reformas)},
-            ],
-        },
-    ]
-
     indicadores_decisao = _indicadores_decisao(imovel, imovel_caixa, r_padrao, analise_resultado)
     alertas_relatorio = _alertas_relatorio(imovel, imovel_caixa, r_padrao, analise_resultado)
+    checklist_operacional = _checklist_context(imovel)
+    arquivos = imovel.arquivos.select_related("enviado_por")
+    comentarios = imovel.comentarios.select_related("user")
 
     export_rows = [
         ("Imóvel", imovel.titulo_card),
@@ -481,7 +512,10 @@ def detalhe(request, pk):
         "analise_risco_status": _classe_risco_analise(analise_nivel_risco),
         "indicadores_decisao": indicadores_decisao,
         "alertas_relatorio": alertas_relatorio,
-        "checklist_relatorio": checklist_relatorio,
+        "checklist_operacional": checklist_operacional,
+        "arquivos": arquivos,
+        "arquivo_form": ImovelArquivoForm(),
+        "comentarios": comentarios,
         "export_rows": export_rows,
     })
 
@@ -489,11 +523,12 @@ def detalhe(request, pk):
 @login_required
 def criar(request):
     if request.method == "POST":
-        form = ImovelForm(request.POST)
+        form = ImovelForm(request.POST, request.FILES)
         if form.is_valid():
             imovel = form.save(commit=False)
             imovel.user = request.user
             imovel.save()
+            _garantir_checklist_padrao(imovel, request.user)
             messages.success(request, f"✅ {imovel.endereco} cadastrado com sucesso!")
             return redirect("detalhe", pk=imovel.pk)
     else:
@@ -505,7 +540,7 @@ def criar(request):
 def editar(request, pk):
     imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
     if request.method == "POST":
-        form = ImovelForm(request.POST, instance=imovel)
+        form = ImovelForm(request.POST, request.FILES, instance=imovel)
         if form.is_valid():
             form.save()
             messages.success(request, f"✅ {imovel.endereco} atualizado.")
@@ -523,6 +558,113 @@ def excluir(request, pk):
     imovel.delete()
     messages.success(request, f"🗑️ {nome} excluído.")
     return redirect("kanban")
+
+
+@login_required
+@require_POST
+def atualizar_identidade(request, pk):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel.titulo_personalizado = request.POST.get("titulo_personalizado", "").strip()[:160]
+    update_fields = ["titulo_personalizado", "updated_at"]
+    if request.FILES.get("foto"):
+        imovel.foto = request.FILES["foto"]
+        update_fields.append("foto")
+    imovel.save(update_fields=update_fields)
+    messages.success(request, "Dados do card atualizados.")
+    return redirect(f"{reverse('detalhe', args=[imovel.pk])}#resumo")
+
+
+@login_required
+@require_POST
+def toggle_checklist_item(request, pk, item_id):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    item = get_object_or_404(ImovelChecklistItem, pk=item_id, imovel=imovel)
+    checked = request.POST.get("concluido")
+    if checked is None:
+        item.concluido = not item.concluido
+    else:
+        item.concluido = checked in {"1", "true", "True", "on", "sim"}
+    item.save(update_fields=["concluido", "atualizado_em"])
+
+    etapa_items = imovel.checklist_items.filter(etapa=item.etapa)
+    etapa_total = etapa_items.count()
+    etapa_concluido = etapa_items.filter(concluido=True).count()
+    geral = _checklist_context(imovel)
+    return JsonResponse({
+        "success": True,
+        "item_id": item.id,
+        "concluido": item.concluido,
+        "etapa": item.etapa,
+        "etapa_total": etapa_total,
+        "etapa_concluido": etapa_concluido,
+        "total": geral["total"],
+        "total_concluido": geral["concluido"],
+        "percentual": geral["percentual"],
+    })
+
+
+@login_required
+@require_POST
+def adicionar_checklist_item(request, pk):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    etapa = request.POST.get("etapa")
+    texto = request.POST.get("texto", "").strip()
+    if etapa not in dict(ETAPA_CHOICES) or etapa == "arquivado":
+        messages.error(request, "Etapa inválida para o checklist.")
+        return redirect(f"{reverse('detalhe', args=[imovel.pk])}#checklist")
+    if not texto:
+        messages.error(request, "Informe o texto do item.")
+        return redirect(f"{reverse('detalhe', args=[imovel.pk])}#checklist")
+
+    ultima_ordem = (
+        imovel.checklist_items.filter(etapa=etapa)
+        .order_by("-ordem")
+        .values_list("ordem", flat=True)
+        .first()
+        or 0
+    )
+    ImovelChecklistItem.objects.create(
+        imovel=imovel,
+        etapa=etapa,
+        texto=texto[:320],
+        ordem=ultima_ordem + 1,
+        criado_por=request.user,
+    )
+    messages.success(request, "Item adicionado ao checklist.")
+    return redirect(f"{reverse('detalhe', args=[imovel.pk])}#checklist")
+
+
+@login_required
+@require_POST
+def adicionar_arquivo(request, pk):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    form = ImovelArquivoForm(request.POST, request.FILES)
+    if form.is_valid():
+        arquivo = form.save(commit=False)
+        arquivo.imovel = imovel
+        arquivo.enviado_por = request.user
+        arquivo.save()
+        messages.success(request, "Arquivo adicionado.")
+    else:
+        messages.error(request, "Não foi possível adicionar o arquivo.")
+    return redirect(f"{reverse('detalhe', args=[imovel.pk])}#arquivos")
+
+
+@login_required
+@require_POST
+def adicionar_comentario(request, pk):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    texto = request.POST.get("texto", "").strip()
+    if not texto:
+        messages.error(request, "Escreva um comentário antes de enviar.")
+        return redirect(f"{reverse('detalhe', args=[imovel.pk])}#comentarios")
+    ImovelComentario.objects.create(
+        imovel=imovel,
+        user=request.user,
+        texto=texto,
+    )
+    messages.success(request, "Comentário adicionado.")
+    return redirect(f"{reverse('detalhe', args=[imovel.pk])}#comentarios")
 
 @login_required
 def tabela_lances_imovel(request, pk):

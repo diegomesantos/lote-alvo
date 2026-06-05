@@ -73,8 +73,10 @@
       <a href="#imovel" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Imóvel</a>
       <a href="#documentos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Documentos</a>
       <a href="#juridico" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Jurídico</a>
-      <a href="#financeiro" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Financeiro</a>
       <a href="#checklist" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Checklist</a>
+      <a href="#financeiro" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Financeiro</a>
+      <a href="#arquivos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Arquivos</a>
+      <a href="#comentarios" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Comentários</a>
     </div>
   </nav>
 
@@ -383,6 +385,56 @@
         {% endif %}
       </section>
 
+      <section id="checklist" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-base font-bold text-gray-950">Checklist do ciclo do leilão</h3>
+            <p class="mt-1 text-sm text-gray-600">Itens persistentes por etapa, com progresso salvo no card.</p>
+          </div>
+          <div class="rounded-lg bg-gray-50 px-4 py-3 text-sm">
+            <span id="checklistTotalDone" class="font-bold text-gray-950">{{ checklist_operacional.concluido }}</span>/<span id="checklistTotalCount">{{ checklist_operacional.total }}</span>
+            <span class="text-gray-500">concluídos</span>
+          </div>
+        </div>
+
+        <div class="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
+          <div id="checklistProgressBar" class="h-full rounded-full bg-teal-600 transition-all" style="width: {{ checklist_operacional.percentual }}%;"></div>
+        </div>
+
+        <div class="mt-5 space-y-3">
+          {% for grupo in checklist_operacional.grupos %}
+            <details class="overflow-hidden rounded-lg border border-gray-200" {% if grupo.aberto %}open{% endif %}>
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-3 bg-gray-50 px-4 py-3">
+                <span class="font-bold text-gray-900">{{ grupo.label }}</span>
+                <span class="text-sm font-semibold text-gray-500">
+                  <span data-stage-done="{{ grupo.key }}">{{ grupo.concluido }}</span>/<span data-stage-total="{{ grupo.key }}">{{ grupo.total }}</span>
+                </span>
+              </summary>
+              <div class="divide-y divide-gray-100 bg-white">
+                {% for item in grupo.items %}
+                  <label class="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm hover:bg-gray-50" data-checklist-row="{{ item.id }}">
+                    <input type="checkbox"
+                           class="mt-0.5 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                           {% if item.concluido %}checked{% endif %}
+                           onchange="toggleChecklistItem(this, '{{ imovel.pk }}', '{{ item.id }}')">
+                    <span class="{% if item.concluido %}text-gray-400 line-through{% else %}text-gray-800{% endif %}" data-checklist-text="{{ item.id }}">{{ item.texto }}</span>
+                  </label>
+                {% empty %}
+                  <div class="px-4 py-3 text-sm text-gray-500">Nenhum item cadastrado nesta etapa.</div>
+                {% endfor %}
+              </div>
+              <form method="post" action="{% url 'adicionar_checklist_item' imovel.pk %}" class="no-print flex flex-col gap-2 border-t border-gray-100 bg-gray-50 p-3 sm:flex-row">
+                {% csrf_token %}
+                <input type="hidden" name="etapa" value="{{ grupo.key }}">
+                <input type="text" name="texto" maxlength="320" placeholder="Novo item para {{ grupo.label }}"
+                       class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800">Adicionar</button>
+              </form>
+            </details>
+          {% endfor %}
+        </div>
+      </section>
+
       <section id="financeiro" class="space-y-6">
         <div class="rounded-lg border border-sky-200 bg-sky-50 p-5">
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -483,6 +535,71 @@
           <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-amber-800">{{ imovel.obs }}</p>
         </section>
       {% endif %}
+
+      <section id="arquivos" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-base font-bold text-gray-950">Arquivos de apoio</h3>
+            <p class="mt-1 text-sm text-gray-600">Matrículas, editais, fotos, planilhas, prints e documentos auxiliares do card.</p>
+          </div>
+        </div>
+
+        <form method="post" action="{% url 'adicionar_arquivo' imovel.pk %}" enctype="multipart/form-data"
+              class="no-print mt-5 grid grid-cols-1 gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 md:grid-cols-[minmax(0,1fr)_180px]">
+          {% csrf_token %}
+          <div class="space-y-3">
+            {{ arquivo_form.arquivo }}
+            {{ arquivo_form.nome }}
+          </div>
+          <div class="space-y-3">
+            {{ arquivo_form.categoria }}
+            <button type="submit" class="w-full rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">Adicionar arquivo</button>
+          </div>
+        </form>
+
+        <div class="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-200">
+          {% for arquivo in arquivos %}
+            <div class="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <div class="truncate text-sm font-bold text-gray-950">{{ arquivo.nome_exibicao }}</div>
+                <div class="mt-1 text-xs text-gray-500">{{ arquivo.get_categoria_display }} · {{ arquivo.criado_em|date:"d/m/Y H:i" }}</div>
+              </div>
+              <a href="{{ arquivo.arquivo.url }}" target="_blank" rel="noopener noreferrer"
+                 class="no-print rounded-lg border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Abrir
+              </a>
+            </div>
+          {% empty %}
+            <div class="p-5 text-sm text-gray-500">Nenhum arquivo adicionado ainda.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section id="comentarios" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Comentários e atividades</h3>
+        <form method="post" action="{% url 'adicionar_comentario' imovel.pk %}" class="no-print mt-4">
+          {% csrf_token %}
+          <textarea name="texto" rows="4" placeholder="Registre uma observação, decisão ou próxima ação..."
+                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"></textarea>
+          <div class="mt-3 flex justify-end">
+            <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800">Comentar</button>
+          </div>
+        </form>
+
+        <div class="mt-5 space-y-3">
+          {% for comentario in comentarios %}
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span class="font-bold text-gray-700">{{ comentario.user.get_full_name|default:comentario.user.username|default:"Usuário" }}</span>
+                <span>{{ comentario.criado_em|date:"d/m/Y H:i" }}</span>
+              </div>
+              <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-800">{{ comentario.texto }}</p>
+            </div>
+          {% empty %}
+            <div class="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">Nenhum comentário registrado ainda.</div>
+          {% endfor %}
+        </div>
+      </section>
     </main>
 
     <aside class="space-y-6 xl:sticky xl:top-20 xl:self-start">
@@ -521,25 +638,35 @@
         </div>
       </section>
 
-      <section id="checklist" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 class="text-base font-bold text-gray-950">Checklist de triagem</h3>
-        <div class="mt-4 space-y-5">
-          {% for grupo in checklist_relatorio %}
-            <div>
-              <div class="text-xs font-bold uppercase text-gray-500">{{ grupo.grupo }}</div>
-              <div class="mt-2 space-y-2">
-                {% for item in grupo.itens %}
-                  <div class="flex gap-2 text-sm">
-                    <span class="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold {% if item.ok %}border-green-500 bg-green-500 text-white{% else %}border-gray-300 bg-white text-white{% endif %}">
-                      {% if item.ok %}✓{% endif %}
-                    </span>
-                    <span class="{% if item.ok %}text-gray-800{% else %}text-gray-500{% endif %}">{{ item.label }}</span>
-                  </div>
-                {% endfor %}
-              </div>
-            </div>
-          {% endfor %}
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Identidade do card</h3>
+        <form method="post" action="{% url 'atualizar_identidade' imovel.pk %}" enctype="multipart/form-data" class="no-print mt-4 space-y-3">
+          {% csrf_token %}
+          <div>
+            <label class="text-xs font-semibold uppercase text-gray-500">Título personalizado</label>
+            <input type="text" name="titulo_personalizado" value="{{ imovel.titulo_personalizado }}" maxlength="160"
+                   placeholder="{{ imovel.endereco }}"
+                   class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+          </div>
+          <div>
+            <label class="text-xs font-semibold uppercase text-gray-500">Imagem do card</label>
+            <input type="file" name="foto" accept="image/*"
+                   class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          </div>
+          <button type="submit" class="w-full rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">Salvar identidade</button>
+        </form>
+        <div class="mt-4 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+          Sem título personalizado, o card usa o endereço. A imagem enviada aqui vira a capa do relatório.
         </div>
+      </section>
+
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-bold text-gray-950">Progresso do checklist</h3>
+        <div class="mt-4 text-3xl font-bold text-gray-950">{{ checklist_operacional.percentual }}%</div>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+          <div class="h-full rounded-full bg-teal-600" style="width: {{ checklist_operacional.percentual }}%;"></div>
+        </div>
+        <p class="mt-3 text-sm text-gray-600">{{ checklist_operacional.concluido }} de {{ checklist_operacional.total }} itens concluídos.</p>
       </section>
 
       <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -641,6 +768,71 @@ function baixarResumoImovelCsv() {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+function toggleChecklistItem(input, imovelId, itemId) {
+  const row = document.querySelector(`[data-checklist-row="${itemId}"]`);
+  const text = document.querySelector(`[data-checklist-text="${itemId}"]`);
+  const previous = !input.checked;
+
+  input.disabled = true;
+  fetch(`/kanban/${imovelId}/checklist/${itemId}/toggle/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken'),
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: `concluido=${input.checked ? '1' : '0'}`,
+  })
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then(data => {
+      if (!data.success) throw new Error('Resposta inválida');
+      input.checked = data.concluido;
+      if (text) {
+        text.classList.toggle('line-through', data.concluido);
+        text.classList.toggle('text-gray-400', data.concluido);
+        text.classList.toggle('text-gray-800', !data.concluido);
+      }
+      const stageDone = document.querySelector(`[data-stage-done="${data.etapa}"]`);
+      const stageTotal = document.querySelector(`[data-stage-total="${data.etapa}"]`);
+      if (stageDone) stageDone.textContent = data.etapa_concluido;
+      if (stageTotal) stageTotal.textContent = data.etapa_total;
+
+      const totalDone = document.getElementById('checklistTotalDone');
+      const totalCount = document.getElementById('checklistTotalCount');
+      const progressBar = document.getElementById('checklistProgressBar');
+      if (totalDone) totalDone.textContent = data.total_concluido;
+      if (totalCount) totalCount.textContent = data.total;
+      if (progressBar) progressBar.style.width = `${data.percentual}%`;
+    })
+    .catch(error => {
+      console.error('Erro ao atualizar checklist:', error);
+      input.checked = previous;
+      if (row) row.classList.add('bg-red-50');
+      window.setTimeout(() => row && row.classList.remove('bg-red-50'), 1200);
+    })
+    .finally(() => {
+      input.disabled = false;
+    });
 }
 </script>
 {% endblock %}

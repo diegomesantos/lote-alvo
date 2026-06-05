@@ -21,7 +21,7 @@
 
 <div class="max-w-4xl"
      x-data="{ tipoPgto: '{{ form.tipo_pgto.value|default:"À Vista" }}', modoCart: '{{ form.modo_cartorio.value|default:"Automático" }}' }">
-  <form method="post" class="space-y-5">
+  <form method="post" enctype="multipart/form-data" class="space-y-5">
     {% csrf_token %}
 
     <!-- 1. Identificação -->
@@ -31,6 +31,10 @@
         Identificação
       </h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="md:col-span-2">
+          <label class="field-label">{{ form.titulo_personalizado.label }}</label>{{ form.titulo_personalizado }}
+          <p class="mt-1 text-xs text-gray-500">Se ficar vazio, o sistema usa o endereço como título do card.</p>
+        </div>
         <div>
           <label class="field-label">{{ form.endereco.label }}</label>{{ form.endereco }}
           {% if form.endereco.errors %}<p class="text-red-500 text-xs mt-1">{{ form.endereco.errors|join:", " }}</p>{% endif %}
@@ -42,10 +46,28 @@
           <label class="field-label">{{ form.estado.label }}</label>{{ form.estado }}
         </div>
         <div>
+          <label class="field-label">{{ form.tipo_imovel.label }}</label>{{ form.tipo_imovel }}
+        </div>
+        <div>
           <label class="field-label">{{ form.etapa.label }}</label>{{ form.etapa }}
         </div>
         <div>
+          <label class="field-label">{{ form.prioridade.label }}</label>{{ form.prioridade }}
+        </div>
+        <div>
           <label class="field-label">{{ form.tipo_leilao.label }}</label>{{ form.tipo_leilao }}
+        </div>
+        <div>
+          <label class="field-label">{{ form.data_leilao.label }}</label>{{ form.data_leilao }}
+        </div>
+        <div class="md:col-span-2">
+          <label class="field-label">{{ form.link_leilao.label }}</label>{{ form.link_leilao }}
+        </div>
+        <div class="md:col-span-2">
+          <label class="field-label">{{ form.foto.label }}</label>{{ form.foto }}
+          {% if form.instance.foto %}
+            <p class="mt-1 text-xs text-gray-500">Imagem atual: {{ form.instance.foto.name }}</p>
+          {% endif %}
         </div>
         <div class="md:col-span-2">
           <label class="field-label">{{ form.obs.label }}</label>{{ form.obs }}

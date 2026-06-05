@@ -1,6 +1,6 @@
 from django import forms
 from decimal import Decimal, InvalidOperation
-from .models import Imovel
+from .models import Imovel, ImovelArquivo
 
 
 SELECT_CLASS = (
@@ -46,11 +46,17 @@ class ImovelForm(forms.ModelForm):
         exclude = ("user", "id", "data_cadastro", "updated_at")
         widgets = {
             # Identificação
+            "titulo_personalizado": forms.TextInput(attrs={"class": TEXT_CLASS, "placeholder": "Ex: Apto Cabula com 36% de desconto"}),
             "endereco":         forms.TextInput(attrs={"class": TEXT_CLASS, "placeholder": "Ex: Rua das Acácias, 123"}),
             "cidade":           forms.TextInput(attrs={"class": TEXT_CLASS, "placeholder": "Ex: Salvador"}),
             "estado":           forms.Select(attrs={"class": SELECT_CLASS}),
+            "tipo_imovel":      forms.Select(attrs={"class": SELECT_CLASS}),
             "etapa":            forms.Select(attrs={"class": SELECT_CLASS}),
+            "prioridade":       forms.Select(attrs={"class": SELECT_CLASS}),
             "tipo_leilao":      forms.Select(attrs={"class": SELECT_CLASS}),
+            "data_leilao":      forms.DateInput(attrs={"class": TEXT_CLASS, "type": "date"}),
+            "link_leilao":      forms.URLInput(attrs={"class": TEXT_CLASS, "placeholder": "https://..."}),
+            "foto":             forms.ClearableFileInput(attrs={"class": TEXT_CLASS, "accept": "image/*"}),
             "obs":              forms.Textarea(attrs={"class": TEXT_CLASS, "rows": 3}),
             # Leilão — monetário
             "avaliacao":        money_widget(),
@@ -95,6 +101,7 @@ class ImovelForm(forms.ModelForm):
             "giro_padrao":      forms.Select(attrs={"class": SELECT_CLASS}),
         }
         labels = {
+            "titulo_personalizado": "Título personalizado",
             "taxa_acrescimo":   "Acréscimo sobre venda (%)",
             "desconto_venda":   "Desconto sobre venda (%)",
             "pct_itbi_base":    "Base de cálculo ITBI",
@@ -179,3 +186,14 @@ class ImovelForm(forms.ModelForm):
                     del cleaned[fname]
 
         return cleaned
+
+
+class ImovelArquivoForm(forms.ModelForm):
+    class Meta:
+        model = ImovelArquivo
+        fields = ("arquivo", "nome", "categoria")
+        widgets = {
+            "arquivo": forms.ClearableFileInput(attrs={"class": TEXT_CLASS}),
+            "nome": forms.TextInput(attrs={"class": TEXT_CLASS, "placeholder": "Nome do arquivo"}),
+            "categoria": forms.Select(attrs={"class": SELECT_CLASS}),
+        }

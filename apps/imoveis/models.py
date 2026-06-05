@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 from django.db import models
 from django.db.models import Q
 from django.contrib.auth.models import User
@@ -24,6 +25,93 @@ ETAPA_POS = [
 ]
 
 ETAPA_CHOICES = ETAPA_PRE + ETAPA_POS + [("arquivado", "Arquivado")]
+
+CHECKLIST_PADRAO = {
+    "estoque": [
+        "Verificar se existe outro card cadastrado para o mesmo imóvel",
+        "Registrar origem do imóvel e link principal de consulta",
+        "Definir título comercial do card",
+        "Inserir imagem de capa do imóvel",
+        "Conferir endereço completo e rota no Google Maps",
+        "Anexar edital ou página da oferta quando disponível",
+        "Anexar matrícula ou documento equivalente",
+        "Preencher data e valores do leilão",
+        "Cadastrar no leiloeiro se disponível",
+        "Registrar observações iniciais de garimpagem",
+        "Definir prioridade de triagem",
+    ],
+    "triagem_financeira": [
+        "Levantar amostras de imóveis similares na região",
+        "Estimar valor de venda mínimo, médio e preço de liquidez",
+        "Definir liquidez esperada do imóvel",
+        "Checar existência de garagem e impacto no preço",
+        "Definir grau de conservação e estimativa de reforma",
+        "Verificar débitos sob responsabilidade do comprador",
+        "Conversar com corretores da região e registrar parecer",
+        "Atualizar calculadora com reforma, desocupação e giro esperado",
+        "Definir lance máximo recomendado",
+    ],
+    "triagem_juridica": [
+        "Atualizar matrícula se estiver desatualizada",
+        "Verificar litígios, ônus e restrições na matrícula",
+        "Identificar ex-mutuário ou antigo proprietário",
+        "Identificar ocupante atual quando aplicável",
+        "Pesquisar processos relevantes por CPF/CNPJ e nome",
+        "Verificar possibilidade de usucapião",
+        "Baixar processos existentes quando possível",
+        "Registrar resumo dos riscos que podem gerar nulidade ou atraso",
+    ],
+    "debate_final": [
+        "Cadastrar no leiloeiro",
+        "Fazer habilitação no leilão",
+        "Definir forma de pagamento",
+        "Definir lance máximo",
+        "Checar atualizações no processo ou edital",
+        "Atualizar relatório final do imóvel",
+        "Obter matrícula atualizada",
+    ],
+    "participacao_leilao": [
+        "Atualizar relatório com lance máximo",
+        "Checar atualizações no processo",
+    ],
+    "registro_desocupacao": [
+        "Pagar boleto de entrada",
+        "Trocar titularidade de luz",
+        "Trocar titularidade de água",
+        "Trocar titularidade de gás",
+        "Trocar titularidade de IPTU",
+        "Trocar titularidade do condomínio",
+        "Se for condomínio, atualizar acesso dos moradores na portaria",
+        "Salvar fotos e vídeos da imissão na posse",
+    ],
+    "reforma": [
+        "Definir escopo da reforma",
+        "Orçar materiais e mão de obra",
+        "Contratar responsável técnico quando necessário",
+        "Acompanhar execução e registrar fotos",
+        "Conferir limpeza final e pendências",
+    ],
+    "procedimento_venda": [
+        "Definir preço de anúncio",
+        "Contratar corretor ou canal de venda",
+        "Produzir fotos finais",
+        "Publicar anúncios",
+        "Registrar propostas recebidas",
+        "Validar documentação do comprador",
+    ],
+    "vendido_ir": [
+        "Registrar valor efetivo de venda",
+        "Conferir comissão e despesas finais",
+        "Organizar documentos para imposto de renda",
+        "Calcular ganho de capital",
+    ],
+    "operacao_finalizada": [
+        "Conferir recebimentos finais",
+        "Arquivar documentos da operação",
+        "Registrar aprendizados da operação",
+        "Encerrar card",
+    ],
+}
 
 ETAPA_COR = {
     # Pré
@@ -102,6 +190,7 @@ class Imovel(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="imoveis")
 
     # Identificação
+    titulo_personalizado = models.CharField("Título personalizado", max_length=160, blank=True)
     endereco     = models.CharField("Endereço", max_length=200)
     cidade       = models.CharField("Cidade", max_length=100)
     estado       = models.CharField("Estado (UF)", max_length=2, choices=ESTADO_CHOICES, default="BA")
@@ -186,8 +275,14 @@ class Imovel(models.Model):
 
     @property
     def titulo_card(self):
+        return self.titulo_personalizado.strip() or self.endereco
+
+    @property
+    def titulo_automatico(self):
         tipo = self.get_tipo_imovel_display().upper()
-        return f"{tipo} em {self.cidade.upper()}, {self.estado}"
+        cidade = (self.cidade or "").upper()
+        estado = self.estado or ""
+        return f"{tipo} em {cidade}, {estado}"
 
     @property
     def etapa_display(self):
@@ -251,3 +346,71 @@ class Imovel(models.Model):
             "lucro_minimo":    float(self.lucro_minimo),
             "incremento_lance":float(self.incremento_lance),
         }
+
+
+def imovel_arquivo_upload_to(instance, filename):
+    ext = Path(filename).suffix.lower()
+    nome = uuid.uuid4().hex
+    return f"imoveis/{instance.imovel_id}/arquivos/{nome}{ext}"
+
+
+class ImovelChecklistItem(models.Model):
+    imovel = models.ForeignKey(Imovel, on_delete=models.CASCADE, related_name="checklist_items")
+    etapa = models.CharField("Etapa", max_length=30, choices=ETAPA_CHOICES, db_index=True)
+    texto = models.CharField("Item", max_length=320)
+    concluido = models.BooleanField("Concluído", default=False)
+    ordem = models.PositiveIntegerField("Ordem", default=0)
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="checklist_items_criados")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["etapa", "ordem", "id"]
+        indexes = [
+            models.Index(fields=["imovel", "etapa"]),
+        ]
+
+    def __str__(self):
+        return self.texto
+
+
+class ImovelArquivo(models.Model):
+    CATEGORIA_CHOICES = [
+        ("apoio", "Apoio"),
+        ("matricula", "Matrícula"),
+        ("edital", "Edital"),
+        ("foto", "Foto"),
+        ("financeiro", "Financeiro"),
+        ("outro", "Outro"),
+    ]
+
+    imovel = models.ForeignKey(Imovel, on_delete=models.CASCADE, related_name="arquivos")
+    arquivo = models.FileField("Arquivo", upload_to=imovel_arquivo_upload_to)
+    nome = models.CharField("Nome", max_length=180, blank=True)
+    categoria = models.CharField("Categoria", max_length=20, choices=CATEGORIA_CHOICES, default="apoio")
+    enviado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="arquivos_imoveis")
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+
+    @property
+    def nome_exibicao(self):
+        return self.nome.strip() or Path(self.arquivo.name).name
+
+    def __str__(self):
+        return self.nome_exibicao
+
+
+class ImovelComentario(models.Model):
+    imovel = models.ForeignKey(Imovel, on_delete=models.CASCADE, related_name="comentarios")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="comentarios_imoveis")
+    texto = models.TextField("Comentário")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return self.texto[:80]
