@@ -1,46 +1,410 @@
 {% extends "base.html" %}
-{% block title %}Novo Lançamento — LoteAlvo{% endblock %}
+{% load leilao_tags %}
+{% block title %}{% if lancamento %}Editar Lançamento{% else %}Novo Lançamento{% endif %} — LoteAlvo{% endblock %}
 {% block page_title %}{% if lancamento %}Editar Lançamento{% else %}Novo Lançamento{% endif %}{% endblock %}
+{% block page_subtitle %}Registre receitas, despesas e comprovantes da operação{% endblock %}
 
 {% block content %}
-<div class="max-w-xl">
-  <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm sm:p-6">
-    <form method="post" enctype="multipart/form-data" class="space-y-4">
-      {% csrf_token %}
+{{ imoveis_payload|json_script:"financeiro-imoveis-data" }}
+{{ categorias_payload|json_script:"financeiro-categorias-data" }}
 
-      {% if imovel %}
-      <div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-sm text-teal-800">
-        🏠 Vinculado ao imóvel: <strong>{{ imovel.endereco }}</strong>
+<style>
+  .finance-field-money {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid #d1d5db;
+    border-radius: .5rem;
+    background: #fff;
+  }
+  .finance-field-money:focus-within {
+    border-color: #2dd4bf;
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, .35);
+  }
+  .finance-field-money .field-prefix,
+  .finance-field-money .field-suffix {
+    flex-shrink: 0;
+    border-right: 1px solid #d1d5db;
+    background: #f9fafb;
+    padding: .5rem .75rem;
+    color: #6b7280;
+    font-size: .875rem;
+    font-weight: 600;
+  }
+  #financeiro-lancamento-panel .field-money {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid #d1d5db;
+    border-radius: .5rem;
+    background: #fff;
+  }
+  #financeiro-lancamento-panel .field-money:focus-within {
+    border-color: #2dd4bf;
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, .35);
+  }
+  #financeiro-lancamento-panel .field-prefix {
+    flex-shrink: 0;
+    border-right: 1px solid #d1d5db;
+    background: #f9fafb;
+    padding: .5rem .75rem;
+    color: #6b7280;
+    font-size: .875rem;
+    font-weight: 600;
+  }
+</style>
+
+<div id="financeiro-lancamento-panel"
+     class="mx-auto max-w-5xl"
+     x-data="lancamentoFinanceiroForm({
+       selectedImovelId: '{{ selected_imovel_id|escapejs }}',
+       selectedCategoriaId: '{{ selected_categoria_id|escapejs }}',
+       selectedTipo: '{{ selected_tipo|escapejs }}'
+     })">
+  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+    <form method="post" enctype="multipart/form-data" class="space-y-0">
+      {% csrf_token %}
+      <input type="hidden" name="imovel" :value="imovelId">
+      <input type="hidden" name="categoria" :value="categoriaId">
+      <input type="hidden" name="tipo" :value="tipo">
+
+      <div class="border-b border-gray-200 bg-gray-950 p-5 text-white sm:p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div class="text-xs font-bold uppercase tracking-wide text-teal-300">Lançamento financeiro</div>
+            <h2 class="mt-1 text-xl font-bold">{% if lancamento %}Editar registro{% else %}Novo registro{% endif %}</h2>
+            <p class="mt-2 max-w-2xl text-sm leading-relaxed text-gray-300">Use este formulário para o financeiro real da operação. Categorias podem ser criadas, editadas e removidas sem sair do campo.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 rounded-lg bg-white/10 p-1">
+            <button type="button"
+                    @click="setTipo('despesa')"
+                    :class="tipo === 'despesa' ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-200 hover:bg-white/10'"
+                    class="rounded-md px-4 py-2 text-sm font-bold transition-colors">
+              Despesa
+            </button>
+            <button type="button"
+                    @click="setTipo('receita')"
+                    :class="tipo === 'receita' ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-200 hover:bg-white/10'"
+                    class="rounded-md px-4 py-2 text-sm font-bold transition-colors">
+              Receita
+            </button>
+          </div>
+        </div>
       </div>
+
+      {% if form.non_field_errors %}
+        <div class="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
+          {{ form.non_field_errors|join:", " }}
+        </div>
       {% endif %}
 
-      {% for field in form %}
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          {{ field.label }}
-          {% if field.field.required %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
-        </label>
-        {{ field }}
-        {% if field.help_text %}
-        <p class="text-xs text-gray-400 mt-0.5">{{ field.help_text }}</p>
-        {% endif %}
-        {% if field.errors %}
-        <p class="text-red-500 text-xs mt-1">{{ field.errors|join:", " }}</p>
-        {% endif %}
-      </div>
-      {% endfor %}
+      {% if imovel %}
+        <div class="border-b border-teal-100 bg-teal-50 px-5 py-3 text-sm text-teal-800">
+          Vinculado ao imóvel: <strong>{{ imovel.titulo_card }}</strong>
+        </div>
+      {% endif %}
 
-      <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
-        <button type="submit"
-                class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-2.5 rounded-xl transition-colors shadow sm:w-auto">
-          {% if lancamento %}Salvar alterações{% else %}Registrar lançamento{% endif %}
-        </button>
-        <a href="{% url 'financeiro' %}"
-           class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2.5 rounded-xl transition-colors text-center sm:w-auto">
+      <div class="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <main class="space-y-5 p-5 sm:p-6">
+          <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ form.descricao.label }} <span class="text-red-500">*</span></label>
+              {{ form.descricao }}
+              {% if form.descricao.errors %}<p class="mt-1 text-xs text-red-600">{{ form.descricao.errors|join:", " }}</p>{% endif %}
+            </div>
+            <div>{% money_field form.valor %}</div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ form.data.label }} <span class="text-red-500">*</span></label>
+              {{ form.data }}
+              {% if form.data.errors %}<p class="mt-1 text-xs text-red-600">{{ form.data.errors|join:", " }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ form.status.label }}</label>
+              {{ form.status }}
+              {% if form.status.errors %}<p class="mt-1 text-xs text-red-600">{{ form.status.errors|join:", " }}</p>{% endif %}
+            </div>
+          </section>
+
+          <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="relative" @click.outside="imovelOpen = false">
+              <label class="mb-1 block text-sm font-medium text-gray-700">Imóvel</label>
+              <button type="button"
+                      @click="imovelOpen = !imovelOpen; categoriaOpen = false"
+                      class="flex w-full items-center justify-between gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-400">
+                <span class="min-w-0">
+                  <span class="block truncate font-medium text-gray-900" x-text="selectedImovel()?.label || 'Portfólio geral'"></span>
+                  <span class="block truncate text-xs text-gray-500" x-text="selectedImovel()?.meta || 'Sem imóvel vinculado'"></span>
+                </span>
+                <span class="text-gray-400">⌄</span>
+              </button>
+              {% if form.imovel.errors %}<p class="mt-1 text-xs text-red-600">{{ form.imovel.errors|join:", " }}</p>{% endif %}
+              <div x-show="imovelOpen" x-cloak class="absolute z-30 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+                <div class="border-b border-gray-100 p-2">
+                  <input type="search" x-model="imovelQuery" placeholder="Buscar imóvel..."
+                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                </div>
+                <div class="max-h-64 overflow-y-auto p-1">
+                  <button type="button" @click="selectImovel(null)" class="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50">
+                    <span class="font-medium text-gray-900">Portfólio geral</span>
+                    <span class="block text-xs text-gray-500">Não vincular a imóvel específico</span>
+                  </button>
+                  <template x-for="option in filteredImoveis()" :key="option.id">
+                    <button type="button" @click="selectImovel(option)" class="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-teal-50">
+                      <span class="block truncate font-medium text-gray-900" x-text="option.label"></span>
+                      <span class="block truncate text-xs text-gray-500" x-text="option.meta"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div class="relative" @click.outside="categoriaOpen = false">
+              <label class="mb-1 block text-sm font-medium text-gray-700">Categoria</label>
+              <button type="button"
+                      @click="categoriaOpen = !categoriaOpen; imovelOpen = false"
+                      class="flex w-full items-center justify-between gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-400">
+                <span class="min-w-0">
+                  <span class="block truncate font-medium text-gray-900" x-text="selectedCategoria()?.label || 'Selecionar ou criar categoria'"></span>
+                  <span class="block truncate text-xs text-gray-500" x-text="tipo === 'receita' ? 'Receita' : 'Despesa'"></span>
+                </span>
+                <span class="text-gray-400">⌄</span>
+              </button>
+              {% if form.categoria.errors %}<p class="mt-1 text-xs text-red-600">{{ form.categoria.errors|join:", " }}</p>{% endif %}
+
+              <div x-show="categoriaOpen" x-cloak class="absolute z-40 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+                <div class="border-b border-gray-100 p-2">
+                  <input type="search" x-model="categoriaQuery" placeholder="Buscar ou digitar nova categoria..."
+                         class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                </div>
+                <div class="max-h-72 overflow-y-auto p-1">
+                  <button type="button" @click="selectCategoria(null)" class="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50">
+                    <span class="font-medium text-gray-900">Sem categoria</span>
+                    <span class="block text-xs text-gray-500">Manter lançamento sem classificação</span>
+                  </button>
+                  <template x-for="cat in filteredCategorias()" :key="cat.id">
+                    <button type="button" @click="selectCategoria(cat)" class="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-teal-50">
+                      <span class="font-medium text-gray-900" x-text="cat.label"></span>
+                      <span class="ml-2 text-xs text-gray-500" x-text="cat.tipo === 'receita' ? 'Receita' : 'Despesa'"></span>
+                    </button>
+                  </template>
+                  <div class="border-t border-gray-100 p-2" x-show="categoriaQuery.trim().length">
+                    <div class="mb-2 text-xs font-semibold uppercase text-gray-500">Criar categoria</div>
+                    <div class="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+                      <input type="text" x-model="draftIcone" maxlength="5" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="💰">
+                      <input type="text" x-model="draftNome" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Nome">
+                    </div>
+                    <button type="button" @click="createCategoria()" class="mt-2 w-full rounded-lg bg-teal-600 px-3 py-2 text-sm font-bold text-white hover:bg-teal-700">
+                      Criar e selecionar
+                    </button>
+                  </div>
+                </div>
+                <div class="border-t border-gray-100 bg-gray-50 p-2" x-show="selectedCategoria()">
+                  <div x-show="!editingCategoria" class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 text-xs text-gray-600">
+                      Categoria selecionada: <span class="font-bold text-gray-900" x-text="selectedCategoria()?.label"></span>
+                    </div>
+                    <div class="flex gap-1">
+                      <button type="button" @click="startEditCategoria()" class="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white">Editar</button>
+                      <button type="button" @click="deleteCategoria()" class="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50">Excluir</button>
+                    </div>
+                  </div>
+                  <div x-show="editingCategoria" class="space-y-2">
+                    <div class="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+                      <input type="text" x-model="editIcone" maxlength="5" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      <input type="text" x-model="editNome" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    </div>
+                    <div class="flex gap-2">
+                      <button type="button" @click="saveCategoria()" class="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-800">Salvar categoria</button>
+                      <button type="button" @click="editingCategoria = false" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-white">Cancelar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <label class="mb-1 block text-sm font-medium text-gray-700">{{ form.obs.label }}</label>
+            {{ form.obs }}
+            {% if form.obs.errors %}<p class="mt-1 text-xs text-red-600">{{ form.obs.errors|join:", " }}</p>{% endif %}
+          </section>
+        </main>
+
+        <aside class="border-t border-gray-200 bg-gray-50 p-5 lg:border-l lg:border-t-0">
+          <div class="space-y-5">
+            <section class="rounded-lg border border-gray-200 bg-white p-4">
+              <h3 class="text-sm font-bold text-gray-950">Comprovante</h3>
+              <div class="mt-3">
+                {{ form.comprovante }}
+                {% if form.comprovante.errors %}<p class="mt-1 text-xs text-red-600">{{ form.comprovante.errors|join:", " }}</p>{% endif %}
+              </div>
+              <p class="mt-2 text-xs leading-relaxed text-gray-500">Anexe nota fiscal, boleto, recibo ou comprovante bancário quando existir.</p>
+            </section>
+
+            <section class="rounded-lg border border-gray-200 bg-white p-4">
+              <h3 class="text-sm font-bold text-gray-950">Resumo</h3>
+              <dl class="mt-3 space-y-3 text-sm">
+                <div class="flex justify-between gap-3">
+                  <dt class="text-gray-500">Tipo</dt>
+                  <dd class="font-bold" :class="tipo === 'receita' ? 'text-green-700' : 'text-red-700'" x-text="tipo === 'receita' ? 'Receita' : 'Despesa'"></dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-gray-500">Imóvel</dt>
+                  <dd class="max-w-[12rem] truncate text-right font-bold text-gray-900" x-text="selectedImovel()?.label || 'Portfólio geral'"></dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-gray-500">Categoria</dt>
+                  <dd class="max-w-[12rem] truncate text-right font-bold text-gray-900" x-text="selectedCategoria()?.label || 'Sem categoria'"></dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </aside>
+      </div>
+
+      <div class="flex flex-col gap-3 border-t border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <a href="{% url 'financeiro' %}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">
           Cancelar
         </a>
+        <button type="submit" class="rounded-lg bg-teal-600 px-5 py-2 text-sm font-bold text-white hover:bg-teal-700">
+          {% if lancamento %}Salvar alterações{% else %}Registrar lançamento{% endif %}
+        </button>
       </div>
     </form>
   </div>
 </div>
+
+<script>
+function lancamentoFinanceiroForm(config) {
+  return {
+    imoveis: JSON.parse(document.getElementById('financeiro-imoveis-data').textContent),
+    categorias: JSON.parse(document.getElementById('financeiro-categorias-data').textContent),
+    imovelId: config.selectedImovelId || '',
+    categoriaId: config.selectedCategoriaId || '',
+    tipo: config.selectedTipo || 'despesa',
+    imovelOpen: false,
+    categoriaOpen: false,
+    imovelQuery: '',
+    categoriaQuery: '',
+    draftIcone: '💰',
+    draftNome: '',
+    editingCategoria: false,
+    editIcone: '',
+    editNome: '',
+
+    setTipo(value) {
+      this.tipo = value;
+      const categoria = this.selectedCategoria();
+      if (categoria && categoria.tipo !== value) this.categoriaId = '';
+    },
+    selectedImovel() {
+      return this.imoveis.find((item) => item.id === this.imovelId);
+    },
+    filteredImoveis() {
+      const query = this.normalize(this.imovelQuery);
+      return this.imoveis.filter((item) => {
+        return !query || this.normalize(`${item.label} ${item.meta}`).includes(query);
+      }).slice(0, 40);
+    },
+    selectImovel(option) {
+      this.imovelId = option ? option.id : '';
+      this.imovelOpen = false;
+      this.imovelQuery = '';
+    },
+    selectedCategoria() {
+      return this.categorias.find((item) => item.id === this.categoriaId);
+    },
+    filteredCategorias() {
+      const query = this.normalize(this.categoriaQuery);
+      return this.categorias.filter((item) => {
+        const matchesType = item.tipo === this.tipo;
+        const matchesQuery = !query || this.normalize(`${item.nome} ${item.icone}`).includes(query);
+        return matchesType && matchesQuery;
+      }).slice(0, 30);
+    },
+    selectCategoria(option) {
+      this.categoriaId = option ? option.id : '';
+      this.categoriaOpen = false;
+      this.categoriaQuery = '';
+      this.editingCategoria = false;
+    },
+    startEditCategoria() {
+      const categoria = this.selectedCategoria();
+      if (!categoria) return;
+      this.editIcone = categoria.icone || '💰';
+      this.editNome = categoria.nome || '';
+      this.editingCategoria = true;
+    },
+    async createCategoria() {
+      const nome = (this.draftNome || this.categoriaQuery || '').trim();
+      if (!nome) return;
+      const response = await this.postForm('{% url "criar_categoria_financeira" %}', {
+        nome: nome,
+        tipo: this.tipo,
+        icone: this.draftIcone || '💰',
+      });
+      if (!response.success) return;
+      this.categorias.push(response.categoria);
+      this.categoriaId = response.categoria.id;
+      this.categoriaOpen = false;
+      this.categoriaQuery = '';
+      this.draftNome = '';
+      this.draftIcone = '💰';
+    },
+    async saveCategoria() {
+      const categoria = this.selectedCategoria();
+      if (!categoria) return;
+      const response = await this.postForm(`/financeiro/categorias/${categoria.id}/editar/`, {
+        nome: this.editNome,
+        tipo: this.tipo,
+        icone: this.editIcone || '💰',
+      });
+      if (!response.success) return;
+      this.categorias = this.categorias.map((item) => item.id === response.categoria.id ? response.categoria : item);
+      this.editingCategoria = false;
+    },
+    async deleteCategoria() {
+      const categoria = this.selectedCategoria();
+      if (!categoria) return;
+      if (!confirm(`Excluir a categoria "${categoria.nome}"? Lançamentos antigos ficarão sem categoria.`)) return;
+      const response = await this.postForm(`/financeiro/categorias/${categoria.id}/excluir/`, {});
+      if (!response.success) return;
+      this.categorias = this.categorias.filter((item) => item.id !== categoria.id);
+      this.categoriaId = '';
+      this.editingCategoria = false;
+    },
+    async postForm(url, payload) {
+      const body = new URLSearchParams();
+      Object.entries(payload).forEach(([key, value]) => body.append(key, value || ''));
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': this.getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body,
+      });
+      return response.json();
+    },
+    normalize(value) {
+      return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    },
+    getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    },
+  };
+}
+</script>
 {% endblock %}

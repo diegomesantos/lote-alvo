@@ -44,7 +44,8 @@
   @media print {
     .no-print,
     .app-sidebar,
-    #modal-lances-imovel {
+    #modal-lances-imovel,
+    #modal-calculo-imovel {
       display: none !important;
     }
     body {
@@ -57,8 +58,8 @@
       break-inside: avoid;
     }
   }
-  #financeiro-express .field-money,
-  #financeiro-express .field-pct {
+  #modal-calculo-imovel .field-money,
+  #modal-calculo-imovel .field-pct {
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -67,13 +68,13 @@
     background: #fff;
     transition: box-shadow .15s, border-color .15s;
   }
-  #financeiro-express .field-money:focus-within,
-  #financeiro-express .field-pct:focus-within {
+  #modal-calculo-imovel .field-money:focus-within,
+  #modal-calculo-imovel .field-pct:focus-within {
     border-color: #2dd4bf;
     box-shadow: 0 0 0 2px rgba(45, 212, 191, .35);
   }
-  #financeiro-express .field-prefix,
-  #financeiro-express .field-suffix {
+  #modal-calculo-imovel .field-prefix,
+  #modal-calculo-imovel .field-suffix {
     flex-shrink: 0;
     border-right: 1px solid #d1d5db;
     background: #f9fafb;
@@ -82,7 +83,7 @@
     font-size: .875rem;
     font-weight: 600;
   }
-  #financeiro-express .field-suffix {
+  #modal-calculo-imovel .field-suffix {
     border-left: 1px solid #d1d5db;
     border-right: 0;
   }
@@ -103,7 +104,6 @@
       <a href="#documentos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Documentos</a>
       <a href="#juridico" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Jurídico</a>
       <a href="#checklist" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Checklist</a>
-      <a href="#financeiro-express" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Express</a>
       <a href="#financeiro" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Financeiro</a>
       <a href="#arquivos" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Arquivos</a>
       <a href="#comentarios" class="rounded-lg px-3 py-2 font-medium text-gray-700 hover:bg-white hover:text-teal-700">Comentários</a>
@@ -465,129 +465,6 @@
         </div>
       </section>
 
-      <section id="financeiro-express" class="no-print scroll-mt-24 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <form method="post" action="{% url 'atualizar_financeiro_express' imovel.pk %}" class="space-y-5">
-          {% csrf_token %}
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h3 class="text-base font-bold text-gray-950">Gerenciamento financeiro express</h3>
-              <p class="mt-1 max-w-3xl text-sm text-gray-600">Atualize os principais lançamentos, custos e premissas da operação sem sair do relatório.</p>
-            </div>
-            <div class="flex flex-col gap-2 sm:flex-row">
-              <a href="#financeiro"
-                 class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Ver cálculo completo
-              </a>
-              <button type="submit"
-                      class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">
-                Salvar e recalcular
-              </button>
-            </div>
-          </div>
-
-          {% if r %}
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div class="text-xs font-semibold uppercase text-gray-500">Capital na operação</div>
-                <div class="mt-1 text-lg font-bold text-gray-950">-{{ r.custo_ate_venda|brl }}</div>
-              </div>
-              <div class="rounded-lg border {% if r.resultado > 0 %}border-green-100 bg-green-50{% else %}border-red-100 bg-red-50{% endif %} p-3">
-                <div class="text-xs font-semibold uppercase {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">Resultado projetado</div>
-                <div class="mt-1 text-lg font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.resultado|brl }}</div>
-              </div>
-              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div class="text-xs font-semibold uppercase text-gray-500">ROI no giro padrão</div>
-                <div class="mt-1 text-lg font-bold text-gray-950">{{ r.roi|pct }}</div>
-              </div>
-              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div class="text-xs font-semibold uppercase text-gray-500">Giro usado</div>
-                <div class="mt-1 text-lg font-bold text-gray-950">{{ imovel.giro_padrao }} meses</div>
-              </div>
-            </div>
-          {% endif %}
-
-          <div class="grid grid-cols-1 gap-4 xl:grid-cols-4">
-            <div class="rounded-lg border border-gray-200 p-4">
-              <div class="mb-4">
-                <h4 class="text-sm font-bold text-gray-950">Valores de entrada e saída</h4>
-                <p class="mt-1 text-xs text-gray-500">Base da decisão e preço alvo.</p>
-              </div>
-              <div class="space-y-3">
-                {% money_field financeiro_express_form.avaliacao "Avaliação" %}
-                {% money_field financeiro_express_form.lance "Lance / arrematação" %}
-                {% money_field financeiro_express_form.preco_venda "Venda prevista" %}
-                {% money_field financeiro_express_form.rec_aluguel_am "Aluguel mensal previsto" %}
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.giro_padrao.label }}</label>
-                  {{ financeiro_express_form.giro_padrao }}
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-lg border border-gray-200 p-4">
-              <div class="mb-4">
-                <h4 class="text-sm font-bold text-gray-950">Custos e recorrentes</h4>
-                <p class="mt-1 text-xs text-gray-500">Despesas que consomem caixa até a venda.</p>
-              </div>
-              <div class="space-y-3">
-                {% money_field financeiro_express_form.reformas "Reformas" %}
-                {% money_field financeiro_express_form.custo_desocup "Desocupação" %}
-                {% money_field financeiro_express_form.debitos "Débitos do imóvel" %}
-                {% money_field financeiro_express_form.despesas_div "Outras despesas" %}
-                {% money_field financeiro_express_form.iptu_am "IPTU mensal" %}
-                {% money_field financeiro_express_form.cond_am "Condomínio mensal" %}
-              </div>
-            </div>
-
-            <div class="rounded-lg border border-gray-200 p-4">
-              <div class="mb-4">
-                <h4 class="text-sm font-bold text-gray-950">Taxas e cartório</h4>
-                <p class="mt-1 text-xs text-gray-500">Premissas de aquisição e venda.</p>
-              </div>
-              <div class="space-y-3">
-                {% pct_field financeiro_express_form.pct_leiloeiro "Leiloeiro" %}
-                {% pct_field financeiro_express_form.pct_corretor "Corretor" %}
-                {% money_field financeiro_express_form.av_fiscal "Avaliação fiscal" %}
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.pct_itbi_base.label }}</label>
-                  {{ financeiro_express_form.pct_itbi_base }}
-                </div>
-                {% pct_field financeiro_express_form.aliq_itbi "ITBI" %}
-                {% money_field financeiro_express_form.incremento_lance "Incremento de lance" %}
-              </div>
-            </div>
-
-            <div class="rounded-lg border border-gray-200 p-4">
-              <div class="mb-4">
-                <h4 class="text-sm font-bold text-gray-950">Pagamento e alvo</h4>
-                <p class="mt-1 text-xs text-gray-500">Financiamento, entrada e retorno mínimo.</p>
-              </div>
-              <div class="space-y-3">
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.tipo_pgto.label }}</label>
-                  {{ financeiro_express_form.tipo_pgto }}
-                </div>
-                {% pct_field financeiro_express_form.entrada "Entrada" %}
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-gray-700">{{ financeiro_express_form.prazo_fin.label }}</label>
-                  {{ financeiro_express_form.prazo_fin }}
-                </div>
-                {% pct_field financeiro_express_form.cet_aa "CET a.a." %}
-                {% money_field financeiro_express_form.lucro_minimo "Lucro mínimo" %}
-              </div>
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p class="text-xs text-gray-500">Depois de salvar, os KPIs, tabelas e relatório usam os novos valores.</p>
-            <button type="submit"
-                    class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700">
-              Salvar financeiro express
-            </button>
-          </div>
-        </form>
-      </section>
-
       <section id="financeiro" class="space-y-6">
         <div class="rounded-lg border border-sky-200 bg-sky-50 p-5">
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -783,7 +660,11 @@
           {% endif %}
         </dl>
         <div class="no-print mt-5 grid grid-cols-1 gap-2">
-          <a href="{% url 'editar' imovel.pk %}" class="rounded-lg bg-gray-900 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-gray-800">Editar simulação</a>
+          <button type="button"
+                  onclick="document.getElementById('modal-calculo-imovel').showModal()"
+                  class="rounded-lg bg-gray-900 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-gray-800">
+            Editar dados de cálculo
+          </button>
           <a href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Abrir no Maps</a>
           {% if caixa_detalhe_url %}
             <a href="{{ caixa_detalhe_url }}" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50">Abrir dossiê Caixa</a>
@@ -846,11 +727,198 @@
             <dd class="font-bold text-gray-900">{{ imovel.iptu_am|brl }}</dd>
           </div>
         </dl>
+        <div class="no-print mt-5">
+          {% if imovel.fase == 'pos' %}
+            <a href="{% url 'novo_lancamento' %}?imovel={{ imovel.pk }}"
+               class="block rounded-lg bg-teal-600 px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-teal-700">
+              Novo lançamento financeiro
+            </a>
+          {% else %}
+            <p class="rounded-lg bg-gray-50 p-3 text-xs leading-relaxed text-gray-600">
+              Lançamentos reais entram no financeiro quando o imóvel avançar para o pós-arrematação.
+            </p>
+          {% endif %}
+        </div>
       </section>
     </aside>
   </div>
 </div>
 {% endwith %}
+
+<dialog id="modal-calculo-imovel" class="w-11/12 max-w-6xl rounded-lg p-0 shadow-2xl backdrop:bg-gray-950/55">
+  <form method="post" action="{% url 'atualizar_dados_calculo' imovel.pk %}">
+    {% csrf_token %}
+    <div class="sticky top-0 z-10 flex flex-col gap-3 border-b border-gray-200 bg-white p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <div class="text-xs font-bold uppercase tracking-wide text-teal-700">Calculadora do imóvel</div>
+        <h2 class="mt-1 text-lg font-bold text-gray-950">Editar dados de cálculo</h2>
+        <p class="mt-1 max-w-3xl text-sm text-gray-600">Atualize apenas as premissas que alimentam as tabelas financeiras, sem alterar documentos, checklist ou comentários do relatório.</p>
+      </div>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <button type="button"
+                onclick="document.getElementById('modal-calculo-imovel').close()"
+                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Cancelar
+        </button>
+        <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">
+          Salvar e recalcular
+        </button>
+      </div>
+    </div>
+
+    <div class="max-h-[72vh] overflow-y-auto bg-gray-50 p-4 sm:p-5">
+      <div class="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        <details open class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">2</span> Valores do leilão</span>
+            <span class="text-xs text-gray-400">Avaliação e lance</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            {% money_field calculo_form.avaliacao %}
+            {% money_field calculo_form.lance %}
+          </div>
+        </details>
+
+        <details open class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">3</span> Pagamento</span>
+            <span class="text-xs text-gray-400">Entrada e CET</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            <div class="sm:col-span-2">
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.tipo_pgto.label }}</label>
+              {{ calculo_form.tipo_pgto }}
+            </div>
+            {% pct_field calculo_form.entrada %}
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.prazo_fin.label }}</label>
+              {{ calculo_form.prazo_fin }}
+            </div>
+            {% pct_field calculo_form.cet_aa %}
+          </div>
+        </details>
+
+        <details open class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">4</span> Receitas</span>
+            <span class="text-xs text-gray-400">Venda, aluguel e corretagem</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            {% money_field calculo_form.preco_venda %}
+            {% pct_field calculo_form.pct_corretor %}
+            {% pct_field calculo_form.taxa_acrescimo %}
+            {% pct_field calculo_form.desconto_venda %}
+            {% money_field calculo_form.rec_aluguel_am %}
+          </div>
+        </details>
+
+        <details class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">5</span> ITBI</span>
+            <span class="text-xs text-gray-400">Base e alíquotas</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.pct_itbi_base.label }}</label>
+              {{ calculo_form.pct_itbi_base }}
+            </div>
+            {% pct_field calculo_form.aliq_itbi %}
+            {% pct_field calculo_form.aliq_itbi_fin %}
+          </div>
+        </details>
+
+        <details class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">6</span> Custos cartoriais</span>
+            <span class="text-xs text-gray-400">Automático ou manual</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.modo_cartorio.label }}</label>
+              {{ calculo_form.modo_cartorio }}
+            </div>
+            {% money_field calculo_form.av_fiscal %}
+            {% money_field calculo_form.escritura_manual %}
+            {% money_field calculo_form.registro_manual %}
+            {% pct_field calculo_form.pct_leiloeiro %}
+          </div>
+        </details>
+
+        <details open class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">7</span> Despesas adicionais</span>
+            <span class="text-xs text-gray-400">Reforma, desocupação e débitos</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            {% money_field calculo_form.reformas %}
+            {% money_field calculo_form.custo_desocup %}
+            {% money_field calculo_form.debitos %}
+            {% money_field calculo_form.despesas_div %}
+            {% pct_field calculo_form.laudemio_pct %}
+          </div>
+        </details>
+
+        <details class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">8</span> Gastos mensais</span>
+            <span class="text-xs text-gray-400">IPTU e condomínio</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            {% money_field calculo_form.iptu_am %}
+            {% money_field calculo_form.cond_am %}
+          </div>
+        </details>
+
+        <details class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">9</span> Oportunidade e IR</span>
+            <span class="text-xs text-gray-400">Custo alternativo e tributação</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            {% pct_field calculo_form.custo_oport_aa %}
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.tipo_pessoa.label }}</label>
+              {{ calculo_form.tipo_pessoa }}
+            </div>
+          </div>
+        </details>
+
+        <details open class="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span class="flex items-center gap-2 text-sm font-bold text-gray-950"><span class="rounded-md bg-teal-50 px-2 py-1 text-xs text-teal-700">10</span> Parâmetros da simulação</span>
+            <span class="text-xs text-gray-400">Lucro, lance e giro</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-100 p-4 sm:grid-cols-2">
+            {% money_field calculo_form.lucro_minimo %}
+            {% money_field calculo_form.incremento_lance %}
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.giro_padrao.label }}</label>
+              {{ calculo_form.giro_padrao }}
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">{{ calculo_form.meses_titulo.label }}</label>
+              {{ calculo_form.meses_titulo }}
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="sticky bottom-0 flex flex-col gap-2 border-t border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p class="text-xs text-gray-500">Ao salvar, a página recarrega já com ROI, custo até venda e tabelas recalculados.</p>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <button type="button"
+                onclick="document.getElementById('modal-calculo-imovel').close()"
+                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Fechar
+        </button>
+        <button type="submit" class="rounded-lg bg-teal-600 px-5 py-2 text-sm font-bold text-white hover:bg-teal-700">
+          Salvar dados de cálculo
+        </button>
+      </div>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="modal-lances-imovel" class="rounded-lg shadow-2xl w-11/12 max-w-7xl p-0 backdrop:bg-black/50">
   <div class="sticky top-0 flex items-start justify-between gap-3 border-b border-gray-200 bg-white p-4 sm:p-6">

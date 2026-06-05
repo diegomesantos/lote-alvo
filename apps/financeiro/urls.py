@@ -6,4 +6,7 @@ urlpatterns = [
     path("lancamento/novo/",          views.novo_lancamento,    name="novo_lancamento"),
     path("lancamento/<int:pk>/editar/",views.editar_lancamento, name="editar_lancamento"),
     path("lancamento/<int:pk>/excluir/",views.excluir_lancamento,name="excluir_lancamento"),
+    path("categorias/criar/", views.criar_categoria, name="criar_categoria_financeira"),
+    path("categorias/<int:pk>/editar/", views.editar_categoria, name="editar_categoria_financeira"),
+    path("categorias/<int:pk>/excluir/", views.excluir_categoria, name="excluir_categoria_financeira"),
 ]

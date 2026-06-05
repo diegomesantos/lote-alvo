@@ -14,7 +14,7 @@ from .models import (
     Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario,
     CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR, ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
 )
-from .forms import ImovelForm, ImovelArquivoForm, ImovelFinanceiroExpressForm
+from .forms import ImovelForm, ImovelArquivoForm, ImovelCalculoForm
 
 
 def _resultado_resumo(imovel, meses=6):
@@ -524,7 +524,7 @@ def detalhe(request, pk):
         "checklist_operacional": checklist_operacional,
         "arquivos": arquivos,
         "arquivo_form": ImovelArquivoForm(),
-        "financeiro_express_form": ImovelFinanceiroExpressForm(instance=imovel),
+        "calculo_form": ImovelCalculoForm(instance=imovel),
         "comentarios": comentarios,
         "export_rows": export_rows,
     })
@@ -532,16 +532,16 @@ def detalhe(request, pk):
 
 @login_required
 @require_POST
-def atualizar_financeiro_express(request, pk):
+def atualizar_dados_calculo(request, pk):
     imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
-    form = ImovelFinanceiroExpressForm(request.POST, instance=imovel)
-    destino = f"{reverse('detalhe', args=[imovel.pk])}#financeiro-express"
+    form = ImovelCalculoForm(request.POST, instance=imovel)
+    destino = f"{reverse('detalhe', args=[imovel.pk])}#financeiro"
     if form.is_valid():
         form.save()
-        messages.success(request, "Financeiro atualizado e relatório recalculado.")
+        messages.success(request, "Dados de cálculo atualizados e relatório recalculado.")
         return redirect(destino)
 
-    messages.error(request, "Não foi possível salvar os dados financeiros. Revise os campos destacados.")
+    messages.error(request, "Não foi possível salvar os dados de cálculo. Revise os campos destacados.")
     return redirect(destino)
 
 

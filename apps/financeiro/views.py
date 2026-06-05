@@ -1,12 +1,50 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Sum, Count, Q
+from django.http import JsonResponse
+from django.db.models import Sum
+from django.utils import timezone
 from django.views.decorators.http import require_POST
-from core.calculos.motor import calcular, GIRO_MESES
+from core.calculos.motor import calcular
 from apps.imoveis.models import Imovel
 from .models import LancamentoFinanceiro, CategoriaFinanceira
 from .forms import LancamentoForm
+
+
+def _categoria_payload(categoria):
+    return {
+        "id": str(categoria.pk),
+        "nome": categoria.nome,
+        "tipo": categoria.tipo,
+        "icone": categoria.icone,
+        "label": f"{categoria.icone} {categoria.nome}",
+        "uso": categoria.lancamentos.count(),
+    }
+
+
+def _form_lancamento_context(request, form, imovel=None, lancamento=None):
+    imoveis_payload = [
+        {
+            "id": str(im.pk),
+            "label": im.titulo_card,
+            "meta": f"{im.cidade} - {im.estado} · {im.etapa_display}",
+        }
+        for im in request.user.imoveis.all()
+    ]
+    categorias_payload = [
+        _categoria_payload(categoria)
+        for categoria in CategoriaFinanceira.objects.all()
+    ]
+    return {
+        "form": form,
+        "imovel": imovel,
+        "lancamento": lancamento,
+        "imoveis_payload": imoveis_payload,
+        "categorias_payload": categorias_payload,
+        "selected_imovel_id": str(form["imovel"].value() or ""),
+        "selected_categoria_id": str(form["categoria"].value() or ""),
+        "selected_tipo": form["tipo"].value() or "despesa",
+    }
 
 
 @login_required
@@ -111,10 +149,12 @@ def novo_lancamento(request):
             messages.success(request, "✅ Lançamento registrado com sucesso.")
             return redirect("financeiro")
     else:
-        initial = {"imovel": imovel} if imovel else {}
+        initial = {"data": timezone.localdate(), "status": "confirmado", "tipo": "despesa"}
+        if imovel:
+            initial["imovel"] = imovel
         form = LancamentoForm(user=request.user, initial=initial)
 
-    return render(request, "financeiro/form_lancamento.html", {"form": form, "imovel": imovel})
+    return render(request, "financeiro/form_lancamento.html", _form_lancamento_context(request, form, imovel=imovel))
 
 
 @login_required
@@ -128,7 +168,7 @@ def editar_lancamento(request, pk):
             return redirect("financeiro")
     else:
         form = LancamentoForm(instance=l, user=request.user)
-    return render(request, "financeiro/form_lancamento.html", {"form": form, "lancamento": l})
+    return render(request, "financeiro/form_lancamento.html", _form_lancamento_context(request, form, imovel=l.imovel, lancamento=l))
 
 
 @login_required
@@ -138,3 +178,45 @@ def excluir_lancamento(request, pk):
     l.delete()
     messages.success(request, "🗑️ Lançamento excluído.")
     return redirect("financeiro")
+
+
+@login_required
+@require_POST
+def criar_categoria(request):
+    nome = (request.POST.get("nome") or "").strip()
+    tipo = request.POST.get("tipo")
+    icone = (request.POST.get("icone") or "💰").strip()[:5] or "💰"
+    if tipo not in dict(CategoriaFinanceira.TIPO_CHOICES):
+        return JsonResponse({"success": False, "error": "Tipo inválido."}, status=400)
+    if not nome:
+        return JsonResponse({"success": False, "error": "Informe o nome da categoria."}, status=400)
+
+    categoria = CategoriaFinanceira.objects.create(nome=nome, tipo=tipo, icone=icone)
+    return JsonResponse({"success": True, "categoria": _categoria_payload(categoria)}, status=201)
+
+
+@login_required
+@require_POST
+def editar_categoria(request, pk):
+    categoria = get_object_or_404(CategoriaFinanceira, pk=pk)
+    nome = (request.POST.get("nome") or "").strip()
+    tipo = request.POST.get("tipo")
+    icone = (request.POST.get("icone") or "💰").strip()[:5] or "💰"
+    if tipo not in dict(CategoriaFinanceira.TIPO_CHOICES):
+        return JsonResponse({"success": False, "error": "Tipo inválido."}, status=400)
+    if not nome:
+        return JsonResponse({"success": False, "error": "Informe o nome da categoria."}, status=400)
+
+    categoria.nome = nome
+    categoria.tipo = tipo
+    categoria.icone = icone
+    categoria.save(update_fields=["nome", "tipo", "icone"])
+    return JsonResponse({"success": True, "categoria": _categoria_payload(categoria)})
+
+
+@login_required
+@require_POST
+def excluir_categoria(request, pk):
+    categoria = get_object_or_404(CategoriaFinanceira, pk=pk)
+    categoria.delete()
+    return JsonResponse({"success": True, "deleted_id": str(pk)})

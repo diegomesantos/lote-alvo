@@ -214,39 +214,49 @@ class ImovelForm(forms.ModelForm):
         return cleaned
 
 
-FINANCEIRO_EXPRESS_FIELDS = (
+CALCULO_MODAL_FIELDS = (
     "avaliacao",
     "lance",
-    "preco_venda",
-    "rec_aluguel_am",
-    "giro_padrao",
     "tipo_pgto",
     "entrada",
     "prazo_fin",
     "cet_aa",
+    "preco_venda",
+    "pct_corretor",
+    "taxa_acrescimo",
+    "desconto_venda",
+    "rec_aluguel_am",
+    "pct_itbi_base",
+    "aliq_itbi",
+    "aliq_itbi_fin",
+    "modo_cartorio",
+    "av_fiscal",
+    "escritura_manual",
+    "registro_manual",
+    "pct_leiloeiro",
     "reformas",
     "custo_desocup",
     "debitos",
     "despesas_div",
+    "laudemio_pct",
     "iptu_am",
     "cond_am",
-    "pct_leiloeiro",
-    "pct_corretor",
-    "av_fiscal",
-    "pct_itbi_base",
-    "aliq_itbi",
+    "custo_oport_aa",
+    "tipo_pessoa",
     "lucro_minimo",
     "incremento_lance",
+    "giro_padrao",
+    "meses_titulo",
 )
 
 
-class ImovelFinanceiroExpressForm(ImovelForm):
+class ImovelCalculoForm(ImovelForm):
     class Meta:
         model = Imovel
-        fields = FINANCEIRO_EXPRESS_FIELDS
+        fields = CALCULO_MODAL_FIELDS
         widgets = {
             field_name: ImovelForm.Meta.widgets[field_name]
-            for field_name in FINANCEIRO_EXPRESS_FIELDS
+            for field_name in CALCULO_MODAL_FIELDS
             if field_name in ImovelForm.Meta.widgets
         }
         labels = ImovelForm.Meta.labels

@@ -114,9 +114,9 @@ class ImovelInteracaoTests(TestCase):
         self.assertEqual(self.imovel.titulo_card, "Título do investidor")
         self.assertTrue(self.imovel.foto)
 
-    def test_financeiro_express_atualiza_premissas(self):
+    def test_modal_calculo_atualiza_premissas(self):
         response = self.client.post(
-            reverse("atualizar_financeiro_express", args=[self.imovel.pk]),
+            reverse("atualizar_dados_calculo", args=[self.imovel.pk]),
             {
                 "avaliacao": "210.000,00",
                 "lance": "120.000,50",
@@ -138,6 +138,14 @@ class ImovelInteracaoTests(TestCase):
                 "av_fiscal": "130.000,00",
                 "pct_itbi_base": "Avaliação Fiscal",
                 "aliq_itbi": "3,00",
+                "aliq_itbi_fin": "1,50",
+                "modo_cartorio": "Automático",
+                "escritura_manual": "0,00",
+                "registro_manual": "0,00",
+                "laudemio_pct": "0,00",
+                "custo_oport_aa": "10,00",
+                "tipo_pessoa": "Pessoa Física",
+                "meses_titulo": "2",
                 "lucro_minimo": "30.000,00",
                 "incremento_lance": "2.500,00",
             },
