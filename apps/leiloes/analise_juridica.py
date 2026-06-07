@@ -1,5 +1,6 @@
 import json
 import logging
+import unicodedata
 from io import BytesIO
 
 import requests
@@ -129,6 +130,32 @@ ANALISE_JURIDICA_SCHEMA = {
 
 AI_PROVIDERS_SUPORTADOS = {"openai", "anthropic", "gemini"}
 
+MARCADORES_AUTENTICACAO = [
+    "pedido de certidao",
+    "certidao",
+    "autenticidade",
+    "validacao",
+    "validar o documento",
+    "selo de autenticidade",
+    "assinador",
+    "codigo de validacao",
+]
+
+MARCADORES_REGISTRAIS = [
+    "matricula",
+    "r-",
+    "av-",
+    "alienacao fiduciaria",
+    "consolidacao",
+    "proprietario",
+    "credor",
+    "devedor",
+    "onus",
+    "penhora",
+    "indisponibilidade",
+    "averbacao",
+]
+
 
 def _setting_str(nome, default=""):
     return str(getattr(settings, nome, default) or "").strip()
@@ -252,15 +279,74 @@ def _baixar_documento(url, imovel):
     if not conteudo:
         raise AnaliseJuridicaErro("Documento baixado sem conteudo")
 
-    return bytes(conteudo), resposta.headers.get("content-type", "")
+    conteudo_bytes = bytes(conteudo)
+    content_type = resposta.headers.get("content-type", "")
+    if not _conteudo_parece_pdf(conteudo_bytes, content_type):
+        raise AnaliseJuridicaErro(_erro_documento_nao_pdf(conteudo_bytes, content_type))
+
+    return conteudo_bytes, content_type
+
+
+def _conteudo_parece_pdf(conteudo, content_type=""):
+    cabecalho = (conteudo or b"").lstrip()[:500].lower()
+    if b"radware bot manager captcha" in cabecalho or b"captcha" in cabecalho:
+        return False
+    if cabecalho.startswith((b"<html", b"<head", b"<!doctype html")):
+        return False
+    if cabecalho.startswith(b"%PDF"):
+        return True
+    return "application/pdf" in (content_type or "").lower()
+
+
+def _erro_documento_nao_pdf(conteudo, content_type=""):
+    amostra = (conteudo or b"")[:500].lower()
+    if b"radware bot manager captcha" in amostra or b"captcha" in amostra:
+        return "A Caixa retornou HTML/CAPTCHA no lugar do PDF do documento"
+    if b"<html" in amostra or b"<head" in amostra or b"<!doctype html" in amostra:
+        return f"A Caixa retornou HTML no lugar do PDF do documento (content-type: {content_type or 'desconhecido'})"
+    return f"Documento baixado nao parece PDF valido (content-type: {content_type or 'desconhecido'})"
 
 
 def _texto_util(texto):
     return " ".join((texto or "").split())
 
 
+def _texto_normalizado(texto):
+    texto_sem_acento = (
+        unicodedata.normalize("NFKD", texto or "")
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    return _texto_util(texto_sem_acento).lower()
+
+
+def _contar_marcadores(texto, marcadores):
+    texto_normalizado = _texto_normalizado(texto)
+    return sum(texto_normalizado.count(marcador) for marcador in marcadores)
+
+
+def _texto_parece_apenas_autenticacao(texto):
+    texto_limpo = _texto_normalizado(texto)
+    if not texto_limpo:
+        return False
+
+    autenticacao = _contar_marcadores(texto_limpo, MARCADORES_AUTENTICACAO)
+    registrais = _contar_marcadores(texto_limpo, MARCADORES_REGISTRAIS)
+    tem_validacao = "validar" in texto_limpo or "autenticidade" in texto_limpo
+    tem_pedido_certidao = "pedido de certidao" in texto_limpo
+
+    return (
+        autenticacao >= 2
+        and tem_validacao
+        and (registrais <= 2 or tem_pedido_certidao)
+    )
+
+
 def _pagina_precisa_ocr(texto):
-    return len(_texto_util(texto)) < settings.OPENAI_LEGAL_ANALYSIS_OCR_MIN_PAGE_CHARS
+    texto_limpo = _texto_util(texto)
+    if len(texto_limpo) < settings.OPENAI_LEGAL_ANALYSIS_OCR_MIN_PAGE_CHARS:
+        return True
+    return _texto_parece_apenas_autenticacao(texto_limpo)
 
 
 def _extrair_texto_ocr_pdf(conteudo, paginas_para_ocr):
@@ -453,6 +539,51 @@ def _dados_imovel(imovel):
     }
 
 
+def _limitar_texto(valor, limite=2500):
+    texto = _texto_util(valor)
+    if len(texto) <= limite:
+        return texto
+    return texto[:limite].rstrip() + " [TRUNCADO]"
+
+
+def _dados_caixa_estruturados(imovel):
+    detalhe = ((imovel.detalhes or {}).get("detalhe_caixa") or {})
+    if not detalhe:
+        return {}
+
+    campos = [
+        "url",
+        "titulo",
+        "numero_imovel_formatado",
+        "matriculas",
+        "comarca",
+        "oficio",
+        "inscricao_imobiliaria",
+        "averbacao_leiloes_negativos",
+        "edital",
+        "numero_item",
+        "leiloeiro",
+        "leiloeiro_site",
+        "edital_publicado_em",
+        "valor_avaliacao",
+        "valor_minimo_lance",
+        "tipo_imovel",
+        "area_total",
+        "area_privativa",
+        "area_terreno",
+        "datas_leilao",
+    ]
+    dados = {
+        campo: detalhe.get(campo)
+        for campo in campos
+        if detalhe.get(campo) not in (None, "", [], {})
+    }
+    for campo in ["descricao", "formas_pagamento_texto", "regras_pagamento_texto"]:
+        if detalhe.get(campo):
+            dados[campo] = _limitar_texto(detalhe.get(campo), 2500)
+    return dados
+
+
 def _montar_contexto_documentos(fontes):
     limite_total = max(10000, settings.OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT)
     restante = limite_total
@@ -497,9 +628,14 @@ def _prompt_usuario(imovel, fontes):
         "- Quando nao houver evidencia suficiente, marque como indeterminado.\n"
         "- Nao afirme ausencia de risco apenas por nao encontrar um termo.\n"
         "- Nao invente CPF, processo, credor, data, onus ou responsabilidade.\n"
+        "- Nao use 'matricula atualizada' como alerta generico. So recomende atualizacao quando a data da certidao for antiga, quando a matricula trouxer apenas validacao/autenticacao ou quando faltar teor registral.\n"
+        "- Quando houver atos registrais legiveis, extraia os atos concretos (R/AV), datas, partes, onus, consolidacao, penhoras e indisponibilidades antes de listar lacunas.\n"
+        "- Use os dados estruturados da pagina Caixa como fonte complementar para condicoes de venda, despesas e responsabilidades quando o edital PDF nao estiver extraivel.\n"
         "- A resposta e triagem informativa, nao parecer juridico.\n\n"
         "Dados do imovel:\n"
         f"{json.dumps(_dados_imovel(imovel), ensure_ascii=False)}\n\n"
+        "Dados estruturados extraidos da pagina da Caixa:\n"
+        f"{json.dumps(_dados_caixa_estruturados(imovel), ensure_ascii=False)}\n\n"
         "Documentos com erro ou texto ausente:\n"
         f"{json.dumps(fontes_com_erro, ensure_ascii=False)}\n\n"
         "Texto extraido dos documentos:\n"

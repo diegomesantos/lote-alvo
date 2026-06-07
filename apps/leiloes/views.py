@@ -31,6 +31,8 @@ PAGAMENTOS_FILTRO = {
     'consorcio': 'Consórcio',
 }
 
+BAIRRO_MODOS_VALIDOS = {'all', 'include', 'exclude'}
+
 
 def _valor_presente(valor):
     return valor not in (None, '', [], {})
@@ -180,10 +182,20 @@ def explorador_leiloes(request):
     if cidades:
         queryset = queryset.filter(cidade__in=cidades)
 
-    # 🧭 Filtro por bairro (multiseleção)
+    # 🧭 Filtro por bairro: todos implícito, inclusão ou exclusão
     bairros = request.GET.getlist('bairros')
-    if bairros:
-        queryset = queryset.filter(bairro__in=bairros)
+    bairro_mode = request.GET.get('bairro_mode')
+    if bairro_mode not in BAIRRO_MODOS_VALIDOS:
+        bairro_mode = 'include' if bairros else 'all'
+    if bairro_mode == 'all':
+        bairros = []
+    elif bairros:
+        if bairro_mode == 'exclude':
+            queryset = queryset.exclude(bairro__in=bairros)
+        elif bairro_mode == 'include':
+            queryset = queryset.filter(bairro__in=bairros)
+    else:
+        bairro_mode = 'all'
 
     # 🏢 Filtro por tipo (multiseleção)
     tipos = request.GET.getlist('tipos')
@@ -335,6 +347,7 @@ def explorador_leiloes(request):
             'estados': estados,
             'cidades': cidades,
             'bairros': bairros,
+            'bairro_mode': bairro_mode,
             'tipos': tipos,
             'desconto': desconto_faixa,
             'valor_min': valor_min or '',
