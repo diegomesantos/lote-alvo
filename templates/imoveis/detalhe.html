@@ -417,7 +417,7 @@
           </div>
         {% elif analise_juridica.status == 'processando' %}
           <div id="analise-avulso-processando" class="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4"
-               data-poll-url="{% url 'analise_juridica_imovel_status' imovel.pk %}">
+               {% if not imovel_caixa %}data-poll-url="{% url 'analise_juridica_imovel_status' imovel.pk %}"{% endif %}>
             <div class="flex items-center gap-3">
               <div class="h-5 w-5 animate-spin rounded-full border-2 border-teal-200 border-t-teal-700"></div>
               <div>
@@ -426,10 +426,11 @@
               </div>
             </div>
           </div>
+          {% if not imovel_caixa %}
           <script>
             (function() {
               var box = document.getElementById('analise-avulso-processando');
-              if (!box) return;
+              if (!box || !box.dataset.pollUrl) return;
               var url = box.dataset.pollUrl;
               var interval = setInterval(function() {
                 fetch(url).then(function(r){ return r.json(); }).then(function(data) {
@@ -438,14 +439,31 @@
                     window.location.reload();
                   }
                 }).catch(function() { clearInterval(interval); });
-              }, 5000);
+              }, 4000);
             })();
           </script>
-        {% elif analise_juridica.status == 'erro' %}
+          {% endif %}
+        {% elif analise_juridica.status == 'sem_texto' %}
+          <div class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div class="font-semibold">Não foi possível extrair texto do PDF</div>
+            <p class="mt-1">O arquivo anexado pode ser uma imagem escaneada sem OCR, estar protegido ou corrompido. Verifique se o PDF está legível e tente novamente.</p>
+            {% if analise_juridica.fontes %}
+              <ul class="mt-2 list-inside list-disc text-xs text-amber-800">
+                {% for fonte in analise_juridica.fontes %}
+                  {% if fonte.erro %}<li>{{ fonte.nome }}: {{ fonte.erro }}</li>{% endif %}
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        {% elif analise_juridica.status == 'sem_documentos' %}
+          <div class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Nenhum arquivo de matrícula ou edital encontrado. Anexe o PDF na seção de arquivos abaixo e tente novamente.
+          </div>
+        {% elif analise_juridica.status == 'erro' or analise_juridica.status == 'sem_api_key' or analise_juridica.status == 'erro_configuracao' %}
           <div class="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <span class="font-semibold">Erro na análise:</span> {{ analise_juridica.erro|default:"Erro desconhecido." }}
+            <span class="font-semibold">Erro na análise:</span> {{ analise_juridica.mensagem|default:analise_juridica.erro|default:"Erro desconhecido." }}
             {% if pode_gerar_analise_avulso %}
-              <span class="ml-2 text-gray-500">Tente novamente usando o botão acima.</span>
+              <span class="ml-2 text-gray-500">Corrija o problema e tente novamente usando o botão acima.</span>
             {% endif %}
           </div>
         {% elif imovel_caixa %}

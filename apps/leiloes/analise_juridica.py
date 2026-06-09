@@ -245,22 +245,19 @@ def _documentos_do_imovel(imovel):
 
 
 def _documentos_do_imovel_avulso(imovel, arquivos_imovel=None):
-    """Retorna lista de (nome, url_ou_path, tipo) para Imovel avulso.
+    """Retorna lista de (nome, storage_field_ou_url, tipo) para Imovel avulso.
 
-    Prioriza arquivos enviados sobre URLs externas.
+    Prioriza arquivos enviados (compatível com S3/local) sobre URLs externas.
+    tipo == 'storage' → FieldFile do Django (lido via .open())
+    tipo == 'url'     → URL externa (baixada via requests)
     """
-    from pathlib import Path as _Path
-
     documentos = []
 
     if arquivos_imovel:
         for arq in arquivos_imovel:
             if arq.categoria in ("matricula", "edital") and arq.arquivo:
-                try:
-                    nome = arq.categoria.capitalize()
-                    documentos.append((nome, arq.arquivo.path, "arquivo"))
-                except Exception:
-                    pass
+                nome = arq.categoria.capitalize()
+                documentos.append((nome, arq.arquivo, "storage"))
 
     # Complementa com URLs externas se a categoria ainda não foi coberta por arquivo
     categorias_cobertas = {d[0].lower() for d in documentos}
@@ -289,20 +286,20 @@ def _headers_documento(imovel=None):
     }
 
 
-def _ler_arquivo_local(caminho):
-    """Lê um PDF do filesystem e retorna os bytes."""
+def _ler_arquivo_storage(field_file):
+    """Lê um PDF via Django storage (local ou S3) e retorna os bytes."""
     limite_bytes = max(1, settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB) * 1024 * 1024
     try:
-        with open(caminho, "rb") as f:
+        with field_file.open("rb") as f:
             conteudo = f.read(limite_bytes + 1)
-    except OSError as exc:
-        raise AnaliseJuridicaErro(f"Falha ao ler arquivo: {exc}") from exc
+    except Exception as exc:
+        raise AnaliseJuridicaErro(f"Falha ao ler arquivo do storage: {exc}") from exc
     if len(conteudo) > limite_bytes:
         raise AnaliseJuridicaErro(
             f"Arquivo excede o limite de {settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB} MB"
         )
     if not _conteudo_parece_pdf(conteudo):
-        raise AnaliseJuridicaErro("Arquivo local não parece um PDF válido")
+        raise AnaliseJuridicaErro("Arquivo no storage não parece um PDF válido")
     return conteudo, "application/pdf"
 
 
@@ -552,14 +549,16 @@ def _coletar_fontes(imovel):
 
 
 def _coletar_fontes_avulso(documentos):
-    """Coleta fontes para imóvel avulso: lê de arquivo local ou baixa de URL."""
+    """Coleta fontes para imóvel avulso: lê via Django storage ou baixa de URL."""
     fontes = []
     for entrada in documentos:
         nome, origem, tipo = entrada
+        # origem é FieldFile (storage) ou str (url)
+        label_origem = getattr(origem, "name", None) or (origem if isinstance(origem, str) else "")
         fonte = {
             "nome": nome,
             "url": origem if tipo == "url" else "",
-            "arquivo": origem if tipo == "arquivo" else "",
+            "arquivo": label_origem if tipo == "storage" else "",
             "texto": "",
             "paginas": 0,
             "tamanho_bytes": 0,
@@ -570,8 +569,8 @@ def _coletar_fontes_avulso(documentos):
             "ocr_erros": [],
         }
         try:
-            if tipo == "arquivo":
-                conteudo, content_type = _ler_arquivo_local(origem)
+            if tipo == "storage":
+                conteudo, content_type = _ler_arquivo_storage(origem)
             else:
                 conteudo, content_type = _baixar_documento(origem)
             fonte["tamanho_bytes"] = len(conteudo)
