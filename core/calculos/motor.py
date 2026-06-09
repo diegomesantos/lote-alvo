@@ -231,6 +231,266 @@ def calcular(p, meses_giro):
     )
 
 
+# ── Simulador "Morar: Comprar vs. Alugar" ──────────────────────────────────────
+
+def _sac_com_amortizacao_extra(valor_financiado, prazo_meses, cet_aa, extra_am, modo):
+    """Gera a tabela SAC aplicando amortização extra mensal.
+
+    modo == "prazo"   → mantém a amortização base, o extra abate saldo e
+                        encerra o financiamento antes (parcela cai naturalmente).
+    modo == "parcela" → recalcula a amortização base sobre o saldo/prazo restante
+                        a cada aporte, reduzindo a parcela mas mantendo o prazo.
+
+    Retorna (parcelas, taxa_am). Cada parcela tem amortizacao, juros, parcela,
+    extra, saldo.
+    """
+    if valor_financiado <= 0 or prazo_meses <= 0:
+        return [], 0
+    taxa_am = (1 + cet_aa / 100) ** (1 / 12) - 1
+    amortizacao_base = valor_financiado / prazo_meses
+    parcelas = []
+    saldo = valor_financiado
+    extra_am = max(extra_am or 0, 0)
+
+    for mes in range(1, prazo_meses + 1):
+        if saldo <= 0:
+            break
+        juros = saldo * taxa_am
+
+        if modo == "parcela" and extra_am > 0:
+            # Recalcula amortização base sobre prazo restante a cada mês
+            meses_restantes = prazo_meses - mes + 1
+            amortizacao = saldo / meses_restantes
+        else:
+            amortizacao = amortizacao_base
+
+        amortizacao = min(amortizacao, saldo)
+        saldo_apos_base = saldo - amortizacao
+
+        extra_aplicado = min(extra_am, saldo_apos_base) if extra_am > 0 else 0
+        saldo_apos_base -= extra_aplicado
+
+        parcela = amortizacao + juros + extra_aplicado
+        saldo = max(saldo_apos_base, 0)
+        parcelas.append(
+            dict(
+                amortizacao=amortizacao,
+                juros=juros,
+                parcela=parcela,
+                extra=extra_aplicado,
+                saldo=saldo,
+            )
+        )
+        if saldo <= 0:
+            break
+
+    return parcelas, taxa_am
+
+
+def simular_moradia(params):
+    """Compara continuar alugando vs. comprar financiado para morar.
+
+    Reaproveita a lógica SAC (calc_sac). Retorna resumo + séries amostradas
+    anualmente para gráficos. Cálculo puro, sem dependência de UI.
+    """
+    # valor_imovel = preço efetivamente pago (arremate). É a base do financiamento.
+    valor_imovel = float(params.get("valor_imovel", 0) or 0)
+    # valor_mercado = quanto o imóvel vale de verdade (avaliação/revenda). Em leilão
+    # costuma ser maior que o pago — o desconto vira patrimônio imediato do comprador.
+    valor_mercado = float(params.get("valor_mercado", 0) or 0) or valor_imovel
+    entrada_pct = float(params.get("entrada_pct", 20) or 0)
+    prazo_meses = int(params.get("prazo_meses", 360) or 0)
+    cet_aa = float(params.get("cet_aa", 10.5) or 0)
+
+    condominio_am = float(params.get("condominio_am", 0) or 0)
+    iptu_am = float(params.get("iptu_am", 0) or 0)
+    aluguel_am = float(params.get("aluguel_am", 0) or 0)
+    # Custos de aquisição (ITBI, cartório, comissão) — saem do bolso do comprador
+    # no ato e NÃO viram patrimônio. É o que cria um break-even realista.
+    custos_aquisicao = float(params.get("custos_aquisicao", 0) or 0)
+
+    valorizacao_aa = float(params.get("valorizacao_imovel_aa", 6.0) or 0)
+    reajuste_aluguel_aa = float(params.get("reajuste_aluguel_aa", 4.5) or 0)
+    rendimento_aa = float(params.get("rendimento_invest_aa", 10.0) or 0)
+    # IPTU e condomínio reajustam pela inflação ~ reajuste do aluguel
+    reajuste_custos_aa = reajuste_aluguel_aa
+
+    amortizacao_extra_am = float(params.get("amortizacao_extra_am", 0) or 0)
+    modo_amortizacao = params.get("modo_amortizacao", "prazo") or "prazo"
+
+    val_entrada = valor_imovel * entrada_pct / 100
+    val_financiado = max(valor_imovel - val_entrada, 0)
+
+    # Tabela SAC base (sem amortização extra)
+    parcelas_base, taxa_am = calc_sac(val_financiado, prazo_meses, cet_aa)
+    # Tabela SAC com amortização extra
+    parcelas_amort, _ = _sac_com_amortizacao_extra(
+        val_financiado, prazo_meses, cet_aa, amortizacao_extra_am, modo_amortizacao
+    )
+
+    def _reajuste(valor_base, mes, taxa_aa):
+        anos = (mes - 1) // 12
+        return valor_base * ((1 + taxa_aa / 100) ** anos)
+
+    taxa_rend_am = (1 + rendimento_aa / 100) ** (1 / 12) - 1 if rendimento_aa > 0 else 0
+
+    # Quem aluga não desembolsa entrada nem custos de aquisição: investe esse
+    # capital todo. Quem compra desembolsa entrada+custos, mas só a entrada vira
+    # patrimônio (custos de aquisição são "perdidos"). Daí o break-even real.
+    patrimonio_aluguel = val_entrada + custos_aquisicao
+
+    juros_totais = 0.0
+    juros_totais_amort = sum(p["juros"] for p in parcelas_amort)
+    total_desembolsado_compra = val_entrada + custos_aquisicao
+    total_desembolsado_aluguel = 0.0
+
+    serie_meses = []
+    serie_saldo = []
+    serie_saldo_amort = []
+    serie_patrim_compra = []
+    serie_patrim_aluguel = []
+    serie_custo_compra = []
+    serie_custo_aluguel = []
+    serie_juros_acum = []
+
+    break_even_mes = None
+    juros_acumulado = 0.0
+
+    for mes in range(1, prazo_meses + 1):
+        # Parcela base do mês (0 se o financiamento base já acabou — não acontece no base)
+        if mes <= len(parcelas_base):
+            parcela_mes = parcelas_base[mes - 1]["parcela"]
+            juros_mes = parcelas_base[mes - 1]["juros"]
+            saldo_base = parcelas_base[mes - 1]["saldo"]
+        else:
+            parcela_mes = 0.0
+            juros_mes = 0.0
+            saldo_base = 0.0
+        juros_totais += juros_mes
+        juros_acumulado += juros_mes
+
+        # Saldo no cenário com amortização extra (já quitado vira 0)
+        saldo_amort = parcelas_amort[mes - 1]["saldo"] if mes <= len(parcelas_amort) else 0.0
+
+        cond_mes = _reajuste(condominio_am, mes, reajuste_custos_aa)
+        iptu_mes = _reajuste(iptu_am, mes, reajuste_custos_aa)
+        custo_compra_mes = parcela_mes + cond_mes + iptu_mes
+
+        aluguel_mes = _reajuste(aluguel_am, mes, reajuste_aluguel_aa)
+        custo_aluguel_mes = aluguel_mes
+
+        # Quem aluga investe a diferença (se comprar custa mais, ele economiza e investe)
+        diferenca = custo_compra_mes - custo_aluguel_mes
+        patrimonio_aluguel = patrimonio_aluguel * (1 + taxa_rend_am) + max(diferenca, 0)
+
+        total_desembolsado_compra += custo_compra_mes
+        total_desembolsado_aluguel += custo_aluguel_mes + max(-diferenca, 0)
+
+        # Patrimônio de quem compra = valor de MERCADO valorizado − saldo devedor.
+        # Parte do valor de mercado (não do pago): o desconto do leilão já é patrimônio.
+        valor_imovel_mes = valor_mercado * ((1 + valorizacao_aa / 100) ** (mes / 12))
+        patrimonio_compra = valor_imovel_mes - saldo_base
+
+        if break_even_mes is None and patrimonio_compra >= patrimonio_aluguel:
+            break_even_mes = mes
+
+        # Amostra anual (mês 1, 12, 24, ...) + último mês
+        if mes == 1 or mes % 12 == 0 or mes == prazo_meses:
+            serie_meses.append(mes)
+            serie_saldo.append(round(saldo_base, 2))
+            serie_saldo_amort.append(round(saldo_amort, 2))
+            serie_patrim_compra.append(round(patrimonio_compra, 2))
+            serie_patrim_aluguel.append(round(patrimonio_aluguel, 2))
+            serie_custo_compra.append(round(custo_compra_mes, 2))
+            serie_custo_aluguel.append(round(custo_aluguel_mes, 2))
+            serie_juros_acum.append(round(juros_acumulado, 2))
+
+    prazo_amort = len(parcelas_amort)
+    parcela_inicial = parcelas_base[0]["parcela"] if parcelas_base else 0.0
+    custo_compra_inicial = parcela_inicial + condominio_am + iptu_am
+
+    patrim_final_compra = serie_patrim_compra[-1] if serie_patrim_compra else 0
+    patrim_final_aluguel = serie_patrim_aluguel[-1] if serie_patrim_aluguel else 0
+
+    # Desconto do leilão = patrimônio que já nasce no ato (valor de mercado − pago)
+    ganho_desconto = max(valor_mercado - valor_imovel, 0)
+
+    # Diferença mensal inicial (positiva = comprar custa mais que alugar hoje)
+    diff_mensal_inicial = custo_compra_inicial - aluguel_am
+
+    # ── Veredito em linguagem simples ──
+    vantagem = patrim_final_compra - patrim_final_aluguel
+    if abs(vantagem) < max(patrim_final_aluguel, 1) * 0.05:
+        veredito_tipo = "empate"
+        veredito_titulo = "Tecnicamente empatado no longo prazo"
+        veredito_texto = (
+            "Comprar e alugar+investir terminam muito próximos em patrimônio. "
+            "A decisão pode pesar mais pelo lado pessoal (estabilidade de morar no próprio "
+            "imóvel) do que pelo financeiro."
+        )
+    elif vantagem > 0:
+        veredito_tipo = "compra"
+        veredito_titulo = "Comprar este imóvel tende a valer mais a pena"
+        quando = (
+            f"a partir do mês {break_even_mes} (~{break_even_mes // 12} anos e {break_even_mes % 12} meses)"
+            if break_even_mes else "ao longo do período simulado"
+        )
+        veredito_texto = (
+            f"No fim do financiamento, comprar deixa você com cerca de "
+            f"{fmt_brl(vantagem)} a mais em patrimônio do que alugar e investir a diferença. "
+            f"A compra passa à frente {quando}."
+        )
+    else:
+        veredito_tipo = "aluguel"
+        veredito_titulo = "Alugar e investir a diferença tende a render mais"
+        veredito_texto = (
+            f"No fim do período, alugar e investir o dinheiro que sobra deixa você com cerca de "
+            f"{fmt_brl(-vantagem)} a mais em patrimônio do que comprar — "
+            f"principalmente porque a parcela + custos mensais ({fmt_brl(custo_compra_inicial)}) "
+            f"é bem maior que o aluguel ({fmt_brl(aluguel_am)}), e essa diferença investida cresce."
+        )
+
+    return dict(
+        resumo=dict(
+            valor_imovel=round(valor_imovel, 2),
+            valor_mercado=round(valor_mercado, 2),
+            ganho_desconto=round(ganho_desconto, 2),
+            val_entrada=round(val_entrada, 2),
+            val_financiado=round(val_financiado, 2),
+            custos_aquisicao=round(custos_aquisicao, 2),
+            parcela_inicial=round(parcela_inicial, 2),
+            custo_mensal_compra_inicial=round(custo_compra_inicial, 2),
+            aluguel_inicial=round(aluguel_am, 2),
+            diff_mensal_inicial=round(diff_mensal_inicial, 2),
+            juros_totais=round(juros_totais, 2),
+            juros_totais_com_amortizacao=round(juros_totais_amort, 2),
+            economia_juros=round(juros_totais - juros_totais_amort, 2),
+            prazo_original_meses=prazo_meses,
+            prazo_com_amortizacao_meses=prazo_amort,
+            meses_economizados=max(prazo_meses - prazo_amort, 0),
+            break_even_mes=break_even_mes,
+            patrimonio_final_compra=round(patrim_final_compra, 2),
+            patrimonio_final_aluguel=round(patrim_final_aluguel, 2),
+            total_desembolsado_compra=round(total_desembolsado_compra, 2),
+            total_desembolsado_aluguel=round(total_desembolsado_aluguel, 2),
+            vantagem=round(vantagem, 2),
+            veredito_tipo=veredito_tipo,
+            veredito_titulo=veredito_titulo,
+            veredito_texto=veredito_texto,
+        ),
+        series=dict(
+            meses=serie_meses,
+            saldo_devedor=serie_saldo,
+            saldo_devedor_amortizado=serie_saldo_amort,
+            patrimonio_compra=serie_patrim_compra,
+            patrimonio_aluguel=serie_patrim_aluguel,
+            custo_mensal_compra=serie_custo_compra,
+            custo_mensal_aluguel=serie_custo_aluguel,
+            juros_acumulado=serie_juros_acum,
+        ),
+    )
+
+
 def tabela_giro(p):
     return {m: calcular(p, m) for m in GIRO_MESES}
 

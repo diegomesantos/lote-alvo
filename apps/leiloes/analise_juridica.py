@@ -287,13 +287,40 @@ def _headers_documento(imovel=None):
 
 
 def _ler_arquivo_storage(field_file):
-    """Lê um PDF via Django storage (local ou S3) e retorna os bytes."""
+    """Lê um PDF via Django storage (local ou S3) e retorna os bytes.
+
+    Fallback: se o storage local falhar (ex.: Celery sem env vars de S3 configuradas),
+    tenta baixar via URL pública do arquivo (funciona quando o bucket é público).
+    """
+    import requests as _requests
+
     limite_bytes = max(1, settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB) * 1024 * 1024
+    conteudo = None
+
+    # Tentativa 1: Django storage (funciona para local e S3 quando configurado)
     try:
         with field_file.open("rb") as f:
             conteudo = f.read(limite_bytes + 1)
-    except Exception as exc:
-        raise AnaliseJuridicaErro(f"Falha ao ler arquivo do storage: {exc}") from exc
+    except Exception as exc_storage:
+        # Tentativa 2: URL pública do arquivo (funciona quando bucket B2/S3 é público
+        # ou quando o worker não tem as variáveis de storage configuradas)
+        try:
+            url = field_file.url
+        except Exception:
+            raise AnaliseJuridicaErro(f"Falha ao ler arquivo do storage: {exc_storage}") from exc_storage
+
+        if not url or url.startswith("/"):
+            raise AnaliseJuridicaErro(f"Falha ao ler arquivo do storage: {exc_storage}") from exc_storage
+
+        try:
+            resp = _requests.get(url, timeout=30)
+            resp.raise_for_status()
+            conteudo = resp.content[: limite_bytes + 1]
+        except Exception as exc_url:
+            raise AnaliseJuridicaErro(
+                f"Falha ao ler arquivo do storage: {exc_storage}; e via URL: {exc_url}"
+            ) from exc_url
+
     if len(conteudo) > limite_bytes:
         raise AnaliseJuridicaErro(
             f"Arquivo excede o limite de {settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB} MB"

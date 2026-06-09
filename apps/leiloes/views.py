@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Q
 from django.core.paginator import Paginator
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -614,28 +614,20 @@ def cadastrar_em_meus_imoveis(request, imovel_id):
 
 
 def imagem_imovel_caixa(request, imovel_id):
-    """Serve foto da Caixa com cache local para evitar hotlink frágil no card."""
+    """Redireciona para a foto da Caixa. Usa foto_url salva no banco como cache permanente."""
     try:
         imovel = ImovelCaixa.objects.get(imovel_id_caixa=imovel_id)
     except ImovelCaixa.DoesNotExist:
         raise Http404("Imóvel não encontrado")
 
-    cache_dir = Path(settings.MEDIA_ROOT) / 'caixa_fotos'
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = cache_dir / f'{imovel_id}.jpg'
-
-    if cache_path.exists() and cache_path.stat().st_size > 0:
-        response = FileResponse(cache_path.open('rb'), content_type='image/jpeg')
+    # Se já temos a URL salva no banco, redirecionar direto (evita round-trip desnecessário)
+    if imovel.foto_url:
+        response = HttpResponse(status=302)
+        response['Location'] = imovel.foto_url
         response['Cache-Control'] = 'public, max-age=86400'
         return response
 
-    candidatos = []
-    if imovel.foto_url:
-        candidatos.append(imovel.foto_url)
-
-    foto_prevista = f'https://venda-imoveis.caixa.gov.br/fotos/F{imovel_id}21.jpg'
-    if foto_prevista not in candidatos:
-        candidatos.append(foto_prevista)
+    candidatos = [f'https://venda-imoveis.caixa.gov.br/fotos/F{imovel_id}21.jpg']
 
     headers = {
         'User-Agent': (
@@ -648,18 +640,17 @@ def imagem_imovel_caixa(request, imovel_id):
 
     for url in candidatos:
         try:
-            resposta = requests.get(url, headers=headers, timeout=10)
+            resposta = requests.head(url, headers=headers, timeout=8, allow_redirects=True)
         except requests.RequestException:
             continue
 
         content_type = resposta.headers.get('content-type', '').lower()
-        if resposta.status_code == 200 and content_type.startswith('image/') and resposta.content:
-            cache_path.write_bytes(resposta.content)
-            if not imovel.foto_url:
-                imovel.foto_url = url
-                imovel.save(update_fields=['foto_url', 'atualizado_em'])
-
-            response = FileResponse(cache_path.open('rb'), content_type=content_type)
+        if resposta.status_code == 200 and content_type.startswith('image/'):
+            # Persiste a URL no banco para próximas requisições (cache permanente sem disco)
+            imovel.foto_url = url
+            imovel.save(update_fields=['foto_url', 'atualizado_em'])
+            response = HttpResponse(status=302)
+            response['Location'] = url
             response['Cache-Control'] = 'public, max-age=86400'
             return response
 

@@ -601,10 +601,16 @@
 
         {% include "components/tabela_resumo.html" with tg=tg giro_meses=giro_meses %}
 
-        <button @click="carregarTabelaLancesImovel(); document.getElementById('modal-lances-imovel').showModal()" type="button"
-                class="no-print flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 transition-all hover:border-blue-300 hover:bg-blue-100">
-          Ver tabela de lances progressivos
-        </button>
+        <div class="no-print grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button @click="carregarTabelaLancesImovel(); document.getElementById('modal-lances-imovel').showModal()" type="button"
+                  class="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 transition-all hover:border-blue-300 hover:bg-blue-100">
+            Ver tabela de lances progressivos
+          </button>
+          <button onclick="abrirModalMoradia()" type="button"
+                  class="flex w-full items-center justify-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-5 py-3 text-sm font-bold text-teal-700 transition-all hover:border-teal-300 hover:bg-teal-100">
+            🏠 Morar: comprar vs. alugar
+          </button>
+        </div>
 
         {% include "components/tabela_detalhe.html" with tg=tg giro_meses=giro_meses %}
       </section>
@@ -998,6 +1004,195 @@
   </div>
 </dialog>
 
+<dialog id="modal-moradia" class="w-11/12 max-w-6xl rounded-lg p-0 shadow-2xl backdrop:bg-gray-950/55">
+  <div class="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-gray-200 bg-white p-4 sm:p-5">
+    <div>
+      <div class="text-xs font-bold uppercase tracking-wide text-teal-700">Planejamento financeiro</div>
+      <h2 class="mt-1 text-lg font-bold text-gray-950">Morar: comprar financiado vs. continuar alugando</h2>
+      <p class="mt-1 text-sm text-gray-600">Compare custo mensal, evolução de patrimônio no longo prazo e o impacto de amortizar antes.</p>
+    </div>
+    <button type="button" onclick="document.getElementById('modal-moradia').close()" class="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
+  </div>
+
+  <div class="max-h-[78vh] overflow-y-auto bg-gray-50 p-4 sm:p-5">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+
+      <!-- Coluna de inputs -->
+      <div class="space-y-3">
+        <!-- Bloco 1: cenário de hoje -->
+        <div class="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-amber-900">🔑 Hoje você aluga</h3>
+          <p class="mt-1 text-xs text-amber-800">Quanto você paga de aluguel atualmente (tudo incluso).</p>
+          <label class="mt-3 block">
+            <span class="mb-1 block text-xs font-medium text-gray-700">Aluguel por mês (com cond. e IPTU)</span>
+            <input id="mor_aluguel_am" type="number" step="50" value="3000"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          </label>
+        </div>
+
+        <!-- Bloco 2: se comprar este imóvel -->
+        <div class="rounded-lg border border-teal-200 bg-teal-50/60 p-4">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-teal-900">🏠 Se comprar este imóvel</h3>
+          <p class="mt-1 text-xs text-teal-800">Dados do financiamento e custos de morar no imóvel.</p>
+          <div class="mt-3 space-y-3">
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-700">Preço que você paga (arremate)</span>
+              <input id="mor_valor_imovel" type="number" step="1000" value="{{ imovel.lance|default:imovel.avaliacao|stringformat:'d' }}"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-700">Valor de mercado (avaliação/revenda)</span>
+              <input id="mor_valor_mercado" type="number" step="1000" value="{{ imovel.preco_venda|default:imovel.avaliacao|default:imovel.lance|stringformat:'d' }}"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <span class="mt-1 block text-[11px] text-teal-700">Em leilão costuma ser maior que o pago — o desconto vira patrimônio seu na hora.</span>
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-700">Entrada (%)</span>
+                <input id="mor_entrada_pct" type="number" step="1" value="{% if imovel.entrada and imovel.entrada < 100 %}{{ imovel.entrada|stringformat:'d' }}{% else %}20{% endif %}"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-700">Prazo (meses)</span>
+                <input id="mor_prazo_meses" type="number" step="12" value="{{ imovel.prazo_fin|default:360|stringformat:'d' }}"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              </label>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-700" title="Custo Efetivo Total do financiamento ao ano">CET (% a.a.) ⓘ</span>
+                <input id="mor_cet_aa" type="number" step="0.1" value="{{ imovel.cet_aa|default:'10.5' }}"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-700" title="ITBI, cartório e comissão. Pago no ato e não vira patrimônio.">Custos da compra ⓘ</span>
+                <input id="mor_custos_aquisicao" type="number" step="500" value="0"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              </label>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-700">Condomínio (mês)</span>
+                <input id="mor_condominio_am" type="number" step="50" value="{{ imovel.cond_am|default:0|stringformat:'d' }}"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-700">IPTU (mês)</span>
+                <input id="mor_iptu_am" type="number" step="20" value="{{ imovel.iptu_am|default:0|stringformat:'d' }}"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <details class="rounded-lg border border-gray-200 bg-white">
+          <summary class="cursor-pointer px-4 py-3 text-sm font-bold text-gray-950">Premissas avançadas</summary>
+          <div class="space-y-3 border-t border-gray-100 p-4">
+            <p class="rounded-md bg-gray-50 p-2 text-[11px] leading-relaxed text-gray-600">
+              A simulação assume que <strong>quem aluga investe</strong> o dinheiro que não imobilizou
+              (entrada + custos da compra + a diferença que sobra todo mês) em uma aplicação que rende a taxa abaixo.
+              É a comparação justa: alugar e investir vs. comprar.
+            </p>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-600">Valorização do imóvel (% a.a.)</span>
+              <input id="mor_valorizacao_imovel_aa" type="number" step="0.5" value="6"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <span class="mt-1 block text-[11px] text-gray-500">Quanto o imóvel se valoriza por ano.</span>
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-600">Reajuste do aluguel/custos (% a.a.)</span>
+              <input id="mor_reajuste_aluguel_aa" type="number" step="0.5" value="4.5"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <span class="mt-1 block text-[11px] text-gray-500">Inflação anual do aluguel, condomínio e IPTU (~IPCA).</span>
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-600">Rendimento de quem aluga e investe (% a.a.)</span>
+              <input id="mor_rendimento_invest_aa" type="number" step="0.5" value="10"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <span class="mt-1 block text-[11px] text-gray-500">Ex.: Tesouro/CDB/fundos (~10% a.a. é uma referência conservadora).</span>
+            </label>
+          </div>
+        </details>
+
+        <details class="rounded-lg border border-gray-200 bg-white">
+          <summary class="cursor-pointer px-4 py-3 text-sm font-bold text-gray-950">Amortização antecipada</summary>
+          <div class="space-y-3 border-t border-gray-100 p-4">
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-600">Aporte extra por mês</span>
+              <input id="mor_amortizacao_extra_am" type="number" step="100" value="0"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-600">Modo</span>
+              <select id="mor_modo_amortizacao"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                <option value="prazo">Reduzir prazo (quita antes)</option>
+                <option value="parcela">Reduzir parcela</option>
+              </select>
+            </label>
+          </div>
+        </details>
+      </div>
+
+      <!-- Coluna de resultado -->
+      <div class="space-y-4">
+        <!-- Veredito em linguagem simples -->
+        <div id="mor_veredito" class="rounded-lg border p-4">
+          <!-- preenchido via JS -->
+        </div>
+
+        <div id="mor_cards" class="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <!-- preenchido via JS -->
+        </div>
+
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <h3 class="text-sm font-bold text-gray-950">Evolução do patrimônio líquido</h3>
+          <p class="text-xs text-gray-500">Comprar (imóvel valorizado − saldo) vs. alugar e investir a diferença.</p>
+          <div class="mt-3"><canvas id="mor_chart_patrimonio" height="150"></canvas></div>
+        </div>
+
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <h3 class="text-sm font-bold text-gray-950">Saldo devedor & juros</h3>
+          <p class="text-xs text-gray-500">Impacto da amortização antecipada sobre o saldo do financiamento.</p>
+          <div class="mt-3"><canvas id="mor_chart_saldo" height="150"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabela comparativa larga (auto-explicativa) -->
+    <div class="mt-5 rounded-lg border border-gray-200 bg-white p-4">
+      <h3 class="text-sm font-bold text-gray-950">Comparativo lado a lado</h3>
+      <p class="text-xs text-gray-500">Cada linha explica um aspecto da decisão. Verde indica o cenário mais favorável naquele item.</p>
+      <div class="mt-3 overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="border-b-2 border-gray-200 text-left">
+              <th class="p-2 font-bold text-gray-700">O que comparar</th>
+              <th class="p-2 text-right font-bold text-teal-800">🏠 Comprar</th>
+              <th class="p-2 text-right font-bold text-amber-800">🔑 Alugar + investir</th>
+              <th class="p-2 font-bold text-gray-500">O que significa</th>
+            </tr>
+          </thead>
+          <tbody id="mor_tabela_body" class="divide-y divide-gray-100">
+            <!-- preenchido via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Insights do financiamento -->
+    <div id="mor_financiamento" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <!-- preenchido via JS -->
+    </div>
+  </div>
+
+  <div class="sticky bottom-0 flex items-center justify-between gap-3 border-t border-gray-200 bg-white p-4 text-xs text-gray-500">
+    <span>Simulação informativa baseada em SAC. Premissas editáveis afetam o resultado.</span>
+    <button type="button" onclick="document.getElementById('modal-moradia').close()"
+            class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Fechar</button>
+  </div>
+</dialog>
+
 <script>
 function carregarTabelaLancesImovel() {
   fetch('{% url "tabela_lances_imovel" imovel.pk %}')
@@ -1161,6 +1356,243 @@ function toggleChecklistItem(input, imovelId, itemId) {
     }, 4000);
   }
   {% endif %}
+})();
+
+/* ---------- Simulador "Morar: comprar vs. alugar" ---------- */
+(function() {
+  var MOR_URL = '{% url "simular_moradia_imovel" imovel.pk %}';
+  var MOR_FIELDS = [
+    'aluguel_am','valor_imovel','valor_mercado','entrada_pct','prazo_meses','cet_aa','custos_aquisicao',
+    'condominio_am','iptu_am','valorizacao_imovel_aa','reajuste_aluguel_aa',
+    'rendimento_invest_aa','amortizacao_extra_am','modo_amortizacao'
+  ];
+  var chartPatrimonio = null;
+  var chartSaldo = null;
+  var debounce = null;
+  var primeiraVez = true;
+
+  function brl(v) {
+    if (v === null || v === undefined) return '—';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  }
+
+  function coletarParams(pularCustos) {
+    var p = {};
+    MOR_FIELDS.forEach(function(f) {
+      // No primeiro cálculo, omite custos_aquisicao para a view calcular o default
+      if (pularCustos && f === 'custos_aquisicao') return;
+      var el = document.getElementById('mor_' + f);
+      if (el) p[f] = el.value;
+    });
+    return p;
+  }
+
+  function card(titulo, valor, sub, cor) {
+    return '<div class="rounded-lg border p-3 ' + (cor || 'border-gray-200 bg-white') + '">'
+      + '<div class="text-[11px] font-semibold uppercase text-gray-500">' + titulo + '</div>'
+      + '<div class="mt-1 text-base font-bold text-gray-950">' + valor + '</div>'
+      + (sub ? '<div class="text-xs text-gray-500">' + sub + '</div>' : '')
+      + '</div>';
+  }
+
+  function anosMeses(m) {
+    if (!m) return null;
+    var a = Math.floor(m / 12), me = m % 12;
+    if (a <= 0) return me + ' meses';
+    return a + (a === 1 ? ' ano' : ' anos') + (me ? ' e ' + me + ' m' : '');
+  }
+
+  function atualizarVeredito(r) {
+    var cores = {
+      compra:  'border-teal-300 bg-teal-50 text-teal-900',
+      aluguel: 'border-amber-300 bg-amber-50 text-amber-900',
+      empate:  'border-gray-300 bg-gray-50 text-gray-800'
+    };
+    var icone = { compra: '🏠', aluguel: '🔑', empate: '⚖️' };
+    var el = document.getElementById('mor_veredito');
+    el.className = 'rounded-lg border p-4 ' + (cores[r.veredito_tipo] || cores.empate);
+    el.innerHTML =
+      '<div class="flex items-start gap-3">'
+      + '<span class="text-2xl leading-none">' + (icone[r.veredito_tipo] || '⚖️') + '</span>'
+      + '<div><div class="text-base font-bold">' + r.veredito_titulo + '</div>'
+      + '<p class="mt-1 text-sm leading-relaxed">' + r.veredito_texto + '</p></div></div>';
+  }
+
+  function atualizarCards(r) {
+    var beTxt = r.break_even_mes
+      ? (r.break_even_mes <= 1 ? 'imediato (desconto do leilão)' : 'em ' + anosMeses(r.break_even_mes))
+      : 'não atinge no prazo';
+    var venceCompra = r.patrimonio_final_compra >= r.patrimonio_final_aluguel;
+    var cards = ''
+      + card('Parcela inicial', brl(r.parcela_inicial), 'só o financiamento', 'border-gray-200 bg-white')
+      + card('Custo mensal comprando', brl(r.custo_mensal_compra_inicial), 'parcela + cond. + IPTU', 'border-gray-200 bg-white')
+      + card('Aluguel hoje', brl(r.aluguel_inicial), '', 'border-gray-200 bg-white')
+      + card('Compra fica melhor', beTxt, 'patrimônio compra ≥ alugar', 'border-teal-200 bg-teal-50')
+      + card('Patrimônio final comprando', brl(r.patrimonio_final_compra), 'no fim do financiamento', venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')
+      + card('Patrimônio final alugando', brl(r.patrimonio_final_aluguel), 'no fim do financiamento', !venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white');
+    document.getElementById('mor_cards').innerHTML = cards;
+  }
+
+  function linhaTabela(rotulo, valCompra, valAluguel, explicacao, melhor) {
+    // melhor: 'compra' | 'aluguel' | null
+    var cC = melhor === 'compra' ? 'font-bold text-green-700' : 'text-gray-900';
+    var cA = melhor === 'aluguel' ? 'font-bold text-green-700' : 'text-gray-900';
+    return '<tr>'
+      + '<td class="p-2 font-medium text-gray-700">' + rotulo + '</td>'
+      + '<td class="p-2 text-right ' + cC + '">' + valCompra + '</td>'
+      + '<td class="p-2 text-right ' + cA + '">' + valAluguel + '</td>'
+      + '<td class="p-2 text-xs text-gray-500">' + explicacao + '</td>'
+      + '</tr>';
+  }
+
+  function atualizarTabela(r) {
+    var venceCompra = r.patrimonio_final_compra >= r.patrimonio_final_aluguel;
+    var rows = ''
+      + linhaTabela('Desembolso inicial',
+          brl(r.val_entrada + r.custos_aquisicao),
+          brl(0),
+          'Entrada + custos da compra. Quem aluga não desembolsa (investe esse valor).',
+          'aluguel')
+      + linhaTabela('Custo no 1º mês',
+          brl(r.custo_mensal_compra_inicial),
+          brl(r.aluguel_inicial),
+          'Quanto sai do bolso por mês no começo.',
+          r.custo_mensal_compra_inicial <= r.aluguel_inicial ? 'compra' : 'aluguel')
+      + linhaTabela('Total desembolsado no período',
+          brl(r.total_desembolsado_compra),
+          brl(r.total_desembolsado_aluguel),
+          'Soma de tudo que você paga ao longo de todo o prazo.',
+          r.total_desembolsado_compra <= r.total_desembolsado_aluguel ? 'compra' : 'aluguel')
+      + linhaTabela('Juros pagos ao banco',
+          brl(r.juros_totais),
+          brl(0),
+          'Quem aluga não paga juros de financiamento.',
+          'aluguel')
+      + linhaTabela('Ganho do desconto (leilão)',
+          brl(r.ganho_desconto),
+          brl(0),
+          'Comprar abaixo do valor de mercado já é patrimônio no ato.',
+          r.ganho_desconto > 0 ? 'compra' : null)
+      + linhaTabela('Patrimônio no fim',
+          brl(r.patrimonio_final_compra),
+          brl(r.patrimonio_final_aluguel),
+          'O que você tem de patrimônio líquido ao fim do período.',
+          venceCompra ? 'compra' : 'aluguel');
+    document.getElementById('mor_tabela_body').innerHTML = rows;
+  }
+
+  function atualizarFinanciamento(r) {
+    var blocos = ''
+      + '<div class="rounded-lg border border-gray-200 bg-white p-4">'
+      + '<h4 class="text-sm font-bold text-gray-950">💳 Financiamento (parcelas)</h4>'
+      + '<ul class="mt-2 space-y-1 text-sm text-gray-700">'
+      + '<li>Valor financiado: <strong>' + brl(r.val_financiado) + '</strong></li>'
+      + '<li>Parcela inicial (SAC, decrescente): <strong>' + brl(r.parcela_inicial) + '</strong></li>'
+      + '<li>Total de juros no prazo: <strong class="text-red-600">' + brl(r.juros_totais) + '</strong></li>'
+      + '<li>Prazo: <strong>' + anosMeses(r.prazo_original_meses) + '</strong></li>'
+      + '</ul></div>';
+
+    if (r.meses_economizados > 0) {
+      blocos += '<div class="rounded-lg border border-teal-200 bg-teal-50 p-4">'
+        + '<h4 class="text-sm font-bold text-teal-900">⚡ Financiamento (quitação antecipada)</h4>'
+        + '<ul class="mt-2 space-y-1 text-sm text-teal-900">'
+        + '<li>Economia de juros: <strong>' + brl(r.economia_juros) + '</strong></li>'
+        + '<li>Quita em: <strong>' + anosMeses(r.prazo_com_amortizacao_meses) + '</strong> '
+        + '(<span class="text-teal-700">' + r.meses_economizados + ' meses a menos</span>)</li>'
+        + '<li>Juros pagos com aporte: <strong>' + brl(r.juros_totais_com_amortizacao) + '</strong></li>'
+        + '</ul></div>';
+    } else {
+      blocos += '<div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">'
+        + '<h4 class="text-sm font-bold text-gray-700">⚡ Quitação antecipada</h4>'
+        + '<p class="mt-1">Informe um aporte extra mensal em "Amortização antecipada" para ver quanto economiza em juros e quanto antecipa a quitação.</p>'
+        + '</div>';
+    }
+    document.getElementById('mor_financiamento').innerHTML = blocos;
+  }
+
+  function labelsAnos(meses) {
+    return meses.map(function(m) { return 'Ano ' + Math.round(m/12); });
+  }
+
+  function desenharGraficos(s) {
+    var labels = labelsAnos(s.meses);
+
+    if (chartPatrimonio) chartPatrimonio.destroy();
+    chartPatrimonio = new Chart(document.getElementById('mor_chart_patrimonio'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Comprando', data: s.patrimonio_compra, borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.08)', fill: true, tension: .25, pointRadius: 0 },
+          { label: 'Alugando + investindo', data: s.patrimonio_aluguel, borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.06)', fill: true, tension: .25, pointRadius: 0 }
+        ]
+      },
+      options: {
+        responsive: true, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom' },
+          tooltip: { callbacks: { label: function(c){ return c.dataset.label + ': ' + brl(c.parsed.y); } } } },
+        scales: { y: { ticks: { callback: function(v){ return brl(v); } } } }
+      }
+    });
+
+    if (chartSaldo) chartSaldo.destroy();
+    var temAmort = s.saldo_devedor_amortizado.some(function(v, i){ return v !== s.saldo_devedor[i]; });
+    var datasets = [
+      { label: 'Saldo devedor', data: s.saldo_devedor, borderColor: '#475569', tension: .25, pointRadius: 0 },
+      { label: 'Juros acumulados', data: s.juros_acumulado, borderColor: '#dc2626', borderDash: [5,4], tension: .25, pointRadius: 0 }
+    ];
+    if (temAmort) {
+      datasets.splice(1, 0, { label: 'Saldo c/ amortização', data: s.saldo_devedor_amortizado, borderColor: '#0f766e', tension: .25, pointRadius: 0 });
+    }
+    chartSaldo = new Chart(document.getElementById('mor_chart_saldo'), {
+      type: 'line',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom' },
+          tooltip: { callbacks: { label: function(c){ return c.dataset.label + ': ' + brl(c.parsed.y); } } } },
+        scales: { y: { ticks: { callback: function(v){ return brl(v); } } } }
+      }
+    });
+  }
+
+  function recalcularMoradia(pularCustos) {
+    var params = new URLSearchParams(coletarParams(pularCustos));
+    fetch(MOR_URL + '?' + params.toString())
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        // Preenche o input de custos com o default calculado pela view
+        if (pularCustos && data.params && data.params.custos_aquisicao) {
+          var elc = document.getElementById('mor_custos_aquisicao');
+          if (elc) elc.value = Math.round(data.params.custos_aquisicao);
+        }
+        atualizarVeredito(data.resumo);
+        atualizarCards(data.resumo);
+        atualizarTabela(data.resumo);
+        atualizarFinanciamento(data.resumo);
+        desenharGraficos(data.series);
+      })
+      .catch(function(e){ console.error('Falha na simulação de moradia', e); });
+  }
+
+  function agendarRecalculo() {
+    clearTimeout(debounce);
+    debounce = setTimeout(function(){ recalcularMoradia(false); }, 350);
+  }
+
+  window.abrirModalMoradia = function() {
+    document.getElementById('modal-moradia').showModal();
+    if (primeiraVez) {
+      MOR_FIELDS.forEach(function(f) {
+        var el = document.getElementById('mor_' + f);
+        if (el) el.addEventListener('input', agendarRecalculo);
+      });
+      primeiraVez = false;
+      recalcularMoradia(true);  // primeira vez: deixa a view calcular custos de aquisição
+    } else {
+      recalcularMoradia(false);
+    }
+  };
 })();
 </script>
 {% endblock %}

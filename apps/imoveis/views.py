@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
-from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, tabela_lances
+from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, tabela_lances, simular_moradia
 from core.calculos.cartorio import (
     calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS
 )
@@ -755,6 +755,76 @@ def tabela_lances_imovel(request, pk):
         "giro_meses": GIRO_MESES,
         "imovel_endereco": imovel.endereco,
     })
+
+
+def _float_post(request, nome, default=0.0):
+    """Lê um valor numérico do request (GET ou POST), tolerante a vírgula/vazio."""
+    bruto = request.POST.get(nome, request.GET.get(nome))
+    if bruto in (None, ""):
+        return default
+    try:
+        return float(str(bruto).replace(".", "").replace(",", ".")) if "," in str(bruto) else float(bruto)
+    except (TypeError, ValueError):
+        return default
+
+
+@login_required
+def simular_moradia_imovel(request, pk):
+    """Simula comprar financiado vs. continuar alugando para um imóvel.
+
+    Pré-preenche com os dados de financiamento do imóvel e aceita overrides
+    do usuário. Retorna JSON com resumo + séries para os gráficos.
+    """
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+
+    # Defaults vindos do imóvel
+    # valor_imovel = preço pago (lance/arremate); valor_mercado = avaliação/revenda
+    valor_imovel_default = float(imovel.lance or imovel.avaliacao or 0)
+    valor_mercado_default = float(
+        imovel.preco_venda or imovel.avaliacao or imovel.lance or 0
+    )
+    # Entrada de 100% = à vista (sem financiamento). Para simular moradia
+    # financiada, usar 20% como padrão quando o imóvel não tem financiamento.
+    entrada_imovel = float(imovel.entrada or 0)
+    entrada_default = entrada_imovel if 0 < entrada_imovel < 100 else 20.0
+    prazo_default = int(imovel.prazo_fin or 360)
+    cet_default = float(imovel.cet_aa or 10.5)
+    cond_default = float(imovel.cond_am or 0)
+    iptu_default = float(imovel.iptu_am or 0)
+
+    # Custos de aquisição (ITBI + cartório + comissão) já calculados pelo motor
+    try:
+        r = calcular(imovel.to_calc_dict(), imovel.giro_padrao or 12)
+        custos_aquisicao_default = float(
+            (r.get("com_leil") or 0)
+            + (r.get("itbi") or 0)
+            + (r.get("registro") or 0)
+            + (r.get("escritura") or 0)
+            + (r.get("extra_cart") or 0)
+        )
+    except Exception:
+        custos_aquisicao_default = 0.0
+
+    params = {
+        "valor_imovel": _float_post(request, "valor_imovel", valor_imovel_default),
+        "valor_mercado": _float_post(request, "valor_mercado", valor_mercado_default),
+        "entrada_pct": _float_post(request, "entrada_pct", entrada_default),
+        "prazo_meses": int(_float_post(request, "prazo_meses", prazo_default)),
+        "cet_aa": _float_post(request, "cet_aa", cet_default),
+        "condominio_am": _float_post(request, "condominio_am", cond_default),
+        "iptu_am": _float_post(request, "iptu_am", iptu_default),
+        "aluguel_am": _float_post(request, "aluguel_am", 0),
+        "custos_aquisicao": _float_post(request, "custos_aquisicao", custos_aquisicao_default),
+        "valorizacao_imovel_aa": _float_post(request, "valorizacao_imovel_aa", 6.0),
+        "reajuste_aluguel_aa": _float_post(request, "reajuste_aluguel_aa", 4.5),
+        "rendimento_invest_aa": _float_post(request, "rendimento_invest_aa", 10.0),
+        "amortizacao_extra_am": _float_post(request, "amortizacao_extra_am", 0),
+        "modo_amortizacao": request.POST.get("modo_amortizacao", request.GET.get("modo_amortizacao", "prazo")),
+    }
+
+    resultado = simular_moradia(params)
+    resultado["params"] = params
+    return JsonResponse(resultado)
 
 
 def _payload_analise_processando_avulso(task_id=""):
