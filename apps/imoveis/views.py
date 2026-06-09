@@ -688,6 +688,17 @@ def adicionar_arquivo(request, pk):
 
 @login_required
 @require_POST
+def excluir_arquivo(request, pk, arquivo_id):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    arquivo = get_object_or_404(ImovelArquivo, pk=arquivo_id, imovel=imovel)
+    arquivo.arquivo.delete(save=False)
+    arquivo.delete()
+    messages.success(request, "Arquivo excluído.")
+    return redirect(f"{reverse('detalhe', args=[imovel.pk])}#arquivos")
+
+
+@login_required
+@require_POST
 def adicionar_comentario(request, pk):
     imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
     texto = request.POST.get("texto", "").strip()
