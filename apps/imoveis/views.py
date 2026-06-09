@@ -396,11 +396,19 @@ def detalhe(request, pk):
         imagem_url = reverse("leiloes:imagem", args=[imovel_caixa.imovel_id_caixa])
 
     detalhe_caixa = (imovel_caixa.detalhes or {}).get("detalhe_caixa") if imovel_caixa else {}
-    analise_juridica = (imovel_caixa.detalhes or {}).get("analise_juridica_ia") if imovel_caixa else {}
     detalhe_caixa = detalhe_caixa or {}
+
+    # Análise jurídica: prefere a do imóvel Caixa vinculado; fallback para análise local (avulso)
+    analise_juridica_caixa = (imovel_caixa.detalhes or {}).get("analise_juridica_ia") if imovel_caixa else {}
+    analise_juridica_avulso = imovel.analise_juridica_ia or {}
+    analise_juridica = analise_juridica_caixa or analise_juridica_avulso
     analise_juridica = analise_juridica or {}
     analise_resultado = analise_juridica.get("resultado") or {}
     analise_nivel_risco = analise_resultado.get("nivel_risco") or "indeterminado"
+
+    # Indica se análise pode ser gerada localmente (imóvel avulso sem Caixa vinculado)
+    tem_arquivos_analise = imovel.arquivos.filter(categoria__in=["matricula", "edital"]).exists()
+    pode_gerar_analise_avulso = not imovel_caixa and tem_arquivos_analise
 
     caixa_url = None
     caixa_detalhe_url = None
@@ -519,6 +527,9 @@ def detalhe(request, pk):
         "analise_resultado": analise_resultado,
         "analise_nivel_risco": analise_nivel_risco,
         "analise_risco_status": _classe_risco_analise(analise_nivel_risco),
+        "pode_gerar_analise_avulso": pode_gerar_analise_avulso,
+        "analise_juridica_avulso": analise_juridica_avulso,
+        "tem_arquivos_analise": tem_arquivos_analise,
         "indicadores_decisao": indicadores_decisao,
         "alertas_relatorio": alertas_relatorio,
         "checklist_operacional": checklist_operacional,
@@ -732,4 +743,83 @@ def tabela_lances_imovel(request, pk):
         "html": "\n".join(html_rows),
         "giro_meses": GIRO_MESES,
         "imovel_endereco": imovel.endereco,
+    })
+
+
+def _payload_analise_processando_avulso(task_id=""):
+    from django.conf import settings
+    from django.utils import timezone
+
+    agora = timezone.now()
+    return {
+        "status": "processando",
+        "mensagem": (
+            "A análise jurídica IA está em processamento. "
+            "Você pode permanecer nesta página ou voltar depois."
+        ),
+        "erro": "",
+        "provider": getattr(settings, "AI_LEGAL_ANALYSIS_PROVIDER", "openai"),
+        "modelo": getattr(settings, "AI_LEGAL_ANALYSIS_MODEL", ""),
+        "task_id": task_id,
+        "fontes": [],
+        "resultado": None,
+        "gerado_em": agora.isoformat(),
+        "gerado_em_display": timezone.localtime(agora).strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+@login_required
+@require_POST
+def gerar_analise_juridica_imovel(request, pk):
+    import logging as _logging
+    from apps.leiloes.tasks import gerar_analise_juridica_imovel_task
+
+    _logger = _logging.getLogger(__name__)
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+
+    analise_atual = imovel.analise_juridica_ia or {}
+    if analise_atual.get("status") == "processando":
+        messages.info(request, "A análise jurídica IA já está em processamento.")
+        return redirect(reverse("detalhe", args=[imovel.pk]) + "#juridico")
+
+    task_id = ""
+    imovel.analise_juridica_ia = _payload_analise_processando_avulso()
+    imovel.save(update_fields=["analise_juridica_ia", "updated_at"])
+
+    try:
+        async_result = gerar_analise_juridica_imovel_task.delay(str(imovel.pk))
+        task_id = async_result.id or ""
+        imovel.refresh_from_db()
+        analise_enfileirada = imovel.analise_juridica_ia or {}
+        if analise_enfileirada.get("status") == "processando":
+            analise_enfileirada["task_id"] = task_id
+            imovel.analise_juridica_ia = analise_enfileirada
+            imovel.save(update_fields=["analise_juridica_ia", "updated_at"])
+        messages.info(request, "Análise jurídica IA iniciada. A página será atualizada quando terminar.")
+    except Exception as exc:
+        _logger.exception("Falha ao enfileirar analise juridica IA do imovel avulso %s", imovel.pk)
+        imovel.analise_juridica_ia = {
+            **_payload_analise_processando_avulso(task_id=task_id),
+            "status": "erro",
+            "mensagem": "Não foi possível iniciar a análise jurídica IA.",
+            "erro": str(exc)[:500],
+        }
+        imovel.save(update_fields=["analise_juridica_ia", "updated_at"])
+        messages.error(request, "Não foi possível iniciar a análise jurídica IA.")
+
+    return redirect(reverse("detalhe", args=[imovel.pk]) + "#juridico")
+
+
+@login_required
+def analise_juridica_imovel_status(request, pk):
+    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    analise = imovel.analise_juridica_ia or {}
+    return JsonResponse({
+        "status": analise.get("status") or "nao_iniciada",
+        "mensagem": analise.get("mensagem") or "",
+        "erro": analise.get("erro") or "",
+        "provider": analise.get("provider") or "",
+        "modelo": analise.get("modelo") or "",
+        "gerado_em_display": analise.get("gerado_em_display") or "",
+        "detail_url": reverse("detalhe", args=[imovel.pk]),
     })

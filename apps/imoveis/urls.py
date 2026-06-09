@@ -16,4 +16,6 @@ urlpatterns = [
     path("<uuid:pk>/arquivos/adicionar/", views.adicionar_arquivo, name="adicionar_arquivo"),
     path("<uuid:pk>/comentarios/adicionar/", views.adicionar_comentario, name="adicionar_comentario"),
     path("<uuid:pk>/tabela-lances/", views.tabela_lances_imovel, name="tabela_lances_imovel"),
+    path("<uuid:pk>/analise-juridica/", views.gerar_analise_juridica_imovel, name="gerar_analise_juridica_imovel"),
+    path("<uuid:pk>/analise-juridica/status/", views.analise_juridica_imovel_status, name="analise_juridica_imovel_status"),
 ]

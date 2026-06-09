@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.utils import timezone
 
-from .analise_juridica import analisar_imovel_caixa
+from .analise_juridica import analisar_imovel_avulso, analisar_imovel_caixa
 from .caixa_csv import (
     ESTADOS,
     baixar_csv_caixa,
@@ -12,6 +12,12 @@ from .caixa_csv import (
     marcar_imoveis_ausentes_como_inativos,
 )
 from .models import ImovelCaixa
+
+try:
+    from apps.imoveis.models import Imovel, ImovelArquivo
+except ImportError:
+    Imovel = None
+    ImovelArquivo = None
 
 try:
     from celery import shared_task
@@ -232,6 +238,56 @@ def gerar_analise_juridica_caixa_task(self, imovel_id):
     )
     return {
         "imovel_id": imovel_id,
+        "status": resultado.get("status"),
+        "task_id": task_id,
+    }
+
+
+@shared_task(bind=True)
+def gerar_analise_juridica_imovel_task(self, imovel_uuid):
+    """Gera a analise juridica IA para imóvel avulso (não Caixa)."""
+    task_id = getattr(getattr(self, "request", None), "id", "") or ""
+
+    if Imovel is None:
+        logger.error("App imoveis nao disponivel para a task de analise juridica avulso")
+        return {"status": "erro", "imovel_uuid": imovel_uuid}
+
+    try:
+        imovel = Imovel.objects.get(pk=imovel_uuid)
+    except Imovel.DoesNotExist:
+        logger.warning("Analise juridica avulso ignorada: imovel %s nao encontrado", imovel_uuid)
+        return {"status": "nao_encontrado", "imovel_uuid": imovel_uuid}
+
+    arquivos = list(
+        ImovelArquivo.objects.filter(
+            imovel=imovel, categoria__in=["matricula", "edital"]
+        )
+    )
+
+    try:
+        resultado = analisar_imovel_avulso(imovel, arquivos_imovel=arquivos)
+        if task_id and not resultado.get("task_id"):
+            resultado["task_id"] = task_id
+    except Exception as exc:
+        logger.exception("Falha inesperada na task de analise juridica avulso %s", imovel_uuid)
+        resultado = _payload_analise_task(
+            "erro",
+            "Nao foi possivel concluir a analise juridica IA.",
+            erro=str(exc)[:500],
+            task_id=task_id,
+        )
+
+    imovel.refresh_from_db()
+    imovel.analise_juridica_ia = resultado
+    imovel.save(update_fields=["analise_juridica_ia", "updated_at"])
+
+    logger.info(
+        "Analise juridica IA avulso concluida para imovel %s com status %s",
+        imovel_uuid,
+        resultado.get("status"),
+    )
+    return {
+        "imovel_uuid": str(imovel_uuid),
         "status": resultado.get("status"),
         "task_id": task_id,
     }

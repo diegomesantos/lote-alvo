@@ -254,6 +254,9 @@ class Imovel(models.Model):
     incremento_lance= models.DecimalField("Incremento de lance (R$)", max_digits=12, decimal_places=2, default=5000)
     giro_padrao     = models.IntegerField("Giro padrão (meses)", choices=GIRO_MESES_CHOICES, default=12)
 
+    # Análise jurídica IA (armazenada localmente para imóveis avulsos)
+    analise_juridica_ia = models.JSONField("Análise jurídica IA", null=True, blank=True)
+
     # Metadata
     data_cadastro = models.DateField("Data de cadastro", auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)

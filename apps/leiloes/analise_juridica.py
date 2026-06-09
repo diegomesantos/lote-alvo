@@ -234,26 +234,79 @@ def _payload_status(status, mensagem, fontes=None, erro=""):
 
 
 def _documentos_do_imovel(imovel):
+    """Retorna lista de (nome, url) para ImovelCaixa ou Imovel avulso."""
     documentos = []
-    if imovel.matricula_url:
+    # ImovelCaixa: campos diretos
+    if hasattr(imovel, "matricula_url") and imovel.matricula_url:
         documentos.append(("Matricula", imovel.matricula_url))
-    if imovel.edital_url:
+    if hasattr(imovel, "edital_url") and imovel.edital_url:
         documentos.append(("Edital", imovel.edital_url))
     return documentos
 
 
-def _headers_documento(imovel):
+def _documentos_do_imovel_avulso(imovel, arquivos_imovel=None):
+    """Retorna lista de (nome, url_ou_path, tipo) para Imovel avulso.
+
+    Prioriza arquivos enviados sobre URLs externas.
+    """
+    from pathlib import Path as _Path
+
+    documentos = []
+
+    if arquivos_imovel:
+        for arq in arquivos_imovel:
+            if arq.categoria in ("matricula", "edital") and arq.arquivo:
+                try:
+                    nome = arq.categoria.capitalize()
+                    documentos.append((nome, arq.arquivo.path, "arquivo"))
+                except Exception:
+                    pass
+
+    # Complementa com URLs externas se a categoria ainda não foi coberta por arquivo
+    categorias_cobertas = {d[0].lower() for d in documentos}
+    matricula_url = getattr(imovel, "matricula_url_avulso", None) or ""
+    edital_url = getattr(imovel, "edital_url_avulso", None) or ""
+
+    if matricula_url and "matricula" not in categorias_cobertas:
+        documentos.append(("Matricula", matricula_url, "url"))
+    if edital_url and "edital" not in categorias_cobertas:
+        documentos.append(("Edital", edital_url, "url"))
+
+    return documentos
+
+
+def _headers_documento(imovel=None):
+    referer = "https://venda-imoveis.caixa.gov.br/sistema/index.asp"
+    if imovel and hasattr(imovel, "link_caixa") and imovel.link_caixa:
+        referer = imovel.link_caixa
     return {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
         ),
         "Accept": "application/pdf,application/octet-stream,*/*;q=0.8",
-        "Referer": imovel.link_caixa or "https://venda-imoveis.caixa.gov.br/sistema/index.asp",
+        "Referer": referer,
     }
 
 
-def _baixar_documento(url, imovel):
+def _ler_arquivo_local(caminho):
+    """Lê um PDF do filesystem e retorna os bytes."""
+    limite_bytes = max(1, settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB) * 1024 * 1024
+    try:
+        with open(caminho, "rb") as f:
+            conteudo = f.read(limite_bytes + 1)
+    except OSError as exc:
+        raise AnaliseJuridicaErro(f"Falha ao ler arquivo: {exc}") from exc
+    if len(conteudo) > limite_bytes:
+        raise AnaliseJuridicaErro(
+            f"Arquivo excede o limite de {settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB} MB"
+        )
+    if not _conteudo_parece_pdf(conteudo):
+        raise AnaliseJuridicaErro("Arquivo local não parece um PDF válido")
+    return conteudo, "application/pdf"
+
+
+def _baixar_documento(url, imovel=None):
     limite_bytes = max(1, settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB) * 1024 * 1024
     try:
         resposta = requests.get(
@@ -498,6 +551,46 @@ def _coletar_fontes(imovel):
     return fontes
 
 
+def _coletar_fontes_avulso(documentos):
+    """Coleta fontes para imóvel avulso: lê de arquivo local ou baixa de URL."""
+    fontes = []
+    for entrada in documentos:
+        nome, origem, tipo = entrada
+        fonte = {
+            "nome": nome,
+            "url": origem if tipo == "url" else "",
+            "arquivo": origem if tipo == "arquivo" else "",
+            "texto": "",
+            "paginas": 0,
+            "tamanho_bytes": 0,
+            "erro": "",
+            "paginas_ocr": 0,
+            "paginas_ocr_tentadas": 0,
+            "metodo_extracao": "",
+            "ocr_erros": [],
+        }
+        try:
+            if tipo == "arquivo":
+                conteudo, content_type = _ler_arquivo_local(origem)
+            else:
+                conteudo, content_type = _baixar_documento(origem)
+            fonte["tamanho_bytes"] = len(conteudo)
+            fonte["content_type"] = content_type
+            texto, paginas, metadata = _extrair_texto_pdf(conteudo)
+            fonte["texto"] = texto
+            fonte["paginas"] = paginas
+            fonte["paginas_ocr"] = metadata.get("paginas_ocr", 0)
+            fonte["paginas_ocr_tentadas"] = metadata.get("paginas_ocr_tentadas", 0)
+            fonte["metodo_extracao"] = metadata.get("metodo_extracao", "")
+            fonte["ocr_erros"] = metadata.get("ocr_erros", [])
+            if not texto:
+                fonte["erro"] = _erro_texto_ausente(metadata)
+        except AnaliseJuridicaErro as exc:
+            fonte["erro"] = str(exc)
+        fontes.append(fonte)
+    return fontes
+
+
 def _fontes_metadata(fontes):
     return [
         {
@@ -597,9 +690,10 @@ def _montar_contexto_documentos(fontes):
         if len(texto) > restante:
             texto = texto[:restante] + "\n[TEXTO TRUNCADO PELO LIMITE OPERACIONAL]"
 
+        origem = fonte.get("url") or fonte.get("arquivo") or ""
         blocos.append(
             f"## Fonte: {fonte['nome']}\n"
-            f"URL: {fonte['url']}\n"
+            f"Origem: {origem}\n"
             f"Paginas extraidas: {fonte.get('paginas') or 0}\n\n"
             f"{texto}"
         )
@@ -608,6 +702,50 @@ def _montar_contexto_documentos(fontes):
             break
 
     return "\n\n---\n\n".join(blocos)
+
+
+def _dados_imovel_avulso(imovel):
+    return {
+        "endereco": imovel.endereco,
+        "cidade": imovel.cidade,
+        "estado": imovel.estado,
+        "tipo": imovel.get_tipo_imovel_display(),
+        "tipo_leilao": imovel.tipo_leilao,
+        "data_leilao": imovel.data_leilao.isoformat() if imovel.data_leilao else "",
+        "valor_avaliacao": str(imovel.avaliacao or ""),
+        "lance": str(imovel.lance or ""),
+        "obs": _limitar_texto(imovel.obs or "", 1500),
+    }
+
+
+def _prompt_usuario_avulso(imovel, fontes):
+    fontes_com_erro = [
+        {
+            "nome": fonte["nome"],
+            "origem": fonte.get("url") or fonte.get("arquivo") or "",
+            "erro": fonte["erro"],
+        }
+        for fonte in fontes
+        if fonte.get("erro")
+    ]
+    return (
+        "Analise os documentos abaixo e produza uma triagem juridica estruturada "
+        "para um usuario que avalia arrematar o imovel.\n\n"
+        "Regras de evidencia:\n"
+        "- Cite a fonte e o trecho/indicador que sustenta cada alerta.\n"
+        "- Quando nao houver evidencia suficiente, marque como indeterminado.\n"
+        "- Nao afirme ausencia de risco apenas por nao encontrar um termo.\n"
+        "- Nao invente CPF, processo, credor, data, onus ou responsabilidade.\n"
+        "- Nao use 'matricula atualizada' como alerta generico. So recomende atualizacao quando a data da certidao for antiga, quando a matricula trouxer apenas validacao/autenticacao ou quando faltar teor registral.\n"
+        "- Quando houver atos registrais legiveis, extraia os atos concretos (R/AV), datas, partes, onus, consolidacao, penhoras e indisponibilidades antes de listar lacunas.\n"
+        "- A resposta e triagem informativa, nao parecer juridico.\n\n"
+        "Dados do imovel:\n"
+        f"{json.dumps(_dados_imovel_avulso(imovel), ensure_ascii=False)}\n\n"
+        "Documentos com erro ou texto ausente:\n"
+        f"{json.dumps(fontes_com_erro, ensure_ascii=False)}\n\n"
+        "Texto extraido dos documentos:\n"
+        f"{_montar_contexto_documentos(fontes)}"
+    )
 
 
 def _prompt_usuario(imovel, fontes):
@@ -726,7 +864,7 @@ def _schema_gemini(schema):
     return convertido
 
 
-def _gerar_com_openai(imovel, fontes, api_key, modelo):
+def _gerar_com_openai(prompt_usuario, api_key, modelo):
     try:
         from openai import OpenAI
     except ImportError as exc:
@@ -753,7 +891,7 @@ def _gerar_com_openai(imovel, fontes, api_key, modelo):
             },
             {
                 "role": "user",
-                "content": _prompt_usuario(imovel, fontes),
+                "content": prompt_usuario,
             },
         ],
     )
@@ -764,7 +902,7 @@ def _gerar_com_openai(imovel, fontes, api_key, modelo):
     return _json_de_texto(texto, "A IA retornou JSON invalido")
 
 
-def _gerar_com_anthropic(imovel, fontes, api_key, modelo):
+def _gerar_com_anthropic(prompt_usuario, api_key, modelo):
     payload = {
         "model": modelo,
         "max_tokens": settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -773,7 +911,7 @@ def _gerar_com_anthropic(imovel, fontes, api_key, modelo):
         "messages": [
             {
                 "role": "user",
-                "content": _prompt_usuario(imovel, fontes),
+                "content": prompt_usuario,
             }
         ],
         "tools": [
@@ -810,7 +948,7 @@ def _gerar_com_anthropic(imovel, fontes, api_key, modelo):
     return _json_de_texto("\n".join(textos), "A IA retornou resposta Anthropic sem JSON valido")
 
 
-def _gerar_com_gemini(imovel, fontes, api_key, modelo):
+def _gerar_com_gemini(prompt_usuario, api_key, modelo):
     model_path = modelo if modelo.startswith("models/") else f"models/{modelo}"
     payload = {
         "systemInstruction": {
@@ -819,7 +957,7 @@ def _gerar_com_gemini(imovel, fontes, api_key, modelo):
         "contents": [
             {
                 "role": "user",
-                "parts": [{"text": _prompt_usuario(imovel, fontes)}],
+                "parts": [{"text": prompt_usuario}],
             }
         ],
         "generationConfig": {
@@ -846,7 +984,7 @@ def _gerar_com_gemini(imovel, fontes, api_key, modelo):
     return _json_de_texto(texto, "A IA retornou resposta Gemini sem JSON valido")
 
 
-def _gerar_com_ia(imovel, fontes, provider, api_key, modelo):
+def _gerar_com_ia(prompt_usuario, provider, api_key, modelo):
     if not modelo:
         raise AnaliseJuridicaErro("Configure AI_LEGAL_ANALYSIS_MODEL com o modelo da IA.")
     if provider != "openai" and modelo.startswith("gpt-"):
@@ -854,11 +992,11 @@ def _gerar_com_ia(imovel, fontes, provider, api_key, modelo):
             "Configure AI_LEGAL_ANALYSIS_MODEL com um modelo compativel com o provider escolhido."
         )
     if provider == "openai":
-        return _gerar_com_openai(imovel, fontes, api_key, modelo)
+        return _gerar_com_openai(prompt_usuario, api_key, modelo)
     if provider == "anthropic":
-        return _gerar_com_anthropic(imovel, fontes, api_key, modelo)
+        return _gerar_com_anthropic(prompt_usuario, api_key, modelo)
     if provider == "gemini":
-        return _gerar_com_gemini(imovel, fontes, api_key, modelo)
+        return _gerar_com_gemini(prompt_usuario, api_key, modelo)
     raise AnaliseJuridicaErro(f"Provider de IA nao suportado: {provider}")
 
 
@@ -899,7 +1037,7 @@ def analisar_imovel_caixa(imovel):
         )
 
     try:
-        resultado = _gerar_com_ia(imovel, fontes, provider, api_key, modelo)
+        resultado = _gerar_com_ia(_prompt_usuario(imovel, fontes), provider, api_key, modelo)
     except AnaliseJuridicaErro as exc:
         logger.warning(
             "Analise juridica IA falhou para imovel %s (%s/%s): %s",
@@ -918,6 +1056,88 @@ def analisar_imovel_caixa(imovel):
         logger.exception(
             "Erro inesperado na analise juridica IA do imovel %s",
             imovel.imovel_id_caixa,
+        )
+        return _payload_status(
+            "erro",
+            "Nao foi possivel concluir a analise juridica IA.",
+            fontes=fontes_metadata,
+            erro=str(exc)[:500],
+        )
+
+    return {
+        "status": "concluida",
+        "mensagem": "Analise juridica IA concluida.",
+        "erro": "",
+        "provider": provider,
+        "modelo": modelo,
+        "fontes": fontes_metadata,
+        "resultado": resultado,
+        **_agora_payload(),
+    }
+
+
+def analisar_imovel_avulso(imovel, arquivos_imovel=None):
+    """Gera análise jurídica para imóvel avulso (não vinculado à Caixa).
+
+    Aceita PDFs via upload (ImovelArquivo com categoria matricula/edital)
+    ou URLs externas nos atributos matricula_url_avulso / edital_url_avulso.
+    """
+    provider = _provider_ia()
+    modelo = _modelo_ia()
+
+    if provider not in AI_PROVIDERS_SUPORTADOS:
+        return _payload_status(
+            "erro_configuracao",
+            "Provider de IA nao suportado. Use openai, anthropic ou gemini.",
+            erro=f"AI_LEGAL_ANALYSIS_PROVIDER={provider}",
+        )
+
+    api_key = _api_key_ia(provider)
+    if not api_key:
+        return _payload_status(
+            "sem_api_key",
+            (
+                "Configure AI_LEGAL_ANALYSIS_API_KEY ou "
+                f"{_nome_variavel_chave(provider)} para gerar a analise juridica IA."
+            ),
+        )
+
+    documentos = _documentos_do_imovel_avulso(imovel, arquivos_imovel)
+    if not documentos:
+        return _payload_status(
+            "sem_documentos",
+            "Anexe a matrícula ou o edital (PDF) ao imóvel para iniciar a análise.",
+        )
+
+    fontes = _coletar_fontes_avulso(documentos)
+    fontes_metadata = _fontes_metadata(fontes)
+    if not any((fonte.get("texto") or "").strip() for fonte in fontes):
+        return _payload_status(
+            "sem_texto",
+            "Nao foi possivel extrair texto util dos documentos enviados, mesmo com OCR.",
+            fontes=fontes_metadata,
+        )
+
+    try:
+        resultado = _gerar_com_ia(_prompt_usuario_avulso(imovel, fontes), provider, api_key, modelo)
+    except AnaliseJuridicaErro as exc:
+        logger.warning(
+            "Analise juridica IA falhou para imovel avulso %s (%s/%s): %s",
+            imovel.pk,
+            provider,
+            modelo,
+            exc,
+        )
+        return _payload_status(
+            "erro",
+            "Nao foi possivel concluir a analise juridica IA.",
+            fontes=fontes_metadata,
+            erro=str(exc)[:500],
+        )
+    except Exception as exc:
+        logger.exception(
+            "Erro inesperado na analise juridica IA do imovel avulso %s",
+            imovel.pk,
         )
         return _payload_status(
             "erro",
