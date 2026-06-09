@@ -1184,6 +1184,40 @@
     <div id="mor_financiamento" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <!-- preenchido via JS -->
     </div>
+
+    <!-- Detalhamento mensal (tabela virtualizada) -->
+    <div class="mt-5 rounded-lg border border-gray-200 bg-white">
+      <div class="flex items-center justify-between p-4 pb-2">
+        <div>
+          <h3 class="text-sm font-bold text-gray-950">Detalhamento Mensal</h3>
+          <p class="text-xs text-gray-500">Evolução mês a mês — scroll para navegar pelos <span id="mor_tabela_total"></span> meses.</p>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-xs">
+          <thead class="sticky top-0 z-10 bg-gray-50">
+            <tr class="border-b-2 border-gray-200 text-right">
+              <th class="p-2 text-left font-bold text-gray-600">Mês</th>
+              <th class="p-2 font-bold text-gray-600">Prestação</th>
+              <th class="p-2 font-bold text-blue-700">Aluguel</th>
+              <th class="p-2 font-bold text-green-700">Saldo Devedor</th>
+              <th class="p-2 font-bold text-gray-500">Aporte Financ.</th>
+              <th class="p-2 font-bold text-amber-700">Aporte Alug.</th>
+              <th class="p-2 font-bold text-teal-700">Patrim. Financ.</th>
+              <th class="p-2 font-bold text-amber-600">Patrim. Alug.</th>
+            </tr>
+          </thead>
+        </table>
+        <!-- Área com scroll virtual — só renderiza linhas visíveis -->
+        <div id="mor_tabela_scroll" style="height:320px;overflow-y:auto;" class="relative">
+          <table class="w-full border-collapse text-xs">
+            <tbody id="mor_tabela_mensal_body" class="divide-y divide-gray-100">
+              <!-- preenchido via JS virtualizado -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="sticky bottom-0 flex items-center justify-between gap-3 border-t border-gray-200 bg-white p-4 text-xs text-gray-500">
@@ -1523,7 +1557,8 @@ function toggleChecklistItem(input, imovelId, itemId) {
       data: {
         labels: labels,
         datasets: [
-          { label: 'Comprando', data: s.patrimonio_compra, borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.08)', fill: true, tension: .25, pointRadius: 0 },
+          { label: 'Comprando + investindo excedente', data: s.patrimonio_compra, borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.08)', fill: true, tension: .25, pointRadius: 0 },
+          { label: 'Só financiando (sem investir)', data: s.patrimonio_compra_so, borderColor: '#dc2626', backgroundColor: 'transparent', borderDash: [6,3], tension: .25, pointRadius: 0 },
           { label: 'Alugando + investindo', data: s.patrimonio_aluguel, borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.06)', fill: true, tension: .25, pointRadius: 0 }
         ]
       },
@@ -1556,6 +1591,49 @@ function toggleChecklistItem(input, imovelId, itemId) {
     });
   }
 
+  // ── Tabela mensal virtualizada ──────────────────────────────────────────
+  var _tabelaDados = [];
+  var _tabelaAlturaLinha = 33;
+  var _tabelaLinhasVisiveis = 12;
+
+  function _renderLinhaTabela(row) {
+    var pc = row.patrim_fin >= row.patrim_alug ? ' class="font-semibold text-teal-700"' : '';
+    var pa = row.patrim_alug > row.patrim_fin  ? ' class="font-semibold text-amber-600"' : '';
+    return '<tr class="border-b border-gray-100 hover:bg-gray-50">' +
+      '<td class="p-2 text-gray-500">' + row.m + '</td>' +
+      '<td class="p-2 text-right text-gray-700">' + brl(row.prestacao) + '</td>' +
+      '<td class="p-2 text-right text-blue-700">' + brl(row.aluguel) + '</td>' +
+      '<td class="p-2 text-right text-green-700">' + brl(row.saldo) + '</td>' +
+      '<td class="p-2 text-right text-gray-400">' + brl(row.aporte_fin) + '</td>' +
+      '<td class="p-2 text-right text-amber-700">' + brl(row.aporte_alug) + '</td>' +
+      '<td class="p-2 text-right"' + pc + '>' + brl(row.patrim_fin) + '</td>' +
+      '<td class="p-2 text-right"' + pa + '>' + brl(row.patrim_alug) + '</td>' +
+      '</tr>';
+  }
+
+  function _renderizarJanela(scrollTop) {
+    if (!_tabelaDados.length) return;
+    var inicio = Math.max(0, Math.floor(scrollTop / _tabelaAlturaLinha) - 2);
+    var fim = Math.min(_tabelaDados.length, inicio + _tabelaLinhasVisiveis + 6);
+    var html = '<tr style="height:' + (inicio * _tabelaAlturaLinha) + 'px"><td colspan="8"></td></tr>';
+    for (var i = inicio; i < fim; i++) html += _renderLinhaTabela(_tabelaDados[i]);
+    var restante = _tabelaDados.length - fim;
+    if (restante > 0) html += '<tr style="height:' + (restante * _tabelaAlturaLinha) + 'px"><td colspan="8"></td></tr>';
+    document.getElementById('mor_tabela_mensal_body').innerHTML = html;
+  }
+
+  function inicializarTabelaMensal(dados) {
+    _tabelaDados = dados || [];
+    var tot = document.getElementById('mor_tabela_total');
+    if (tot) tot.textContent = _tabelaDados.length;
+    var scroll = document.getElementById('mor_tabela_scroll');
+    if (!scroll) return;
+    scroll.onscroll = function() { _renderizarJanela(scroll.scrollTop); };
+    scroll.scrollTop = 0;
+    _renderizarJanela(0);
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   function recalcularMoradia(pularCustos) {
     var params = new URLSearchParams(coletarParams(pularCustos));
     fetch(MOR_URL + '?' + params.toString())
@@ -1571,6 +1649,7 @@ function toggleChecklistItem(input, imovelId, itemId) {
         atualizarTabela(data.resumo);
         atualizarFinanciamento(data.resumo);
         desenharGraficos(data.series);
+        inicializarTabelaMensal(data.tabela);
       })
       .catch(function(e){ console.error('Falha na simulação de moradia', e); });
   }

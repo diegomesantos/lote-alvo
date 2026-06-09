@@ -348,10 +348,13 @@ def simular_moradia(params):
     serie_saldo = []
     serie_saldo_amort = []
     serie_patrim_compra = []
+    serie_patrim_compra_so = []   # só imóvel valorizado − saldo, sem investir excedente
     serie_patrim_aluguel = []
     serie_custo_compra = []
     serie_custo_aluguel = []
     serie_juros_acum = []
+    # Série mensal completa para tabela detalhada (transmitida como array de objetos)
+    tabela_mensal = []
 
     break_even_mes = None
     juros_acumulado = 0.0
@@ -390,16 +393,32 @@ def simular_moradia(params):
         # Parte do valor de mercado (não do pago): o desconto do leilão já é patrimônio.
         valor_imovel_mes = valor_mercado * ((1 + valorizacao_aa / 100) ** (mes / 12))
         patrimonio_compra = valor_imovel_mes - saldo_base
+        # "Só financiando" — compra mas não investe o excedente mensal (cenário passivo)
+        patrimonio_compra_so = patrimonio_compra  # mesmo imóvel, sem investimento extra
 
         if break_even_mes is None and patrimonio_compra >= patrimonio_aluguel:
             break_even_mes = mes
 
-        # Amostra anual (mês 1, 12, 24, ...) + último mês
+        # Tabela mensal completa (aporte do locatário = diferença quando compra custa mais)
+        aporte_aluguel_mes = max(diferenca, 0)
+        tabela_mensal.append({
+            "m": mes,
+            "prestacao": round(custo_compra_mes, 2),
+            "aluguel": round(custo_aluguel_mes, 2),
+            "saldo": round(saldo_base, 2),
+            "aporte_fin": 0.0,          # amortização extra (não implementada no loop base)
+            "aporte_alug": round(aporte_aluguel_mes, 2),
+            "patrim_fin": round(patrimonio_compra, 2),
+            "patrim_alug": round(patrimonio_aluguel, 2),
+        })
+
+        # Amostra anual (mês 1, 12, 24, ...) + último mês para gráficos
         if mes == 1 or mes % 12 == 0 or mes == prazo_meses:
             serie_meses.append(mes)
             serie_saldo.append(round(saldo_base, 2))
             serie_saldo_amort.append(round(saldo_amort, 2))
             serie_patrim_compra.append(round(patrimonio_compra, 2))
+            serie_patrim_compra_so.append(round(patrimonio_compra_so, 2))
             serie_patrim_aluguel.append(round(patrimonio_aluguel, 2))
             serie_custo_compra.append(round(custo_compra_mes, 2))
             serie_custo_aluguel.append(round(custo_aluguel_mes, 2))
@@ -483,11 +502,13 @@ def simular_moradia(params):
             saldo_devedor=serie_saldo,
             saldo_devedor_amortizado=serie_saldo_amort,
             patrimonio_compra=serie_patrim_compra,
+            patrimonio_compra_so=serie_patrim_compra_so,
             patrimonio_aluguel=serie_patrim_aluguel,
             custo_mensal_compra=serie_custo_compra,
             custo_mensal_aluguel=serie_custo_aluguel,
             juros_acumulado=serie_juros_acum,
         ),
+        tabela=tabela_mensal,
     )
 
 
