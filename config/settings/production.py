@@ -65,7 +65,12 @@ if USE_S3_MEDIA_STORAGE:
     AWS_S3_SIGNATURE_VERSION = "s3v4"
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
-    AWS_QUERYSTRING_AUTH = config("AWS_QUERYSTRING_AUTH", default=False, cast=bool)
+    # Bucket B2 é privado: as URLs precisam vir assinadas (presigned), senão o
+    # B2 responde "UnauthorizedAccess: bucket is not authorized" ao abrir o
+    # arquivo. Default True; só vale desligar se o bucket for público.
+    AWS_QUERYSTRING_AUTH = config("AWS_QUERYSTRING_AUTH", default=True, cast=bool)
+    # Validade da URL assinada (segundos). 1h é suficiente para abrir/baixar.
+    AWS_QUERYSTRING_EXPIRE = config("AWS_QUERYSTRING_EXPIRE", default=3600, cast=int)
     AWS_LOCATION = config("AWS_LOCATION", default="media").strip("/")
     AWS_S3_OBJECT_PARAMETERS = {
         "CacheControl": config("AWS_S3_CACHE_CONTROL", default="max-age=86400"),
