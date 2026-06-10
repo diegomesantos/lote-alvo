@@ -33,25 +33,33 @@ USE_S3_MEDIA_STORAGE = config("USE_S3_MEDIA_STORAGE", default=False, cast=bool)
 if USE_S3_MEDIA_STORAGE:
     INSTALLED_APPS += ["storages"]
 
-    AWS_ACCESS_KEY_ID = config(
-        "AWS_ACCESS_KEY_ID",
-        default=config("B2_KEY_ID", default=""),
+    def _config_alias(*nomes, default=""):
+        """Lê a 1ª variável de ambiente não-vazia entre vários nomes aceitos.
+
+        O storage do B2 já foi configurado com nomes diferentes em ambientes
+        distintos (B2_ACCESS_KEY_ID vs B2_KEY_ID, B2_S3_ENDPOINT_URL vs
+        B2_ENDPOINT_URL). Aceitamos todos para não depender do nome exato.
+        """
+        for nome in nomes:
+            valor = config(nome, default="")
+            if valor:
+                return valor
+        return default
+
+    AWS_ACCESS_KEY_ID = _config_alias(
+        "AWS_ACCESS_KEY_ID", "B2_ACCESS_KEY_ID", "B2_KEY_ID",
     )
-    AWS_SECRET_ACCESS_KEY = config(
-        "AWS_SECRET_ACCESS_KEY",
-        default=config("B2_APPLICATION_KEY", default=""),
+    AWS_SECRET_ACCESS_KEY = _config_alias(
+        "AWS_SECRET_ACCESS_KEY", "B2_SECRET_ACCESS_KEY", "B2_APPLICATION_KEY",
     )
-    AWS_STORAGE_BUCKET_NAME = config(
-        "AWS_STORAGE_BUCKET_NAME",
-        default=config("B2_BUCKET_NAME", default=""),
+    AWS_STORAGE_BUCKET_NAME = _config_alias(
+        "AWS_STORAGE_BUCKET_NAME", "B2_BUCKET_NAME",
     )
-    AWS_S3_ENDPOINT_URL = config(
-        "AWS_S3_ENDPOINT_URL",
-        default=config("B2_ENDPOINT_URL", default=""),
+    AWS_S3_ENDPOINT_URL = _config_alias(
+        "AWS_S3_ENDPOINT_URL", "B2_S3_ENDPOINT_URL", "B2_ENDPOINT_URL",
     )
-    AWS_S3_REGION_NAME = config(
-        "AWS_S3_REGION_NAME",
-        default=config("B2_REGION_NAME", default="us-east-005"),
+    AWS_S3_REGION_NAME = _config_alias(
+        "AWS_S3_REGION_NAME", "B2_REGION_NAME", default="us-east-005",
     )
     AWS_S3_ADDRESSING_STYLE = config("AWS_S3_ADDRESSING_STYLE", default="path")
     AWS_S3_SIGNATURE_VERSION = "s3v4"
