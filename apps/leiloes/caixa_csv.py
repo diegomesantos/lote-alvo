@@ -225,6 +225,17 @@ def defaults_csv_para_modelo(registro: dict, metadata: dict) -> dict:
     }
 
 
+def _id_caixa_valido(imovel_id: str) -> bool:
+    """O N° do imóvel da Caixa é sempre numérico (8–13 dígitos).
+
+    O CSV às vezes vem com lixo na 1ª coluna — ex.: um warning de conversão
+    de charset injetado pela ferramenta que gerou o arquivo. Esses valores não
+    são IDs e estouravam o varchar(50) de imovel_id_caixa. Descartamos qualquer
+    coisa que não seja um número plausível.
+    """
+    return imovel_id.isdigit() and 5 <= len(imovel_id) <= 20
+
+
 def importar_csv_caixa(caminho: str | Path, limite: int | None = None) -> dict:
     registros, metadata = ler_csv_caixa(caminho)
     if limite:
@@ -233,12 +244,20 @@ def importar_csv_caixa(caminho: str | Path, limite: int | None = None) -> dict:
     criados = 0
     atualizados = 0
     reativados = 0
+    ignorados = 0
     ids = []
     sincronizacao = timezone.now()
 
     for registro in registros:
         imovel_id = limpar_texto(registro.get("N° do imóvel"))
         if not imovel_id:
+            continue
+        if not _id_caixa_valido(imovel_id):
+            ignorados += 1
+            logger.warning(
+                "Linha do CSV da Caixa ignorada: N° do imóvel inválido (%r)",
+                imovel_id[:60],
+            )
             continue
 
         defaults = defaults_csv_para_modelo(registro, metadata)
@@ -278,6 +297,7 @@ def importar_csv_caixa(caminho: str | Path, limite: int | None = None) -> dict:
         "criados": criados,
         "atualizados": atualizados,
         "reativados": reativados,
+        "ignorados": ignorados,
         "ids": ids,
         "metadata": metadata,
     }
