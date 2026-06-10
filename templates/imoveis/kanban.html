@@ -42,11 +42,20 @@
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
             <div class="kanban-card group" data-id="{{ im.id }}" draggable="true">
-              <a href="{% url 'detalhe' im.id %}" class="block rounded-lg border border-gray-200 shadow-sm p-3 hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
-                <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
-                <div class="text-xs text-gray-600 mb-2">💰 {{ im.lance|brl }}</div>
-                {% if im.data_leilao %}<div class="text-xs text-gray-500">📅 {{ im.data_leilao|date:"d/m/Y" }}</div>{% endif %}
-                {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">ROI 12m: <strong class="{% if r.roi >= 15 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ r.roi|pct }}</strong></div>{% endif %}
+              <a href="{% url 'detalhe' im.id %}" class="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
+                {% if card.imagem_url %}
+                <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
+                {% else %}
+                <div class="flex h-28 w-full items-center justify-center bg-gray-100 text-gray-300">
+                  <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
+                </div>
+                {% endif %}
+                <div class="p-3">
+                  <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
+                  <div class="text-xs text-gray-600 mb-2">💰 {{ im.lance|brl }}</div>
+                  {% if im.data_leilao %}<div class="text-xs text-gray-500">📅 {{ im.data_leilao|date:"d/m/Y" }}</div>{% endif %}
+                  {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">ROI 12m: <strong class="{% if r.roi >= 15 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ r.roi|pct }}</strong></div>{% endif %}
+                </div>
               </a>
             </div>
             {% endwith %}
@@ -94,10 +103,19 @@
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
             <div class="kanban-card group" data-id="{{ im.id }}" draggable="true">
-              <a href="{% url 'detalhe' im.id %}" class="block rounded-lg border border-gray-200 shadow-sm p-3 hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
-                <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
-                <div class="text-xs text-gray-600 mb-2">💰 {{ im.preco_venda|brl }}</div>
-                {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">Resultado: <strong class="{% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.resultado|brl }}</strong></div>{% endif %}
+              <a href="{% url 'detalhe' im.id %}" class="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
+                {% if card.imagem_url %}
+                <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
+                {% else %}
+                <div class="flex h-28 w-full items-center justify-center bg-gray-100 text-gray-300">
+                  <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
+                </div>
+                {% endif %}
+                <div class="p-3">
+                  <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
+                  <div class="text-xs text-gray-600 mb-2">💰 {{ im.preco_venda|brl }}</div>
+                  {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">Resultado: <strong class="{% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.resultado|brl }}</strong></div>{% endif %}
+                </div>
               </a>
             </div>
             {% endwith %}

@@ -25,6 +25,25 @@ def _resultado_resumo(imovel, meses=6):
         return None
 
 
+def _imagem_card_url(imovel, caixa_ids_validos=None):
+    """URL da imagem do imóvel para exibir no card/detalhe, ou None.
+
+    Usa a foto enviada (se o arquivo existir no storage); senão, cai na foto
+    da Caixa quando o imóvel está vinculado. caixa_ids_validos: set opcional de
+    imovel_id_caixa que existem — evita query por card no kanban.
+    """
+    if imovel.foto:
+        try:
+            if imovel.foto.storage.exists(imovel.foto.name):
+                return imovel.foto.url
+        except (ValueError, OSError):
+            pass
+    cid = imovel.caixa_imovel_id
+    if cid and (caixa_ids_validos is None or cid in caixa_ids_validos):
+        return reverse("leiloes:imagem", args=[cid])
+    return None
+
+
 def _valor_presente(value):
     if value is None:
         return False
@@ -282,6 +301,16 @@ def kanban(request):
     imoveis_pre = imoveis.filter(etapa__in=ETAPAS_PRE_KEYS)
     imoveis_pos = imoveis.filter(etapa__in=ETAPAS_POS_KEYS)
 
+    # Resolve em lote quais imovel_id_caixa existem (fallback de foto da Caixa),
+    # evitando uma query por card.
+    caixa_ids_imoveis = {
+        im.caixa_imovel_id for im in imoveis if im.caixa_imovel_id
+    }
+    caixa_ids_validos = set(
+        ImovelCaixa.objects.filter(imovel_id_caixa__in=caixa_ids_imoveis)
+        .values_list("imovel_id_caixa", flat=True)
+    ) if caixa_ids_imoveis else set()
+
     # Montar colunas para cada pipeline
     def _montar_pipeline(etapas_keys, etapas_labels):
         colunas = []
@@ -292,7 +321,11 @@ def kanban(request):
             cards = []
             for im in grupo:
                 r = _resultado_resumo(im, im.giro_padrao)
-                cards.append({"imovel": im, "resultado": r})
+                cards.append({
+                    "imovel": im,
+                    "resultado": r,
+                    "imagem_url": _imagem_card_url(im, caixa_ids_validos),
+                })
             colunas.append({
                 "key": key, "label": label, "cor": ETAPA_COR[key], "cards": cards,
                 "count": len(cards)
