@@ -389,8 +389,12 @@ def detalhe(request, pk):
     imagem_url = None
     if imovel.foto:
         try:
-            imagem_url = imovel.foto.url
-        except ValueError:
+            # Só usa a foto se o arquivo realmente existe no storage. Imagens
+            # enviadas antes do B2 (disco efêmero) têm o campo preenchido mas o
+            # objeto sumiu — sem checar, a URL assinada apontaria para um 404.
+            if imovel.foto.storage.exists(imovel.foto.name):
+                imagem_url = imovel.foto.url
+        except (ValueError, OSError):
             imagem_url = None
     if not imagem_url and imovel_caixa:
         imagem_url = reverse("leiloes:imagem", args=[imovel_caixa.imovel_id_caixa])
