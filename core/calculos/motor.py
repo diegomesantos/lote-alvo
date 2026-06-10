@@ -338,6 +338,9 @@ def simular_moradia(params):
     # capital todo. Quem compra desembolsa entrada+custos, mas só a entrada vira
     # patrimônio (custos de aquisição são "perdidos"). Daí o break-even real.
     patrimonio_aluguel = val_entrada + custos_aquisicao
+    # Excedente que o COMPRADOR investe: quando alugar custa mais que a parcela+posse,
+    # o comprador economiza essa diferença e investe (espelho do que o locatário faz).
+    investido_comprador = 0.0
 
     juros_totais = 0.0
     juros_totais_amort = sum(p["juros"] for p in parcelas_amort)
@@ -358,6 +361,19 @@ def simular_moradia(params):
 
     break_even_mes = None
     juros_acumulado = 0.0
+
+    # Mês 0 — ato da compra. Quem compra desembolsa entrada + custos de aquisição
+    # (espelhado em "prestacao"); quem aluga investe esse mesmo capital de partida.
+    tabela_mensal.append({
+        "m": 0,
+        "prestacao": round(val_entrada + custos_aquisicao, 2),
+        "aluguel": 0.0,
+        "saldo": round(val_financiado, 2),
+        "aporte_fin": 0.0,
+        "aporte_alug": round(val_entrada + custos_aquisicao, 2),
+        "patrim_fin": round(valor_mercado - val_financiado, 2),
+        "patrim_alug": round(val_entrada + custos_aquisicao, 2),
+    })
 
     for mes in range(1, prazo_meses + 1):
         # Parcela base do mês (0 se o financiamento base já acabou — não acontece no base)
@@ -382,9 +398,11 @@ def simular_moradia(params):
         aluguel_mes = _reajuste(aluguel_am, mes, reajuste_aluguel_aa)
         custo_aluguel_mes = aluguel_mes
 
-        # Quem aluga investe a diferença (se comprar custa mais, ele economiza e investe)
+        # diferenca > 0  → comprar custa mais que alugar; o LOCATÁRIO economiza e investe.
+        # diferenca < 0  → alugar custa mais; o COMPRADOR economiza e investe.
         diferenca = custo_compra_mes - custo_aluguel_mes
         patrimonio_aluguel = patrimonio_aluguel * (1 + taxa_rend_am) + max(diferenca, 0)
+        investido_comprador = investido_comprador * (1 + taxa_rend_am) + max(-diferenca, 0)
 
         total_desembolsado_compra += custo_compra_mes
         total_desembolsado_aluguel += custo_aluguel_mes + max(-diferenca, 0)
@@ -392,21 +410,25 @@ def simular_moradia(params):
         # Patrimônio de quem compra = valor de MERCADO valorizado − saldo devedor.
         # Parte do valor de mercado (não do pago): o desconto do leilão já é patrimônio.
         valor_imovel_mes = valor_mercado * ((1 + valorizacao_aa / 100) ** (mes / 12))
-        patrimonio_compra = valor_imovel_mes - saldo_base
-        # "Só financiando" — compra mas não investe o excedente mensal (cenário passivo)
-        patrimonio_compra_so = patrimonio_compra  # mesmo imóvel, sem investimento extra
+        # "Só financiando" — imóvel valorizado − saldo, sem investir o excedente (passivo).
+        patrimonio_compra_so = valor_imovel_mes - saldo_base
+        # "Comprando + investindo excedente" — soma o que o comprador investe quando
+        # a parcela+posse é menor que o aluguel (espelho de quem aluga e investe).
+        patrimonio_compra = patrimonio_compra_so + investido_comprador
 
         if break_even_mes is None and patrimonio_compra >= patrimonio_aluguel:
             break_even_mes = mes
 
-        # Tabela mensal completa (aporte do locatário = diferença quando compra custa mais)
+        # Tabela mensal: aporte do locatário quando comprar custa mais;
+        # aporte do comprador quando alugar custa mais.
         aporte_aluguel_mes = max(diferenca, 0)
+        aporte_compra_mes = max(-diferenca, 0)
         tabela_mensal.append({
             "m": mes,
             "prestacao": round(custo_compra_mes, 2),
             "aluguel": round(custo_aluguel_mes, 2),
             "saldo": round(saldo_base, 2),
-            "aporte_fin": 0.0,          # amortização extra (não implementada no loop base)
+            "aporte_fin": round(aporte_compra_mes, 2),
             "aporte_alug": round(aporte_aluguel_mes, 2),
             "patrim_fin": round(patrimonio_compra, 2),
             "patrim_alug": round(patrimonio_aluguel, 2),
@@ -462,11 +484,20 @@ def simular_moradia(params):
     else:
         veredito_tipo = "aluguel"
         veredito_titulo = "Alugar e investir a diferença tende a render mais"
+        if diff_mensal_inicial > 0:
+            motivo = (
+                f"principalmente porque a parcela + custos mensais ({fmt_brl(custo_compra_inicial)}) "
+                f"é maior que o aluguel ({fmt_brl(aluguel_am)}), e essa folga investida cresce."
+            )
+        else:
+            motivo = (
+                f"mesmo a parcela + custos ({fmt_brl(custo_compra_inicial)}) sendo menor que o aluguel "
+                f"({fmt_brl(aluguel_am)}), o peso vem da entrada de {fmt_brl(val_entrada)} + custos da compra: "
+                f"investido desde o início, esse capital rende mais do que a valorização do imóvel."
+            )
         veredito_texto = (
             f"No fim do período, alugar e investir o dinheiro que sobra deixa você com cerca de "
-            f"{fmt_brl(-vantagem)} a mais em patrimônio do que comprar — "
-            f"principalmente porque a parcela + custos mensais ({fmt_brl(custo_compra_inicial)}) "
-            f"é bem maior que o aluguel ({fmt_brl(aluguel_am)}), e essa diferença investida cresce."
+            f"{fmt_brl(-vantagem)} a mais em patrimônio do que comprar — {motivo}"
         )
 
     return dict(

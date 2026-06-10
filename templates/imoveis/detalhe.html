@@ -1453,15 +1453,24 @@ function toggleChecklistItem(input, imovelId, itemId) {
   }
 
   function atualizarCards(r) {
-    var beTxt = r.break_even_mes
-      ? (r.break_even_mes <= 1 ? 'imediato (desconto do leilão)' : 'em ' + anosMeses(r.break_even_mes))
-      : 'não atinge no prazo';
     var venceCompra = r.patrimonio_final_compra >= r.patrimonio_final_aluguel;
+    var vantagem = Math.abs((r.patrimonio_final_compra || 0) - (r.patrimonio_final_aluguel || 0));
+    // Card de veredito quantificado: quem vence e por quanto no fim do período.
+    var vencedorTxt, vencedorSub, vencedorCor;
+    if (venceCompra) {
+      vencedorTxt = 'Comprar';
+      vencedorSub = brl(vantagem) + ' a mais no fim';
+      vencedorCor = 'border-teal-200 bg-teal-50';
+    } else {
+      vencedorTxt = 'Alugar + investir';
+      vencedorSub = brl(vantagem) + ' a mais no fim';
+      vencedorCor = 'border-amber-200 bg-amber-50';
+    }
     var cards = ''
       + card('Parcela inicial', brl(r.parcela_inicial), 'só o financiamento', 'border-gray-200 bg-white')
       + card('Custo mensal comprando', brl(r.custo_mensal_compra_inicial), 'parcela + cond. + IPTU', 'border-gray-200 bg-white')
       + card('Aluguel hoje', brl(r.aluguel_inicial), '', 'border-gray-200 bg-white')
-      + card('Compra fica melhor', beTxt, 'patrimônio compra ≥ alugar', 'border-teal-200 bg-teal-50')
+      + card('No longo prazo, vence', vencedorTxt, vencedorSub, vencedorCor)
       + card('Patrimônio final comprando', brl(r.patrimonio_final_compra), 'no fim do financiamento', venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')
       + card('Patrimônio final alugando', brl(r.patrimonio_final_aluguel), 'no fim do financiamento', !venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white');
     document.getElementById('mor_cards').innerHTML = cards;
@@ -1599,12 +1608,15 @@ function toggleChecklistItem(input, imovelId, itemId) {
   function _renderLinhaTabela(row) {
     var pc = row.patrim_fin >= row.patrim_alug ? ' class="font-semibold text-teal-700"' : '';
     var pa = row.patrim_alug > row.patrim_fin  ? ' class="font-semibold text-amber-600"' : '';
-    return '<tr class="border-b border-gray-100 hover:bg-gray-50">' +
-      '<td class="p-2 text-gray-500">' + row.m + '</td>' +
+    var ehAto = row.m === 0;
+    var mLabel = ehAto ? 'Ato' : row.m;
+    var trCls = ehAto ? 'border-b border-gray-200 bg-gray-50 font-medium' : 'border-b border-gray-100 hover:bg-gray-50';
+    return '<tr class="' + trCls + '">' +
+      '<td class="p-2 text-gray-500">' + mLabel + '</td>' +
       '<td class="p-2 text-right text-gray-700">' + brl(row.prestacao) + '</td>' +
       '<td class="p-2 text-right text-blue-700">' + brl(row.aluguel) + '</td>' +
       '<td class="p-2 text-right text-green-700">' + brl(row.saldo) + '</td>' +
-      '<td class="p-2 text-right text-gray-400">' + brl(row.aporte_fin) + '</td>' +
+      '<td class="p-2 text-right ' + (row.aporte_fin > 0 ? 'text-teal-700' : 'text-gray-400') + '">' + brl(row.aporte_fin) + '</td>' +
       '<td class="p-2 text-right text-amber-700">' + brl(row.aporte_alug) + '</td>' +
       '<td class="p-2 text-right"' + pc + '>' + brl(row.patrim_fin) + '</td>' +
       '<td class="p-2 text-right"' + pa + '>' + brl(row.patrim_alug) + '</td>' +
