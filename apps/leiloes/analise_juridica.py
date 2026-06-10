@@ -365,11 +365,14 @@ def _baixar_documento(url, imovel=None):
 
 
 def _conteudo_parece_pdf(conteudo, content_type=""):
-    cabecalho = (conteudo or b"").lstrip()[:500].lower()
-    if b"radware bot manager captcha" in cabecalho or b"captcha" in cabecalho:
+    cabecalho = (conteudo or b"").lstrip()[:500]
+    cabecalho_lower = cabecalho.lower()
+    if b"radware bot manager captcha" in cabecalho_lower or b"captcha" in cabecalho_lower:
         return False
-    if cabecalho.startswith((b"<html", b"<head", b"<!doctype html")):
+    if cabecalho_lower.startswith((b"<html", b"<head", b"<!doctype html")):
         return False
+    # O magic byte do PDF é maiúsculo (%PDF) — comparar no buffer original,
+    # não no lower(), senão "%pdf" nunca casa e PDFs válidos são rejeitados.
     if cabecalho.startswith(b"%PDF"):
         return True
     return "application/pdf" in (content_type or "").lower()
