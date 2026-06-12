@@ -1158,8 +1158,8 @@
         </div>
 
         <div class="rounded-lg border border-gray-200 bg-white p-4">
-          <h3 class="text-sm font-bold text-gray-950">Evolução do patrimônio líquido</h3>
-          <p class="text-xs text-gray-500">Comprar (imóvel valorizado − saldo) vs. alugar e investir a diferença.</p>
+          <h3 class="text-sm font-bold text-gray-950">Evolução do patrimônio por liquidez</h3>
+          <p class="text-xs text-gray-500">Ao comprar, parte do patrimônio fica <strong>presa no imóvel</strong> (venda lenta) e parte é <strong>líquida</strong> (investida). Quem aluga tem tudo líquido.</p>
           <div class="mt-3"><canvas id="mor_chart_patrimonio" height="150"></canvas></div>
         </div>
 
@@ -1215,7 +1215,8 @@
               <th class="p-2 font-bold text-green-700">Saldo Devedor</th>
               <th class="p-2 font-bold text-gray-500">Aporte Financ.</th>
               <th class="p-2 font-bold text-amber-700">Aporte Alug.</th>
-              <th class="p-2 font-bold text-teal-700">Patrim. Financ.</th>
+              <th class="p-2 font-bold text-teal-800" title="Parte presa no imóvel (ilíquido)">Patrim. Imóvel</th>
+              <th class="p-2 font-bold text-sky-600" title="Parte investida (líquido, resgatável)">Patrim. Investido</th>
               <th class="p-2 font-bold text-amber-600">Patrim. Alug.</th>
             </tr>
           </thead>
@@ -1490,7 +1491,10 @@ function toggleChecklistItem(input, imovelId, itemId) {
       + card('Aluguel hoje', brl(r.aluguel_inicial), '', 'border-gray-200 bg-white')
       + card('No longo prazo, vence', vencedorTxt, vencedorSub, vencedorCor)
       + card('Patrimônio final comprando', brl(r.patrimonio_final_compra), fimTxt, venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')
-      + card('Patrimônio final alugando', brl(r.patrimonio_final_aluguel), fimTxt, !venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white');
+      + card('Patrimônio final alugando', brl(r.patrimonio_final_aluguel), fimTxt, !venceCompra ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white')
+      // Liquidez do patrimônio de quem compra — o ponto que diferencia de alugar.
+      + card('Líquido no fim (comprando)', brl(r.patrimonio_final_investido), 'investido, resgatável rápido', 'border-sky-200 bg-sky-50')
+      + card('Preso no imóvel', brl(r.patrimonio_final_imovel), 'venda lenta p/ virar dinheiro', 'border-gray-300 bg-gray-100');
     document.getElementById('mor_cards').innerHTML = cards;
   }
 
@@ -1598,16 +1602,22 @@ function toggleChecklistItem(input, imovelId, itemId) {
 
   function desenharGraficos(s) {
     var labels = labelsAnos(s.meses);
-    var avista = document.getElementById('mor_modo_compra').value === 'avista';
 
-    // À vista não tem financiamento — a curva "Só financiando" não se aplica.
+    // Patrimônio de quem compra empilhado por LIQUIDEZ:
+    //  - faixa escura embaixo  = preso no imóvel (ilíquido)
+    //  - faixa clara em cima   = investido (líquido, resgatável)
+    // A linha de aluguel fica em stack próprio para não somar com a compra.
     var datasetsPatrim = [
-      { label: avista ? 'Comprando à vista' : 'Comprando + investindo excedente', data: s.patrimonio_compra, borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.08)', fill: true, tension: .25, pointRadius: 0 },
-      { label: 'Alugando + investindo', data: s.patrimonio_aluguel, borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.06)', fill: true, tension: .25, pointRadius: 0 }
+      { label: 'Comprando — preso no imóvel (ilíquido)', data: s.patrimonio_imovel,
+        borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.35)', fill: true,
+        stack: 'compra', tension: .25, pointRadius: 0, borderWidth: 1 },
+      { label: 'Comprando — investido (líquido)', data: s.patrimonio_investido,
+        borderColor: '#5eead4', backgroundColor: 'rgba(94,234,212,.45)', fill: true,
+        stack: 'compra', tension: .25, pointRadius: 0, borderWidth: 1 },
+      { label: 'Alugando + investindo (tudo líquido)', data: s.patrimonio_aluguel,
+        borderColor: '#d97706', backgroundColor: 'transparent', fill: false,
+        stack: 'aluguel', tension: .25, pointRadius: 0, borderWidth: 2 }
     ];
-    if (!avista) {
-      datasetsPatrim.splice(1, 0, { label: 'Só financiando (sem investir)', data: s.patrimonio_compra_so, borderColor: '#dc2626', backgroundColor: 'transparent', borderDash: [6,3], tension: .25, pointRadius: 0 });
-    }
 
     if (chartPatrimonio) chartPatrimonio.destroy();
     chartPatrimonio = new Chart(document.getElementById('mor_chart_patrimonio'), {
@@ -1617,7 +1627,7 @@ function toggleChecklistItem(input, imovelId, itemId) {
         responsive: true, interaction: { mode: 'index', intersect: false },
         plugins: { legend: { position: 'bottom' },
           tooltip: { callbacks: { label: function(c){ return c.dataset.label + ': ' + brl(c.parsed.y); } } } },
-        scales: { y: { ticks: { callback: function(v){ return brl(v); } } } }
+        scales: { y: { stacked: true, ticks: { callback: function(v){ return brl(v); } } } }
       }
     });
 
@@ -1660,7 +1670,8 @@ function toggleChecklistItem(input, imovelId, itemId) {
       '<td class="p-2 text-right text-green-700">' + brl(row.saldo) + '</td>' +
       '<td class="p-2 text-right ' + (row.aporte_fin > 0 ? 'text-teal-700' : 'text-gray-400') + '">' + brl(row.aporte_fin) + '</td>' +
       '<td class="p-2 text-right text-amber-700">' + brl(row.aporte_alug) + '</td>' +
-      '<td class="p-2 text-right"' + pc + '>' + brl(row.patrim_fin) + '</td>' +
+      '<td class="p-2 text-right text-teal-800"' + pc + '>' + brl(row.patrim_imovel) + '</td>' +
+      '<td class="p-2 text-right ' + (row.patrim_investido > 0 ? 'text-sky-600' : 'text-gray-400') + '">' + brl(row.patrim_investido) + '</td>' +
       '<td class="p-2 text-right"' + pa + '>' + brl(row.patrim_alug) + '</td>' +
       '</tr>';
   }
@@ -1669,10 +1680,10 @@ function toggleChecklistItem(input, imovelId, itemId) {
     if (!_tabelaDados.length) return;
     var inicio = Math.max(0, Math.floor(scrollTop / _tabelaAlturaLinha) - 2);
     var fim = Math.min(_tabelaDados.length, inicio + _tabelaLinhasVisiveis + 6);
-    var html = '<tr style="height:' + (inicio * _tabelaAlturaLinha) + 'px"><td colspan="8"></td></tr>';
+    var html = '<tr style="height:' + (inicio * _tabelaAlturaLinha) + 'px"><td colspan="9"></td></tr>';
     for (var i = inicio; i < fim; i++) html += _renderLinhaTabela(_tabelaDados[i]);
     var restante = _tabelaDados.length - fim;
-    if (restante > 0) html += '<tr style="height:' + (restante * _tabelaAlturaLinha) + 'px"><td colspan="8"></td></tr>';
+    if (restante > 0) html += '<tr style="height:' + (restante * _tabelaAlturaLinha) + 'px"><td colspan="9"></td></tr>';
     document.getElementById('mor_tabela_mensal_body').innerHTML = html;
   }
 

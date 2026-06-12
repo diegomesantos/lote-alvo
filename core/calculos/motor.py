@@ -356,6 +356,9 @@ def simular_moradia(params):
     serie_saldo_amort = []
     serie_patrim_compra = []
     serie_patrim_compra_so = []   # só imóvel valorizado − saldo, sem investir excedente
+    # Composição por liquidez do patrimônio de quem compra:
+    serie_patrim_imovel = []      # parte ILÍQUIDA (imóvel valorizado − saldo)
+    serie_patrim_investido = []   # parte LÍQUIDA (excedente investido)
     serie_patrim_aluguel = []
     serie_custo_compra = []
     serie_custo_aluguel = []
@@ -376,6 +379,8 @@ def simular_moradia(params):
         "aporte_fin": 0.0,
         "aporte_alug": round(val_entrada + custos_aquisicao, 2),
         "patrim_fin": round(valor_mercado - val_financiado, 2),
+        "patrim_imovel": round(valor_mercado - val_financiado, 2),  # no ato, tudo no imóvel
+        "patrim_investido": 0.0,
         "patrim_alug": round(val_entrada + custos_aquisicao, 2),
     })
 
@@ -435,6 +440,9 @@ def simular_moradia(params):
             "aporte_fin": round(aporte_compra_mes, 2),
             "aporte_alug": round(aporte_aluguel_mes, 2),
             "patrim_fin": round(patrimonio_compra, 2),
+            # Composição por liquidez: parte presa no imóvel vs parte líquida investida
+            "patrim_imovel": round(patrimonio_compra_so, 2),
+            "patrim_investido": round(investido_comprador, 2),
             "patrim_alug": round(patrimonio_aluguel, 2),
         })
 
@@ -445,6 +453,8 @@ def simular_moradia(params):
             serie_saldo_amort.append(round(saldo_amort, 2))
             serie_patrim_compra.append(round(patrimonio_compra, 2))
             serie_patrim_compra_so.append(round(patrimonio_compra_so, 2))
+            serie_patrim_imovel.append(round(patrimonio_compra_so, 2))
+            serie_patrim_investido.append(round(investido_comprador, 2))
             serie_patrim_aluguel.append(round(patrimonio_aluguel, 2))
             serie_custo_compra.append(round(custo_compra_mes, 2))
             serie_custo_aluguel.append(round(custo_aluguel_mes, 2))
@@ -456,6 +466,10 @@ def simular_moradia(params):
 
     patrim_final_compra = serie_patrim_compra[-1] if serie_patrim_compra else 0
     patrim_final_aluguel = serie_patrim_aluguel[-1] if serie_patrim_aluguel else 0
+    # Composição por liquidez do patrimônio final de quem compra:
+    # parte líquida (investida, resgatável) vs presa no imóvel (venda lenta).
+    patrim_final_imovel = serie_patrim_imovel[-1] if serie_patrim_imovel else 0
+    patrim_final_investido = serie_patrim_investido[-1] if serie_patrim_investido else 0
 
     # Desconto do leilão = patrimônio que já nasce no ato (valor de mercado − pago)
     ganho_desconto = max(valor_mercado - valor_imovel, 0)
@@ -547,6 +561,8 @@ def simular_moradia(params):
             break_even_mes=break_even_mes,
             patrimonio_final_compra=round(patrim_final_compra, 2),
             patrimonio_final_aluguel=round(patrim_final_aluguel, 2),
+            patrimonio_final_imovel=round(patrim_final_imovel, 2),
+            patrimonio_final_investido=round(patrim_final_investido, 2),
             total_desembolsado_compra=round(total_desembolsado_compra, 2),
             total_desembolsado_aluguel=round(total_desembolsado_aluguel, 2),
             vantagem=round(vantagem, 2),
@@ -560,6 +576,8 @@ def simular_moradia(params):
             saldo_devedor_amortizado=serie_saldo_amort,
             patrimonio_compra=serie_patrim_compra,
             patrimonio_compra_so=serie_patrim_compra_so,
+            patrimonio_imovel=serie_patrim_imovel,
+            patrimonio_investido=serie_patrim_investido,
             patrimonio_aluguel=serie_patrim_aluguel,
             custo_mensal_compra=serie_custo_compra,
             custo_mensal_aluguel=serie_custo_aluguel,
