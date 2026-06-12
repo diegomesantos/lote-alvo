@@ -298,9 +298,13 @@ def simular_moradia(params):
     # valor_mercado = quanto o imóvel vale de verdade (avaliação/revenda). Em leilão
     # costuma ser maior que o pago — o desconto vira patrimônio imediato do comprador.
     valor_mercado = float(params.get("valor_mercado", 0) or 0) or valor_imovel
-    entrada_pct = float(params.get("entrada_pct", 20) or 0)
+    # modo_compra: "financiado" (SAC) ou "avista" (paga 100% no ato, sem parcela).
+    # À vista, prazo_meses vira o HORIZONTE da simulação (não há prazo de financiamento).
+    modo_compra = params.get("modo_compra", "financiado") or "financiado"
+    avista = modo_compra == "avista"
+    entrada_pct = 100.0 if avista else float(params.get("entrada_pct", 20) or 0)
     prazo_meses = int(params.get("prazo_meses", 360) or 0)
-    cet_aa = float(params.get("cet_aa", 10.5) or 0)
+    cet_aa = 0.0 if avista else float(params.get("cet_aa", 10.5) or 0)
 
     condominio_am = float(params.get("condominio_am", 0) or 0)
     iptu_am = float(params.get("iptu_am", 0) or 0)
@@ -459,6 +463,11 @@ def simular_moradia(params):
     # Diferença mensal inicial (positiva = comprar custa mais que alugar hoje)
     diff_mensal_inicial = custo_compra_inicial - aluguel_am
 
+    # Capital imobilizado no ato (à vista = imóvel inteiro + custos; financiado = entrada + custos)
+    capital_imobilizado = val_entrada + custos_aquisicao
+    # "fim do financiamento" não faz sentido à vista — lá o prazo é o horizonte escolhido
+    fim_periodo = "no fim do período" if avista else "no fim do financiamento"
+
     # ── Veredito em linguagem simples ──
     vantagem = patrim_final_compra - patrim_final_aluguel
     if abs(vantagem) < max(patrim_final_aluguel, 1) * 0.05:
@@ -476,15 +485,30 @@ def simular_moradia(params):
             f"a partir do mês {break_even_mes} (~{break_even_mes // 12} anos e {break_even_mes % 12} meses)"
             if break_even_mes else "ao longo do período simulado"
         )
-        veredito_texto = (
-            f"No fim do financiamento, comprar deixa você com cerca de "
-            f"{fmt_brl(vantagem)} a mais em patrimônio do que alugar e investir a diferença. "
-            f"A compra passa à frente {quando}."
-        )
+        if avista:
+            veredito_texto = (
+                f"Pagar à vista e parar de alugar deixa você com cerca de {fmt_brl(vantagem)} "
+                f"a mais em patrimônio {fim_periodo} do que continuar alugando e investir os "
+                f"{fmt_brl(capital_imobilizado)} que você usaria na compra. A economia do aluguel "
+                f"somada à valorização do imóvel (e ao desconto do leilão) supera o rendimento "
+                f"desse capital investido. A compra passa à frente {quando}."
+            )
+        else:
+            veredito_texto = (
+                f"{fim_periodo.capitalize()}, comprar deixa você com cerca de "
+                f"{fmt_brl(vantagem)} a mais em patrimônio do que alugar e investir a diferença. "
+                f"A compra passa à frente {quando}."
+            )
     else:
         veredito_tipo = "aluguel"
         veredito_titulo = "Alugar e investir a diferença tende a render mais"
-        if diff_mensal_inicial > 0:
+        if avista:
+            motivo = (
+                f"o peso está em imobilizar {fmt_brl(capital_imobilizado)} de uma só vez: "
+                f"investido a {fmt_pct(rendimento_aa)} ao ano, esse capital rende mais do que você "
+                f"economiza de aluguel ({fmt_brl(aluguel_am)}/mês) somado à valorização do imóvel."
+            )
+        elif diff_mensal_inicial > 0:
             motivo = (
                 f"principalmente porque a parcela + custos mensais ({fmt_brl(custo_compra_inicial)}) "
                 f"é maior que o aluguel ({fmt_brl(aluguel_am)}), e essa folga investida cresce."
@@ -496,17 +520,19 @@ def simular_moradia(params):
                 f"investido desde o início, esse capital rende mais do que a valorização do imóvel."
             )
         veredito_texto = (
-            f"No fim do período, alugar e investir o dinheiro que sobra deixa você com cerca de "
+            f"{fim_periodo.capitalize()}, alugar e investir o dinheiro que sobra deixa você com cerca de "
             f"{fmt_brl(-vantagem)} a mais em patrimônio do que comprar — {motivo}"
         )
 
     return dict(
         resumo=dict(
+            modo_compra=modo_compra,
             valor_imovel=round(valor_imovel, 2),
             valor_mercado=round(valor_mercado, 2),
             ganho_desconto=round(ganho_desconto, 2),
             val_entrada=round(val_entrada, 2),
             val_financiado=round(val_financiado, 2),
+            capital_imobilizado=round(capital_imobilizado, 2),
             custos_aquisicao=round(custos_aquisicao, 2),
             parcela_inicial=round(parcela_inicial, 2),
             custo_mensal_compra_inicial=round(custo_compra_inicial, 2),

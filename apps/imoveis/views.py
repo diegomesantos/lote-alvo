@@ -842,7 +842,14 @@ def simular_moradia_imovel(request, pk):
     except Exception:
         custos_aquisicao_default = 0.0
 
+    modo_compra = request.POST.get("modo_compra", request.GET.get("modo_compra", "financiado"))
+    # Se o imóvel só aceita à vista (não pode financiar), assume à vista por padrão.
+    if not request.POST.get("modo_compra") and not request.GET.get("modo_compra"):
+        if imovel.tipo_pgto == "À Vista":
+            modo_compra = "avista"
+
     params = {
+        "modo_compra": modo_compra,
         "valor_imovel": _float_post(request, "valor_imovel", valor_imovel_default),
         "valor_mercado": _float_post(request, "valor_mercado", valor_mercado_default),
         "entrada_pct": _float_post(request, "entrada_pct", entrada_default),
