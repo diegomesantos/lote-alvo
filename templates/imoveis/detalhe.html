@@ -1205,30 +1205,50 @@
           <p class="text-xs text-gray-500">Evolução mês a mês — scroll para navegar pelos <span id="mor_tabela_total"></span> meses.</p>
         </div>
       </div>
+      <p class="px-4 pb-2 text-[11px] text-gray-400">Passe o mouse sobre o título de cada coluna (ⓘ) para ver o que significa.</p>
       <div class="overflow-x-auto">
-        <table class="w-full border-collapse text-xs">
+        <table class="w-full table-fixed border-collapse text-xs">
+          <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:8%">{% endif %}<col style="width:11.5%">{% endfor %}</colgroup>
           <thead class="sticky top-0 z-10 bg-gray-50">
             <tr class="border-b-2 border-gray-200 text-right">
-              <th class="p-2 text-left font-bold text-gray-600">Mês</th>
-              <th class="p-2 font-bold text-gray-600">Prestação</th>
-              <th class="p-2 font-bold text-blue-700">Aluguel</th>
-              <th class="p-2 font-bold text-green-700">Saldo Devedor</th>
-              <th class="p-2 font-bold text-gray-500">Aporte Financ.</th>
-              <th class="p-2 font-bold text-amber-700">Aporte Alug.</th>
-              <th class="p-2 font-bold text-teal-800" title="Parte presa no imóvel (ilíquido)">Patrim. Imóvel</th>
-              <th class="p-2 font-bold text-sky-600" title="Parte investida (líquido, resgatável)">Patrim. Investido</th>
-              <th class="p-2 font-bold text-amber-600">Patrim. Alug.</th>
+              <th id="mor_th_mes" class="p-2 text-left font-bold text-gray-600">Mês</th>
+              <th id="mor_th_prestacao" class="cursor-help p-2 font-bold text-gray-600">Prestação <span class="text-gray-400">ⓘ</span></th>
+              <th id="mor_th_aluguel" class="cursor-help p-2 font-bold text-blue-700">Aluguel <span class="text-blue-300">ⓘ</span></th>
+              <th id="mor_th_saldo" class="cursor-help p-2 font-bold text-green-700">Saldo Devedor <span class="text-green-300">ⓘ</span></th>
+              <th id="mor_th_aporte_fin" class="cursor-help p-2 font-bold text-gray-500">Aporte Financ. <span class="text-gray-300">ⓘ</span></th>
+              <th id="mor_th_aporte_alug" class="cursor-help p-2 font-bold text-amber-700">Aporte Alug. <span class="text-amber-300">ⓘ</span></th>
+              <th id="mor_th_patrim_imovel" class="cursor-help p-2 font-bold text-teal-800">Patrim. Imóvel <span class="text-teal-400">ⓘ</span></th>
+              <th id="mor_th_patrim_investido" class="cursor-help p-2 font-bold text-sky-600">Patrim. Investido <span class="text-sky-300">ⓘ</span></th>
+              <th id="mor_th_patrim_alug" class="cursor-help p-2 font-bold text-amber-600">Patrim. Alug. <span class="text-amber-300">ⓘ</span></th>
             </tr>
           </thead>
         </table>
         <!-- Área com scroll virtual — só renderiza linhas visíveis -->
         <div id="mor_tabela_scroll" style="height:320px;overflow-y:auto;" class="relative">
-          <table class="w-full border-collapse text-xs">
+          <table class="w-full table-fixed border-collapse text-xs">
+            <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:8%">{% endif %}<col style="width:11.5%">{% endfor %}</colgroup>
             <tbody id="mor_tabela_mensal_body" class="divide-y divide-gray-100">
               <!-- preenchido via JS virtualizado -->
             </tbody>
           </table>
         </div>
+        <!-- Rodapé fixo: totais das colunas de fluxo (não cumulativas) -->
+        <table class="w-full table-fixed border-collapse text-xs">
+          <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:8%">{% endif %}<col style="width:11.5%">{% endfor %}</colgroup>
+          <tfoot>
+            <tr class="border-t-2 border-gray-300 bg-gray-50 text-right font-bold text-gray-700">
+              <td class="p-2 text-left">Total</td>
+              <td id="mor_tot_prestacao" class="p-2 text-gray-800">—</td>
+              <td id="mor_tot_aluguel" class="p-2 text-blue-700">—</td>
+              <td class="p-2 text-gray-300">—</td>
+              <td id="mor_tot_aporte_fin" class="p-2 text-teal-700">—</td>
+              <td id="mor_tot_aporte_alug" class="p-2 text-amber-700">—</td>
+              <td class="p-2 text-gray-300">—</td>
+              <td class="p-2 text-gray-300">—</td>
+              <td class="p-2 text-gray-300">—</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   </div>
@@ -1687,10 +1707,53 @@ function toggleChecklistItem(input, imovelId, itemId) {
     document.getElementById('mor_tabela_mensal_body').innerHTML = html;
   }
 
+  // Soma as colunas de fluxo (não cumulativas) e mostra no rodapé.
+  function _atualizarTotaisTabela() {
+    var meses = _tabelaDados.filter(function(r){ return r.m > 0; });  // ignora o "Ato"
+    var somaPrest = 0, somaAlug = 0, somaApFin = 0, somaApAlug = 0;
+    meses.forEach(function(r){
+      somaPrest += r.prestacao || 0;
+      somaAlug  += r.aluguel || 0;
+      somaApFin += r.aporte_fin || 0;
+      somaApAlug += r.aporte_alug || 0;
+    });
+    var setTxt = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = brl(v); };
+    setTxt('mor_tot_prestacao', somaPrest);
+    setTxt('mor_tot_aluguel', somaAlug);
+    setTxt('mor_tot_aporte_fin', somaApFin);
+    setTxt('mor_tot_aporte_alug', somaApAlug);
+  }
+
+  // Tooltips por coluna, com números reais do "Ato" e do mês 1 da simulação.
+  function _atualizarTooltipsTabela() {
+    var ato = _tabelaDados[0] || {};
+    var m1 = _tabelaDados[1] || {};
+    var saldoAto = ato.saldo || 0;
+    var imovelAto = ato.patrim_imovel || 0;
+    var valorMercado = imovelAto + saldoAto;  // patrim_imovel = mercado − saldo
+    var tips = {
+      mor_th_mes: 'Mês da simulação. "Ato" é o momento da compra (mês 0), antes da 1ª parcela.',
+      mor_th_prestacao: 'Quanto sai do bolso por mês ao comprar: parcela do financiamento + condomínio + IPTU. No mês 1: ' + brl(m1.prestacao) + '.',
+      mor_th_aluguel: 'Quanto você pagaria de aluguel naquele mês (reajustado todo ano). No mês 1: ' + brl(m1.aluguel) + '.',
+      mor_th_saldo: 'Quanto ainda falta pagar do financiamento (cai a cada parcela). No Ato: ' + brl(saldoAto) + '.',
+      mor_th_aporte_fin: 'Sobra que o COMPRADOR investe no mês, quando a prestação é menor que o aluguel. No mês 1: ' + brl(m1.aporte_fin) + '.',
+      mor_th_aporte_alug: 'Sobra que o LOCATÁRIO investe no mês. No Ato ele investe o desembolso que evitou: entrada + custos = ' + brl(ato.aporte_alug) + '.',
+      mor_th_patrim_imovel: 'Parte do patrimônio presa no imóvel (ilíquida) = valor de mercado − saldo devedor. No Ato: ' + brl(valorMercado) + ' − ' + brl(saldoAto) + ' = ' + brl(imovelAto) + '.',
+      mor_th_patrim_investido: 'Parte líquida (resgatável): a sobra mensal do comprador investida e rendendo. Começa em ' + brl(m1.patrim_investido) + ' no mês 1.',
+      mor_th_patrim_alug: 'Patrimônio de quem aluga e investe a diferença (100% líquido). No Ato: ' + brl(ato.patrim_alug) + '.'
+    };
+    Object.keys(tips).forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.title = tips[id];
+    });
+  }
+
   function inicializarTabelaMensal(dados) {
     _tabelaDados = dados || [];
     var tot = document.getElementById('mor_tabela_total');
     if (tot) tot.textContent = _tabelaDados.length;
+    _atualizarTotaisTabela();
+    _atualizarTooltipsTabela();
     var scroll = document.getElementById('mor_tabela_scroll');
     if (!scroll) return;
     scroll.onscroll = function() { _renderizarJanela(scroll.scrollTop); };
