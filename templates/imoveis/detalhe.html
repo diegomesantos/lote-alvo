@@ -1208,7 +1208,7 @@
       <p class="px-4 pb-2 text-[11px] text-gray-400">Passe o mouse sobre o título de cada coluna (ⓘ) para ver o que significa.</p>
       <div class="overflow-x-auto">
         <table class="w-full table-fixed border-collapse text-xs">
-          <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:8%">{% endif %}<col style="width:11.5%">{% endfor %}</colgroup>
+          <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:5%">{% endif %}<col style="width:11.875%">{% endfor %}</colgroup>
           <thead class="sticky top-0 z-10 bg-gray-50">
             <tr class="border-b-2 border-gray-200 text-right">
               <th id="mor_th_mes" class="p-2 text-left font-bold text-gray-600">Mês</th>
@@ -1226,7 +1226,7 @@
         <!-- Área com scroll virtual — só renderiza linhas visíveis -->
         <div id="mor_tabela_scroll" style="height:320px;overflow-y:auto;" class="relative">
           <table class="w-full table-fixed border-collapse text-xs">
-            <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:8%">{% endif %}<col style="width:11.5%">{% endfor %}</colgroup>
+            <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:5%">{% endif %}<col style="width:11.875%">{% endfor %}</colgroup>
             <tbody id="mor_tabela_mensal_body" class="divide-y divide-gray-100">
               <!-- preenchido via JS virtualizado -->
             </tbody>
@@ -1234,7 +1234,7 @@
         </div>
         <!-- Rodapé fixo: totais das colunas de fluxo (não cumulativas) -->
         <table class="w-full table-fixed border-collapse text-xs">
-          <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:8%">{% endif %}<col style="width:11.5%">{% endfor %}</colgroup>
+          <colgroup>{% for c in '12345678' %}{% if forloop.first %}<col style="width:5%">{% endif %}<col style="width:11.875%">{% endfor %}</colgroup>
           <tfoot>
             <tr class="border-t-2 border-gray-300 bg-gray-50 text-right font-bold text-gray-700">
               <td class="p-2 text-left">Total</td>
