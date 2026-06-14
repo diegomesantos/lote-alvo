@@ -13,17 +13,26 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="{ aba: '{{ aba }}' }" class="space-y-4">
+<style>
+  .kanban-menu summary {
+    list-style: none;
+  }
+  .kanban-menu summary::-webkit-details-marker {
+    display: none;
+  }
+</style>
+
+<div x-data="kanbanBoard('{{ aba }}')" data-kanban-root class="space-y-4">
 
   <!-- Abas -->
   <div class="flex gap-0 overflow-x-auto border-b border-gray-200 bg-white">
-    <button @click="aba = 'pre'" :class="aba === 'pre' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
+    <button @click="setAba('pre')" :class="aba === 'pre' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
       🎯 Pré-Arrematação <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 font-medium">{{ total_pre }}</span>
     </button>
-    <button @click="aba = 'pos'" :class="aba === 'pos' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
+    <button @click="setAba('pos')" :class="aba === 'pos' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
       ✅ Pós-Arrematação <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 font-medium">{{ total_pos }}</span>
     </button>
-    <button @click="aba = 'financeiro'" :class="aba === 'financeiro' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
+    <button @click="setAba('financeiro')" :class="aba === 'financeiro' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
       💰 Financeiro
     </button>
   </div>
@@ -41,8 +50,44 @@
           <div class="space-y-3 flex-1 kanban-cards" data-sortable-group="kanban">
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
-            <div class="kanban-card group" data-id="{{ im.id }}" draggable="true">
-              <a href="{% url 'detalhe' im.id %}" class="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
+            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" draggable="true">
+              <details class="kanban-menu absolute right-2 top-2 z-20" onclick="event.stopPropagation()">
+                <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="5" r="1.75"></circle>
+                    <circle cx="12" cy="12" r="1.75"></circle>
+                    <circle cx="12" cy="19" r="1.75"></circle>
+                  </svg>
+                </summary>
+                <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
+                  <button type="button"
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                          data-kanban-action="move"
+                          data-card-id="{{ im.id }}"
+                          data-card-title="{{ im.titulo_card }}"
+                          data-current-etapa="{{ im.etapa }}"
+                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                    Mover card
+                  </button>
+                  <button type="button"
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                          data-kanban-action="archive"
+                          data-card-id="{{ im.id }}"
+                          data-card-title="{{ im.titulo_card }}"
+                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                    Arquivar
+                  </button>
+                  <button type="button"
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
+                          data-kanban-action="delete"
+                          data-card-id="{{ im.id }}"
+                          data-card-title="{{ im.titulo_card }}"
+                          data-delete-url="{% url 'excluir' im.id %}">
+                    Excluir
+                  </button>
+                </div>
+              </details>
+              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md cursor-grab group-hover:cursor-grabbing">
                 {% if card.imagem_url %}
                 <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
                 {% else %}
@@ -102,8 +147,44 @@
           <div class="space-y-3 flex-1 kanban-cards" data-sortable-group="kanban">
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
-            <div class="kanban-card group" data-id="{{ im.id }}" draggable="true">
-              <a href="{% url 'detalhe' im.id %}" class="block overflow-hidden rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow bg-white cursor-grab group-hover:cursor-grabbing">
+            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" draggable="true">
+              <details class="kanban-menu absolute right-2 top-2 z-20" onclick="event.stopPropagation()">
+                <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="5" r="1.75"></circle>
+                    <circle cx="12" cy="12" r="1.75"></circle>
+                    <circle cx="12" cy="19" r="1.75"></circle>
+                  </svg>
+                </summary>
+                <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
+                  <button type="button"
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                          data-kanban-action="move"
+                          data-card-id="{{ im.id }}"
+                          data-card-title="{{ im.titulo_card }}"
+                          data-current-etapa="{{ im.etapa }}"
+                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                    Mover card
+                  </button>
+                  <button type="button"
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                          data-kanban-action="archive"
+                          data-card-id="{{ im.id }}"
+                          data-card-title="{{ im.titulo_card }}"
+                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                    Arquivar
+                  </button>
+                  <button type="button"
+                          class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
+                          data-kanban-action="delete"
+                          data-card-id="{{ im.id }}"
+                          data-card-title="{{ im.titulo_card }}"
+                          data-delete-url="{% url 'excluir' im.id %}">
+                    Excluir
+                  </button>
+                </div>
+              </details>
+              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md cursor-grab group-hover:cursor-grabbing">
                 {% if card.imagem_url %}
                 <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
                 {% else %}
@@ -134,11 +215,221 @@
     <p class="text-sm mt-2 text-gray-500"><a href="{% url 'financeiro' %}" class="text-teal-600 hover:underline">Acessar dashboard completo →</a></p>
   </div>
 
+  <div id="kanban-move-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-950/55" data-close-move></div>
+    <div class="relative flex min-h-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold text-gray-950">Mover card</h3>
+            <p id="kanban-move-description" class="mt-1 text-sm text-gray-600"></p>
+          </div>
+          <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-move>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <form id="kanban-move-form" class="mt-5 space-y-4">
+          <div>
+            <label for="kanban-move-select" class="mb-2 block text-sm font-semibold text-gray-700">Destino</label>
+            <select id="kanban-move-select" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+              {% for grupo in etapas_menu %}
+                <optgroup label="{{ grupo.grupo }}">
+                  {% for etapa in grupo.opcoes %}
+                    <option value="{{ etapa.key }}" data-phase="{{ etapa.fase }}">{{ etapa.label }}</option>
+                  {% endfor %}
+                </optgroup>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-move>Cancelar</button>
+            <button type="submit" id="kanban-move-submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700">Mover</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="kanban-confirm-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-950/55" data-close-confirm></div>
+    <div class="relative flex min-h-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 id="kanban-confirm-title" class="text-lg font-bold text-gray-950">Confirmar ação</h3>
+            <p id="kanban-confirm-description" class="mt-1 text-sm leading-relaxed text-gray-600"></p>
+          </div>
+          <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-confirm>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="mt-5 flex items-center justify-end gap-3">
+          <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-confirm>Cancelar</button>
+          <button type="button" id="kanban-confirm-submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
+function kanbanBoard(initialAba) {
+  return {
+    aba: initialAba,
+    setAba(value) {
+      this.aba = value;
+      const url = new URL(window.location.href);
+      url.searchParams.set('aba', value);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   const containers = document.querySelectorAll('.kanban-cards');
+  const cardMenus = document.querySelectorAll('.kanban-menu');
+  const moveModal = document.getElementById('kanban-move-modal');
+  const moveForm = document.getElementById('kanban-move-form');
+  const moveSelect = document.getElementById('kanban-move-select');
+  const moveDescription = document.getElementById('kanban-move-description');
+  const moveSubmit = document.getElementById('kanban-move-submit');
+  const confirmModal = document.getElementById('kanban-confirm-modal');
+  const confirmTitle = document.getElementById('kanban-confirm-title');
+  const confirmDescription = document.getElementById('kanban-confirm-description');
+  const confirmSubmit = document.getElementById('kanban-confirm-submit');
+  let moveState = null;
+  let confirmState = null;
+
+  function setBodyScrollLocked(locked) {
+    document.body.classList.toggle('overflow-hidden', Boolean(locked));
+  }
+
+  function closeCardMenus() {
+    cardMenus.forEach(menu => {
+      menu.open = false;
+    });
+  }
+
+  function closeMoveModal() {
+    moveModal.classList.add('hidden');
+    moveState = null;
+    moveSubmit.disabled = false;
+    moveSubmit.classList.remove('opacity-60');
+    setBodyScrollLocked(false);
+  }
+
+  function closeConfirmModal() {
+    confirmModal.classList.add('hidden');
+    confirmState = null;
+    confirmSubmit.disabled = false;
+    confirmSubmit.classList.remove('opacity-60');
+    setBodyScrollLocked(false);
+  }
+
+  function removeCardElement(cardId) {
+    const card = document.querySelector(`.kanban-card[data-id="${cardId}"]`);
+    if (card) {
+      card.remove();
+      updateCounters();
+    }
+  }
+
+  async function postStage(updateUrl, etapa) {
+    const response = await fetch(updateUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': getCookie('csrftoken'),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: `etapa=${encodeURIComponent(etapa)}`
+    });
+    if (!response.ok) {
+      throw new Error(`Erro ao atualizar etapa: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  function openMoveModal(state) {
+    moveState = state;
+    moveDescription.textContent = `Escolha a nova coluna para "${state.cardTitle}".`;
+    moveSelect.value = state.currentEtapa;
+    moveModal.classList.remove('hidden');
+    setBodyScrollLocked(true);
+  }
+
+  function openConfirmModal(state) {
+    confirmState = state;
+    confirmTitle.textContent = state.title;
+    confirmDescription.textContent = state.description;
+    confirmSubmit.textContent = state.confirmLabel;
+    confirmSubmit.className = state.confirmClass;
+    confirmModal.classList.remove('hidden');
+    setBodyScrollLocked(true);
+  }
+
+  document.addEventListener('click', function(event) {
+    if (!event.target.closest('.kanban-menu')) {
+      closeCardMenus();
+    }
+  });
+
+  document.querySelectorAll('[data-close-move]').forEach(button => {
+    button.addEventListener('click', closeMoveModal);
+  });
+
+  document.querySelectorAll('[data-close-confirm]').forEach(button => {
+    button.addEventListener('click', closeConfirmModal);
+  });
+
+  document.querySelectorAll('[data-kanban-action]').forEach(button => {
+    button.addEventListener('click', function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeCardMenus();
+
+      const state = {
+        cardId: this.dataset.cardId,
+        cardTitle: this.dataset.cardTitle,
+        currentEtapa: this.dataset.currentEtapa,
+        updateUrl: this.dataset.updateUrl,
+        deleteUrl: this.dataset.deleteUrl,
+      };
+
+      if (this.dataset.kanbanAction === 'move') {
+        openMoveModal(state);
+        return;
+      }
+
+      if (this.dataset.kanbanAction === 'archive') {
+        openConfirmModal({
+          ...state,
+          kind: 'archive',
+          title: 'Arquivar card',
+          description: `O card "${state.cardTitle}" sairá do kanban principal e poderá ser recuperado depois pela etapa Arquivado.`,
+          confirmLabel: 'Arquivar',
+          confirmClass: 'rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800',
+        });
+        return;
+      }
+
+      openConfirmModal({
+        ...state,
+        kind: 'delete',
+        title: 'Excluir card',
+        description: `O card "${state.cardTitle}" será removido definitivamente. Essa ação não pode ser desfeita.`,
+        confirmLabel: 'Excluir',
+        confirmClass: 'rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700',
+      });
+    });
+  });
 
   containers.forEach(container => {
     new Sortable(container, {
@@ -147,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function() {
       ghostClass: 'sortable-ghost',
       dragClass: 'sortable-drag',
       draggable: '.kanban-card',
-      handle: '.kanban-card',
+      handle: '.kanban-card-link',
       onStart: function() {
         const dropzone = document.querySelector('[data-arrematado-drop="true"]');
         if (dropzone) dropzone.classList.add('border-teal-400', 'bg-teal-50');
@@ -197,6 +488,65 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       }
     });
+  });
+
+  moveForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    if (!moveState) return;
+
+    const targetEtapa = moveSelect.value;
+    const selectedOption = moveSelect.selectedOptions[0];
+    const targetPhase = selectedOption ? selectedOption.dataset.phase : 'pre';
+
+    if (!targetEtapa || targetEtapa === moveState.currentEtapa) {
+      closeMoveModal();
+      return;
+    }
+
+    moveSubmit.disabled = true;
+    moveSubmit.classList.add('opacity-60');
+
+    try {
+      await postStage(moveState.updateUrl, targetEtapa);
+      const url = new URL(window.location.href);
+      url.searchParams.set('aba', targetPhase);
+      window.location.href = url.toString();
+    } catch (error) {
+      console.error(error);
+      window.location.reload();
+    }
+  });
+
+  confirmSubmit.addEventListener('click', async function() {
+    if (!confirmState) return;
+
+    confirmSubmit.disabled = true;
+    confirmSubmit.classList.add('opacity-60');
+
+    try {
+      if (confirmState.kind === 'archive') {
+        await postStage(confirmState.updateUrl, 'arquivado');
+        removeCardElement(confirmState.cardId);
+        closeConfirmModal();
+        return;
+      }
+
+      const response = await fetch(confirmState.deleteUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Erro ao excluir card: ${response.status}`);
+      }
+      removeCardElement(confirmState.cardId);
+      closeConfirmModal();
+    } catch (error) {
+      console.error(error);
+      window.location.reload();
+    }
   });
 });
 

@@ -114,6 +114,35 @@ class ImovelInteracaoTests(TestCase):
         self.assertEqual(self.imovel.titulo_card, "Título do investidor")
         self.assertTrue(self.imovel.foto)
 
+    def test_imovel_avulso_com_matricula_e_edital_anexados_marca_documentos_completo(self):
+        ImovelArquivo.objects.create(
+            imovel=self.imovel,
+            nome="Matrícula",
+            categoria="matricula",
+            arquivo=SimpleUploadedFile("matricula.pdf", b"pdf-matricula", content_type="application/pdf"),
+            enviado_por=self.user,
+        )
+        ImovelArquivo.objects.create(
+            imovel=self.imovel,
+            nome="Edital",
+            categoria="edital",
+            arquivo=SimpleUploadedFile("edital.pdf", b"pdf-edital", content_type="application/pdf"),
+            enviado_por=self.user,
+        )
+
+        response = self.client.get(reverse("detalhe", args=[self.imovel.pk]))
+
+        indicador_documentos = next(
+            item for item in response.context["indicadores_decisao"]
+            if item["titulo"] == "Documentos"
+        )
+        documentos = response.context["documentos"]
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(indicador_documentos["valor"], "Completo")
+        self.assertTrue(all(documento["disponivel"] for documento in documentos))
+        self.assertEqual({documento["origem"] for documento in documentos}, {"Arquivo anexado"})
+
     def test_modal_calculo_atualiza_premissas(self):
         response = self.client.post(
             reverse("atualizar_dados_calculo", args=[self.imovel.pk]),
@@ -173,3 +202,32 @@ class ImovelInteracaoTests(TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(self.imovel.etapa, "registro_desocupacao")
         self.assertEqual(data["fase"], "pos")
+
+    def test_arquivar_remove_card_do_kanban(self):
+        response = self.client.post(
+            reverse("atualizar_etapa", args=[self.imovel.pk]),
+            {"etapa": "arquivado"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.imovel.refresh_from_db()
+        kanban = self.client.get(reverse("kanban"))
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(self.imovel.etapa, "arquivado")
+        self.assertNotContains(kanban, self.imovel.titulo_card)
+
+    def test_excluir_ajax_remove_card(self):
+        response = self.client.post(
+            reverse("excluir", args=[self.imovel.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertFalse(Imovel.objects.filter(pk=self.imovel.pk).exists())
+        self.assertEqual(data["deleted_id"], str(self.imovel.pk))

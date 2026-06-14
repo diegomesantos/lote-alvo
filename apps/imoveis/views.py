@@ -82,6 +82,65 @@ def _dict_filtrado(items):
     ]
 
 
+def _documentos_context(imovel, imovel_caixa):
+    uploads = {
+        arquivo.categoria: arquivo
+        for arquivo in imovel.arquivos.filter(categoria__in=["matricula", "edital"]).order_by("-criado_em")
+        if arquivo.arquivo
+    }
+
+    def montar_documento(nome, categoria, descricao, url_oficial=""):
+        upload = uploads.get(categoria)
+        if url_oficial:
+            return {
+                "nome": nome,
+                "url": url_oficial,
+                "descricao": descricao,
+                "disponivel": True,
+                "origem": "Caixa",
+            }
+        if upload:
+            return {
+                "nome": nome,
+                "url": upload.arquivo.url,
+                "descricao": descricao,
+                "disponivel": True,
+                "origem": "Arquivo anexado",
+            }
+        return {
+            "nome": nome,
+            "url": "",
+            "descricao": descricao,
+            "disponivel": False,
+            "origem": "",
+        }
+
+    documentos = [
+        montar_documento(
+            "Matrícula",
+            "matricula",
+            "Registro, titularidade, averbações, ônus e restrições.",
+            imovel_caixa.matricula_url if imovel_caixa else "",
+        ),
+        montar_documento(
+            "Edital",
+            "edital",
+            "Condições da oferta, responsabilidades e prazos.",
+            imovel_caixa.edital_url if imovel_caixa else "",
+        ),
+    ]
+
+    documentos_ok = all(documento["disponivel"] for documento in documentos)
+    documentos_parciais = any(documento["disponivel"] for documento in documentos) and not documentos_ok
+
+    return {
+        "documentos": documentos,
+        "documentos_ok": documentos_ok,
+        "documentos_parciais": documentos_parciais,
+        "tem_arquivos_analise": any(categoria in uploads for categoria in ("matricula", "edital")),
+    }
+
+
 def _classe_risco_analise(nivel_risco):
     nivel = (nivel_risco or "").lower()
     if nivel in {"baixo", "baixo risco"}:
@@ -121,9 +180,10 @@ def _indicador_financeiro(r):
     }
 
 
-def _indicadores_decisao(imovel, imovel_caixa, r, analise_resultado):
+def _indicadores_decisao(imovel, imovel_caixa, r, analise_resultado, documentos_context):
     desconto = float(imovel.desconto_pct or 0)
-    documentos_ok = bool(imovel_caixa and imovel_caixa.matricula_url and imovel_caixa.edital_url)
+    documentos_ok = documentos_context["documentos_ok"]
+    documentos_parciais = documentos_context["documentos_parciais"]
     risco = (analise_resultado or {}).get("nivel_risco") or ""
     risco_status = _classe_risco_analise(risco)
 
@@ -140,7 +200,7 @@ def _indicadores_decisao(imovel, imovel_caixa, r, analise_resultado):
     if documentos_ok:
         docs_status = "ok"
         docs_texto = "Matrícula e edital disponíveis para conferência."
-    elif imovel_caixa and (imovel_caixa.matricula_url or imovel_caixa.edital_url):
+    elif documentos_parciais:
         docs_status = "warn"
         docs_texto = "Há documento parcial; complete a validação antes da decisão."
     else:
@@ -334,6 +394,22 @@ def kanban(request):
 
     colunas_pre = _montar_pipeline(ETAPAS_PRE_KEYS, ETAPA_PRE)
     colunas_pos = _montar_pipeline(ETAPAS_POS_KEYS, ETAPA_POS)
+    etapas_menu = [
+        {
+            "grupo": "Pré-Arrematação",
+            "opcoes": [
+                {"key": key, "label": label, "fase": "pre"}
+                for key, label in ETAPA_PRE
+            ],
+        },
+        {
+            "grupo": "Pós-Arrematação",
+            "opcoes": [
+                {"key": key, "label": label, "fase": "pos"}
+                for key, label in ETAPA_POS
+            ],
+        },
+    ]
 
     # Contar imóveis por etapa
     totais = {}
@@ -350,6 +426,7 @@ def kanban(request):
         "total_pre": imoveis_pre.count(),
         "total_pos": imoveis_pos.count(),
         "total_geral": imoveis.count(),
+        "etapas_menu": etapas_menu,
     })
 
 
@@ -444,7 +521,8 @@ def detalhe(request, pk):
     analise_nivel_risco = analise_resultado.get("nivel_risco") or "indeterminado"
 
     # Indica se análise pode ser gerada localmente (imóvel avulso sem Caixa vinculado)
-    tem_arquivos_analise = imovel.arquivos.filter(categoria__in=["matricula", "edital"]).exists()
+    documentos_context = _documentos_context(imovel, imovel_caixa)
+    tem_arquivos_analise = documentos_context["tem_arquivos_analise"]
     pode_gerar_analise_avulso = not imovel_caixa and tem_arquivos_analise
 
     caixa_url = None
@@ -455,22 +533,7 @@ def detalhe(request, pk):
     elif imovel.link_leilao:
         caixa_url = imovel.link_leilao
 
-    documentos = []
-    if imovel_caixa:
-        documentos = [
-            {
-                "nome": "Matrícula",
-                "url": imovel_caixa.matricula_url,
-                "descricao": "Registro, titularidade, averbações, ônus e restrições.",
-                "disponivel": bool(imovel_caixa.matricula_url),
-            },
-            {
-                "nome": "Edital",
-                "url": imovel_caixa.edital_url,
-                "descricao": "Condições da oferta, responsabilidades e prazos.",
-                "disponivel": bool(imovel_caixa.edital_url),
-            },
-        ]
+    documentos = documentos_context["documentos"]
 
     dados_imovel = _dict_filtrado([
         ("Tipo", imovel.get_tipo_imovel_display()),
@@ -511,7 +574,13 @@ def detalhe(request, pk):
         {"label": "Parcelamento", "ok": bool(formas.get("parcelado", False)) if imovel_caixa else False},
     ]
 
-    indicadores_decisao = _indicadores_decisao(imovel, imovel_caixa, r_padrao, analise_resultado)
+    indicadores_decisao = _indicadores_decisao(
+        imovel,
+        imovel_caixa,
+        r_padrao,
+        analise_resultado,
+        documentos_context,
+    )
     alertas_relatorio = _alertas_relatorio(imovel, imovel_caixa, r_padrao, analise_resultado)
     checklist_operacional = _checklist_context(imovel)
     arquivos = imovel.arquivos.select_related("enviado_por")
@@ -627,9 +696,12 @@ def editar(request, pk):
 @require_POST
 def excluir(request, pk):
     imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel_id = str(imovel.pk)
     nome = imovel.endereco
     imovel.delete()
     messages.success(request, f"🗑️ {nome} excluído.")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"success": True, "deleted_id": imovel_id})
     return redirect("kanban")
 
 

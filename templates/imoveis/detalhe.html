@@ -314,6 +314,9 @@
                 <div>
                   <div class="text-sm font-bold text-gray-950">{{ documento.nome }}</div>
                   <p class="mt-1 text-sm leading-relaxed text-gray-600">{{ documento.descricao }}</p>
+                  {% if documento.origem %}
+                    <div class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ documento.origem }}</div>
+                  {% endif %}
                 </div>
                 <span class="rounded-full px-2.5 py-1 text-xs font-bold {% if documento.disponivel %}bg-green-50 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
                   {% if documento.disponivel %}Disponível{% else %}Pendente{% endif %}
@@ -326,8 +329,6 @@
                 </a>
               {% endif %}
             </div>
-          {% empty %}
-            <div class="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">Nenhum documento Caixa vinculado a este card.</div>
           {% endfor %}
         </div>
       </section>
