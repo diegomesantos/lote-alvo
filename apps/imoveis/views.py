@@ -2,7 +2,9 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
+from django.db.models import Q
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, tabela_lances, simular_moradia
@@ -12,7 +14,8 @@ from core.calculos.cartorio import (
 from apps.leiloes.models import ImovelCaixa
 from .models import (
     Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario,
-    CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR, ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
+    ARQUIVAMENTO_MOTIVO_CHOICES, CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR,
+    ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
 )
 from .forms import ImovelForm, ImovelArquivoForm, ImovelCalculoForm
 
@@ -348,53 +351,8 @@ def _checklist_context(imovel):
     }
 
 
-@login_required
-def kanban(request):
-    imoveis = Imovel.objects.filter(user=request.user).exclude(etapa="arquivado")
-    busca = request.GET.get("q", "").strip()
-    aba = request.GET.get("aba", "pre")  # "pre", "pos", ou "financeiro"
-
-    if busca:
-        imoveis = imoveis.filter(endereco__icontains=busca) | imoveis.filter(cidade__icontains=busca)
-
-    # Separar por pipeline
-    imoveis_pre = imoveis.filter(etapa__in=ETAPAS_PRE_KEYS)
-    imoveis_pos = imoveis.filter(etapa__in=ETAPAS_POS_KEYS)
-
-    # Resolve em lote quais imovel_id_caixa existem (fallback de foto da Caixa),
-    # evitando uma query por card.
-    caixa_ids_imoveis = {
-        im.caixa_imovel_id for im in imoveis if im.caixa_imovel_id
-    }
-    caixa_ids_validos = set(
-        ImovelCaixa.objects.filter(imovel_id_caixa__in=caixa_ids_imoveis)
-        .values_list("imovel_id_caixa", flat=True)
-    ) if caixa_ids_imoveis else set()
-
-    # Montar colunas para cada pipeline
-    def _montar_pipeline(etapas_keys, etapas_labels):
-        colunas = []
-        for key, label in etapas_labels:
-            if key not in etapas_keys:
-                continue
-            grupo = [im for im in imoveis if im.etapa == key]
-            cards = []
-            for im in grupo:
-                r = _resultado_resumo(im, im.giro_padrao)
-                cards.append({
-                    "imovel": im,
-                    "resultado": r,
-                    "imagem_url": _imagem_card_url(im, caixa_ids_validos),
-                })
-            colunas.append({
-                "key": key, "label": label, "cor": ETAPA_COR[key], "cards": cards,
-                "count": len(cards)
-            })
-        return colunas
-
-    colunas_pre = _montar_pipeline(ETAPAS_PRE_KEYS, ETAPA_PRE)
-    colunas_pos = _montar_pipeline(ETAPAS_POS_KEYS, ETAPA_POS)
-    etapas_menu = [
+def _etapas_menu_context():
+    return [
         {
             "grupo": "Pré-Arrematação",
             "opcoes": [
@@ -411,7 +369,99 @@ def kanban(request):
         },
     ]
 
-    # Contar imóveis por etapa
+
+def _arquivamento_motivos_context():
+    return [{"key": key, "label": label} for key, label in ARQUIVAMENTO_MOTIVO_CHOICES]
+
+
+def _filtrar_por_status(queryset, status):
+    if status == "arquivados":
+        return queryset.filter(etapa="arquivado")
+    if status == "todos":
+        return queryset
+    return queryset.exclude(etapa="arquivado")
+
+
+def _resolver_caixa_ids_validos(imoveis):
+    caixa_ids_imoveis = {im.caixa_imovel_id for im in imoveis if im.caixa_imovel_id}
+    if not caixa_ids_imoveis:
+        return set()
+    return set(
+        ImovelCaixa.objects.filter(imovel_id_caixa__in=caixa_ids_imoveis)
+        .values_list("imovel_id_caixa", flat=True)
+    )
+
+
+def _cards_context(imoveis, caixa_ids_validos):
+    cards = []
+    for imovel in imoveis:
+        cards.append({
+            "imovel": imovel,
+            "resultado": _resultado_resumo(imovel, imovel.giro_padrao),
+            "imagem_url": _imagem_card_url(imovel, caixa_ids_validos),
+        })
+    return cards
+
+
+def _aplicar_transicao_etapa(imovel, nova_etapa, motivo_arquivamento=""):
+    motivo_valido = motivo_arquivamento if motivo_arquivamento in dict(ARQUIVAMENTO_MOTIVO_CHOICES) else ""
+    campos = ["etapa", "updated_at"]
+
+    if nova_etapa == "arquivado":
+        imovel.etapa = "arquivado"
+        imovel.arquivado_em = timezone.now()
+        imovel.motivo_arquivamento = motivo_valido
+        campos.extend(["arquivado_em", "motivo_arquivamento"])
+    else:
+        imovel.etapa = nova_etapa
+        if imovel.arquivado_em or imovel.motivo_arquivamento:
+            imovel.arquivado_em = None
+            imovel.motivo_arquivamento = ""
+            campos.extend(["arquivado_em", "motivo_arquivamento"])
+
+    imovel.save(update_fields=list(dict.fromkeys(campos)))
+
+
+@login_required
+def kanban(request):
+    imoveis_base = Imovel.objects.filter(user=request.user)
+    busca = request.GET.get("q", "").strip()
+    aba = request.GET.get("aba", "pre")
+    abas_validas = {"pre", "pos", "arquivados", "financeiro"}
+    if aba not in abas_validas:
+        aba = "pre"
+
+    if busca:
+        imoveis_base = imoveis_base.filter(
+            Q(endereco__icontains=busca)
+            | Q(cidade__icontains=busca)
+            | Q(titulo_personalizado__icontains=busca)
+        )
+
+    imoveis_ativos = list(imoveis_base.exclude(etapa="arquivado"))
+    imoveis_pre = [im for im in imoveis_ativos if im.etapa in ETAPAS_PRE_KEYS]
+    imoveis_pos = [im for im in imoveis_ativos if im.etapa in ETAPAS_POS_KEYS]
+    imoveis_arquivados = list(imoveis_base.filter(etapa="arquivado"))
+
+    caixa_ids_validos = _resolver_caixa_ids_validos(imoveis_ativos + imoveis_arquivados)
+
+    def _montar_pipeline(etapas_keys, etapas_labels):
+        colunas = []
+        for key, label in etapas_labels:
+            if key not in etapas_keys:
+                continue
+            grupo = [im for im in imoveis_ativos if im.etapa == key]
+            cards = _cards_context(grupo, caixa_ids_validos)
+            colunas.append({
+                "key": key, "label": label, "cor": ETAPA_COR[key], "cards": cards,
+                "count": len(cards)
+            })
+        return colunas
+
+    colunas_pre = _montar_pipeline(ETAPAS_PRE_KEYS, ETAPA_PRE)
+    colunas_pos = _montar_pipeline(ETAPAS_POS_KEYS, ETAPA_POS)
+    cards_arquivados = _cards_context(imoveis_arquivados, caixa_ids_validos)
+
     totais = {}
     for key, _ in ETAPA_CHOICES:
         if key != "arquivado":
@@ -421,12 +471,15 @@ def kanban(request):
         "aba": aba,
         "colunas_pre": colunas_pre,
         "colunas_pos": colunas_pos,
+        "cards_arquivados": cards_arquivados,
         "totais": totais,
         "busca": busca,
-        "total_pre": imoveis_pre.count(),
-        "total_pos": imoveis_pos.count(),
-        "total_geral": imoveis.count(),
-        "etapas_menu": etapas_menu,
+        "total_pre": len(imoveis_pre),
+        "total_pos": len(imoveis_pos),
+        "total_arquivados": len(imoveis_arquivados),
+        "total_geral": len(imoveis_ativos),
+        "etapas_menu": _etapas_menu_context(),
+        "arquivamento_motivos": _arquivamento_motivos_context(),
     })
 
 
@@ -435,15 +488,33 @@ def kanban(request):
 def atualizar_etapa(request, pk):
     imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
     nova_etapa = request.POST.get("etapa")
+    motivo_arquivamento = request.POST.get("motivo_arquivamento", "").strip()
+    etapa_anterior = imovel.etapa
     if nova_etapa in dict(ETAPA_CHOICES):
-        imovel.etapa = nova_etapa
-        imovel.save(update_fields=["etapa"])
+        if motivo_arquivamento and motivo_arquivamento not in dict(ARQUIVAMENTO_MOTIVO_CHOICES):
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse({"success": False, "error": "Motivo de arquivamento inválido."}, status=400)
+            messages.error(request, "Motivo de arquivamento inválido.")
+            return redirect("kanban")
+
+        _aplicar_transicao_etapa(imovel, nova_etapa, motivo_arquivamento=motivo_arquivamento)
+
+        if nova_etapa == "arquivado":
+            messages.success(request, f"{imovel.titulo_card} arquivado.")
+        elif etapa_anterior == "arquivado":
+            messages.success(request, f"{imovel.titulo_card} restaurado para {imovel.etapa_display}.")
+        else:
+            messages.success(request, f"{imovel.titulo_card} movido para {imovel.etapa_display}.")
+
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse({
                 "success": True,
                 "etapa": imovel.etapa,
                 "fase": imovel.fase,
                 "label": imovel.etapa_display,
+                "motivo_arquivamento": imovel.motivo_arquivamento,
+                "motivo_arquivamento_label": imovel.motivo_arquivamento_label,
+                "arquivado_em": imovel.arquivado_em.isoformat() if imovel.arquivado_em else "",
             })
     elif request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({"success": False, "error": "Etapa inválida."}, status=400)
@@ -454,12 +525,25 @@ def atualizar_etapa(request, pk):
 
 @login_required
 def listar(request):
-    imoveis = Imovel.objects.filter(user=request.user)
-    cards = []
-    for im in imoveis:
-        r = _resultado_resumo(im, im.giro_padrao)
-        cards.append({"imovel": im, "resultado": r})
-    return render(request, "imoveis/lista.html", {"cards": cards})
+    status = request.GET.get("status", "ativos")
+    if status not in {"ativos", "arquivados", "todos"}:
+        status = "ativos"
+
+    imoveis = list(_filtrar_por_status(Imovel.objects.filter(user=request.user), status))
+    caixa_ids_validos = _resolver_caixa_ids_validos(imoveis)
+    cards = _cards_context(imoveis, caixa_ids_validos)
+    totais_status = {
+        "ativos": Imovel.objects.filter(user=request.user).exclude(etapa="arquivado").count(),
+        "arquivados": Imovel.objects.filter(user=request.user, etapa="arquivado").count(),
+        "todos": Imovel.objects.filter(user=request.user).count(),
+    }
+    return render(request, "imoveis/lista.html", {
+        "cards": cards,
+        "status": status,
+        "totais_status": totais_status,
+        "etapas_menu": _etapas_menu_context(),
+        "arquivamento_motivos": _arquivamento_motivos_context(),
+    })
 
 
 @login_required

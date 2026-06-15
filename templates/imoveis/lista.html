@@ -5,166 +5,517 @@
 {% block page_subtitle %}Visão consolidada do seu portfólio{% endblock %}
 
 {% block header_actions %}
-  <a href="{% url 'criar' %}"
-     class="flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors shadow">
-    + Novo Imóvel
-  </a>
+<div class="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+  <a href="{% url 'kanban' %}" class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 sm:flex-none">Kanban</a>
+  <a href="{% url 'criar' %}" class="flex-1 rounded-lg bg-teal-500 px-4 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-teal-600 sm:flex-none">Novo Imóvel</a>
+</div>
 {% endblock %}
 
 {% block content %}
-{% if not cards %}
-<div class="text-center py-16">
-  <div class="text-6xl mb-4">🏠</div>
-  <h3 class="text-xl font-bold text-gray-700 mb-2">Nenhum imóvel cadastrado</h3>
-  <a href="{% url 'criar' %}"
-     class="bg-teal-500 hover:bg-teal-600 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg inline-block">
-    + Cadastrar imóvel
-  </a>
-</div>
-{% else %}
-<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-  {% for card in cards %}
-  {% with im=card.imovel r=card.resultado %}
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-teal-200 transition-all duration-200 overflow-hidden group">
-    <!-- Status bar -->
-    <div class="h-1.5" style="background: {{ im.etapa_cor }}"></div>
-    <div class="p-4 sm:p-5">
-      <!-- Header -->
-      <div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-start sm:justify-between">
-        <div class="min-w-0">
-          <a href="{% url 'detalhe' im.pk %}"
-             class="font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
-            {{ im.endereco }}
-          </a>
-          <p class="text-xs text-gray-500 mt-0.5">📍 {{ im.cidade }} — {{ im.estado }}</p>
-        </div>
-        <span class="text-xs px-2 py-1 rounded-full font-medium"
-              style="background: {{ im.etapa_cor }}22; color: {{ im.etapa_cor }}">
-          {{ im.etapa_display }}
-        </span>
-      </div>
+<style>
+  .lista-menu summary {
+    list-style: none;
+  }
+  .lista-menu summary::-webkit-details-marker {
+    display: none;
+  }
+</style>
 
-      <!-- KPIs -->
-      <div class="grid grid-cols-3 gap-2 mb-4 sm:gap-3">
-        <div class="bg-gray-50 rounded-lg p-2.5 text-center">
-          <div class="text-xs text-gray-500 mb-0.5">Lance</div>
-          <div class="text-sm font-bold text-gray-900">{{ im.lance|brl_short }}</div>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-2.5 text-center">
-          <div class="text-xs text-gray-500 mb-0.5">Venda</div>
-          <div class="text-sm font-bold text-gray-900">{{ im.preco_venda|brl_short }}</div>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-2.5 text-center">
-          <div class="text-xs text-gray-500 mb-0.5">Desconto</div>
-          <div class="text-sm font-bold text-green-600">{{ im.desconto_pct|floatformat:1 }}%</div>
-        </div>
-      </div>
+<div class="space-y-5">
+  <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h2 class="text-sm font-semibold text-gray-900">Filtros de visibilidade</h2>
+      <p class="mt-1 text-sm text-gray-500">Arquivar tira o card do fluxo ativo sem apagar histórico. Excluir remove em definitivo.</p>
+    </div>
+    <div class="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
+      <a href="{% url 'listar' %}?status=ativos" class="rounded-lg px-4 py-2 text-sm font-semibold transition {% if status == 'ativos' %}bg-white text-teal-600 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+        Ativos <span class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-600">{{ totais_status.ativos }}</span>
+      </a>
+      <a href="{% url 'listar' %}?status=arquivados" class="rounded-lg px-4 py-2 text-sm font-semibold transition {% if status == 'arquivados' %}bg-white text-teal-600 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+        Arquivados <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ totais_status.arquivados }}</span>
+      </a>
+      <a href="{% url 'listar' %}?status=todos" class="rounded-lg px-4 py-2 text-sm font-semibold transition {% if status == 'todos' %}bg-white text-teal-600 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+        Todos <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ totais_status.todos }}</span>
+      </a>
+    </div>
+  </div>
 
-      {% if r %}
-      <!-- Resultado -->
-      <div class="rounded-lg p-3 mb-4
-        {% if r.resultado > 0 and r.roi >= 15 %}bg-green-50 border border-green-100
-        {% elif r.resultado > 0 %}bg-yellow-50 border border-yellow-100
-        {% else %}bg-red-50 border border-red-100{% endif %}">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-gray-500">Resultado ({{ im.giro_padrao }}m)</div>
-            <div class="text-base font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">
-              {{ r.resultado|brl_short }}
-            </div>
-          </div>
-          <div class="text-right">
-            <div class="text-xs text-gray-500">ROI cap. próprio</div>
-            <div class="text-base font-bold {% if r.roi > 0 %}text-green-700{% else %}text-red-700{% endif %}">
-              {{ r.roi|pct }}
-            </div>
-          </div>
+  {% if not cards %}
+  <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center shadow-sm">
+    <div class="mb-4 text-6xl">🏠</div>
+    {% if status == "arquivados" %}
+    <h3 class="text-xl font-bold text-gray-700">Nenhum imóvel arquivado</h3>
+    <p class="mt-2 text-sm text-gray-500">Arquive cards sem interesse, leilões encerrados ou itens duplicados para limpar a operação ativa.</p>
+    {% elif status == "ativos" %}
+    <h3 class="text-xl font-bold text-gray-700">Nenhum imóvel ativo</h3>
+    <p class="mt-2 text-sm text-gray-500">Cadastre um imóvel novo ou restaure um card arquivado para retomar o trabalho.</p>
+    {% else %}
+    <h3 class="text-xl font-bold text-gray-700">Nenhum imóvel cadastrado</h3>
+    <p class="mt-2 text-sm text-gray-500">Cadastre seu primeiro imóvel para iniciar o funil.</p>
+    {% endif %}
+    <div class="mt-6 flex flex-wrap justify-center gap-3">
+      <a href="{% url 'criar' %}" class="rounded-xl bg-teal-500 px-6 py-3 font-bold text-white transition-colors hover:bg-teal-600">Cadastrar imóvel</a>
+      {% if status != "ativos" %}
+      <a href="{% url 'listar' %}?status=ativos" class="rounded-xl border border-gray-300 px-6 py-3 font-medium text-gray-700 transition hover:bg-gray-50">Ver ativos</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+    {% for card in cards %}
+    {% with im=card.imovel r=card.resultado %}
+    <div class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-teal-200 hover:shadow-md">
+      <details class="lista-menu absolute right-3 top-3 z-20" onclick="event.stopPropagation()">
+        <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <circle cx="12" cy="5" r="1.75"></circle>
+            <circle cx="12" cy="12" r="1.75"></circle>
+            <circle cx="12" cy="19" r="1.75"></circle>
+          </svg>
+        </summary>
+        <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
+          {% if im.arquivado %}
+          <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-list-action="restore" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
+            Desarquivar para...
+          </button>
+          {% else %}
+          <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-list-action="move" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
+            Mover card
+          </button>
+          <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-list-action="archive" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
+            Arquivar
+          </button>
+          {% endif %}
+          <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-list-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
+            Excluir
+          </button>
         </div>
-      </div>
+      </details>
+
+      <div class="h-1.5" style="background: {{ im.etapa_cor }}"></div>
+
+      {% if card.imagem_url %}
+      <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="this.style.display='none'">
       {% endif %}
 
-      <!-- Ações -->
-      <div class="flex flex-wrap items-center gap-2">
-        <a href="{% url 'detalhe' im.pk %}"
-           class="min-w-28 flex-1 text-center bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold py-2 rounded-lg transition-colors">
-          Ver simulação
-        </a>
-        <button @click="carregarTabelaLancesImovel('{{ im.pk }}')"
-                class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium px-3 py-2 rounded-lg transition-colors border border-blue-200"
-                title="Tabela de lances progressivos">
-          📊
-        </button>
-        <a href="{% url 'editar' im.pk %}"
-           class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium px-3 py-2 rounded-lg transition-colors">
-          Editar
-        </a>
+      <div class="space-y-4 p-4 sm:p-5">
+        <div class="flex flex-col gap-2 pr-10">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full px-2.5 py-1 text-xs font-medium" style="background: {{ im.etapa_cor }}22; color: {{ im.etapa_cor }}">
+              {{ im.etapa_display }}
+            </span>
+            {% if im.arquivado %}
+            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">Arquivado</span>
+            {% endif %}
+            {% if im.motivo_arquivamento_label %}
+            <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{{ im.motivo_arquivamento_label }}</span>
+            {% endif %}
+          </div>
+          <div>
+            <a href="{% url 'detalhe' im.pk %}" class="font-bold text-gray-900 transition-colors group-hover:text-teal-600">
+              {{ im.titulo_card }}
+            </a>
+            <p class="mt-0.5 text-xs text-gray-500">📍 {{ im.cidade }} — {{ im.estado }}</p>
+            {% if im.arquivado_em %}
+            <p class="mt-1 text-xs text-gray-400">Arquivado em {{ im.arquivado_em|date:"d/m/Y H:i" }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+          <div class="rounded-lg bg-gray-50 p-2.5 text-center">
+            <div class="mb-0.5 text-xs text-gray-500">Lance</div>
+            <div class="text-sm font-bold text-gray-900">{{ im.lance|brl_short }}</div>
+          </div>
+          <div class="rounded-lg bg-gray-50 p-2.5 text-center">
+            <div class="mb-0.5 text-xs text-gray-500">Venda</div>
+            <div class="text-sm font-bold text-gray-900">{{ im.preco_venda|brl_short }}</div>
+          </div>
+          <div class="rounded-lg bg-gray-50 p-2.5 text-center">
+            <div class="mb-0.5 text-xs text-gray-500">Desconto</div>
+            <div class="text-sm font-bold text-green-600">{{ im.desconto_pct|floatformat:1 }}%</div>
+          </div>
+        </div>
+
+        {% if r %}
+        <div class="rounded-lg border p-3 {% if r.resultado > 0 and r.roi >= 15 %}border-green-100 bg-green-50{% elif r.resultado > 0 %}border-yellow-100 bg-yellow-50{% else %}border-red-100 bg-red-50{% endif %}">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-xs text-gray-500">Resultado ({{ im.giro_padrao }}m)</div>
+              <div class="text-base font-bold {% if r.resultado > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                {{ r.resultado|brl_short }}
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs text-gray-500">ROI capital próprio</div>
+              <div class="text-base font-bold {% if r.roi > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                {{ r.roi|pct }}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="flex flex-wrap items-center gap-2">
+          <a href="{% url 'detalhe' im.pk %}" class="min-w-28 flex-1 rounded-lg bg-teal-500 py-2 text-center text-xs font-bold text-white transition-colors hover:bg-teal-600">
+            Ver análise
+          </a>
+          <button onclick="carregarTabelaLancesImovel('{{ im.pk }}')" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100" title="Tabela de lances progressivos">
+            Tabela
+          </button>
+          <a href="{% url 'editar' im.pk %}" class="rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200">
+            Editar
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div id="lista-move-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-950/55" data-close-list-move></div>
+    <div class="relative flex min-h-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 id="lista-move-title" class="text-lg font-bold text-gray-950">Mover card</h3>
+            <p id="lista-move-description" class="mt-1 text-sm text-gray-600"></p>
+          </div>
+          <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-list-move>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <form id="lista-move-form" class="mt-5 space-y-4">
+          <div>
+            <label for="lista-move-select" class="mb-2 block text-sm font-semibold text-gray-700">Destino</label>
+            <select id="lista-move-select" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+              {% for grupo in etapas_menu %}
+              <optgroup label="{{ grupo.grupo }}">
+                {% for etapa in grupo.opcoes %}
+                <option value="{{ etapa.key }}">{{ etapa.label }}</option>
+                {% endfor %}
+              </optgroup>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-list-move>Cancelar</button>
+            <button type="submit" id="lista-move-submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700">Mover</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
-  {% endwith %}
-  {% endfor %}
-</div>
-{% endif %}
 
-{# ── Modal: Tabela de Lances (reutilizável) ── #}
-<dialog id="modal-lances-lista" class="rounded-2xl shadow-2xl w-11/12 max-w-7xl p-0 backdrop:bg-black/50">
-  <div class="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
-    <h2 class="font-bold text-lg text-gray-900" id="modal-titulo">📊 Tabela de Lances Progressivos</h2>
-    <button onclick="document.getElementById('modal-lances-lista').close()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">✕</button>
-  </div>
-  
-  <div id="tabela-lances-lista-container" class="p-6 max-h-96 overflow-auto">
-    <div class="text-center py-8">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      <p class="text-gray-500 mt-3">Carregando tabela...</p>
+  <div id="lista-confirm-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-950/55" data-close-list-confirm></div>
+    <div class="relative flex min-h-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 id="lista-confirm-title" class="text-lg font-bold text-gray-950">Confirmar ação</h3>
+            <p id="lista-confirm-description" class="mt-1 text-sm leading-relaxed text-gray-600"></p>
+          </div>
+          <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-list-confirm>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="lista-archive-reason-wrapper" class="mt-5 hidden">
+          <label for="lista-archive-reason" class="mb-2 block text-sm font-semibold text-gray-700">Motivo do arquivamento <span class="font-normal text-gray-400">(opcional)</span></label>
+          <select id="lista-archive-reason" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <option value="">Selecionar motivo</option>
+            {% for motivo in arquivamento_motivos %}
+            <option value="{{ motivo.key }}">{{ motivo.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mt-5 flex items-center justify-end gap-3">
+          <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-list-confirm>Cancelar</button>
+          <button type="button" id="lista-confirm-submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">Confirmar</button>
+        </div>
+      </div>
     </div>
   </div>
-  
-  <div class="border-t border-gray-200 p-4 bg-gray-50 text-xs text-gray-600 text-center">
-    Tabela mostra ROI (% a.a.) para cada lance em diferentes períodos de giro
+</div>
+
+<dialog id="modal-lances-lista" class="w-11/12 max-w-7xl rounded-2xl p-0 shadow-2xl backdrop:bg-black/50">
+  <div class="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white p-6">
+    <h2 class="text-lg font-bold text-gray-900" id="modal-titulo">Tabela de Lances Progressivos</h2>
+    <button onclick="document.getElementById('modal-lances-lista').close()" class="text-2xl leading-none text-gray-400 hover:text-gray-600">✕</button>
+  </div>
+
+  <div id="tabela-lances-lista-container" class="max-h-96 overflow-auto p-6">
+    <div class="py-8 text-center">
+      <div class="inline-block h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+      <p class="mt-3 text-gray-500">Carregando tabela...</p>
+    </div>
+  </div>
+
+  <div class="border-t border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-600">
+    A tabela mostra ROI (% a.a.) para cada lance em diferentes períodos de giro.
   </div>
 </dialog>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+  const moveModal = document.getElementById('lista-move-modal');
+  const moveTitle = document.getElementById('lista-move-title');
+  const moveDescription = document.getElementById('lista-move-description');
+  const moveForm = document.getElementById('lista-move-form');
+  const moveSelect = document.getElementById('lista-move-select');
+  const moveSubmit = document.getElementById('lista-move-submit');
+  const confirmModal = document.getElementById('lista-confirm-modal');
+  const confirmTitle = document.getElementById('lista-confirm-title');
+  const confirmDescription = document.getElementById('lista-confirm-description');
+  const confirmSubmit = document.getElementById('lista-confirm-submit');
+  const archiveReasonWrapper = document.getElementById('lista-archive-reason-wrapper');
+  const archiveReasonSelect = document.getElementById('lista-archive-reason');
+  const listMenus = document.querySelectorAll('.lista-menu');
+  let moveState = null;
+  let confirmState = null;
+
+  function setBodyScrollLocked(locked) {
+    document.body.classList.toggle('overflow-hidden', Boolean(locked));
+  }
+
+  function closeMenus() {
+    listMenus.forEach(menu => {
+      menu.open = false;
+    });
+  }
+
+  function closeMoveModal() {
+    moveModal.classList.add('hidden');
+    moveState = null;
+    moveSubmit.disabled = false;
+    moveSubmit.classList.remove('opacity-60');
+    setBodyScrollLocked(false);
+  }
+
+  function closeConfirmModal() {
+    confirmModal.classList.add('hidden');
+    confirmState = null;
+    confirmSubmit.disabled = false;
+    confirmSubmit.classList.remove('opacity-60');
+    archiveReasonSelect.value = '';
+    archiveReasonWrapper.classList.add('hidden');
+    setBodyScrollLocked(false);
+  }
+
+  async function postStage(updateUrl, etapa, extraData = {}) {
+    const params = new URLSearchParams({ etapa });
+    Object.entries(extraData).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
+    const response = await fetch(updateUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': getCookie('csrftoken'),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: params.toString()
+    });
+    if (!response.ok) {
+      throw new Error(`Erro ao atualizar etapa: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  function openMoveModal(state) {
+    moveState = state;
+    const isRestore = state.currentEtapa === 'arquivado';
+    moveTitle.textContent = isRestore ? 'Desarquivar card' : 'Mover card';
+    moveDescription.textContent = isRestore
+      ? `Escolha para qual etapa ativa o card "${state.cardTitle}" deve voltar.`
+      : `Escolha a nova etapa para "${state.cardTitle}".`;
+    moveSubmit.textContent = isRestore ? 'Desarquivar' : 'Mover';
+    const optionValues = Array.from(moveSelect.options).map(option => option.value);
+    moveSelect.value = optionValues.includes(state.currentEtapa) ? state.currentEtapa : optionValues[0];
+    moveModal.classList.remove('hidden');
+    setBodyScrollLocked(true);
+  }
+
+  function openConfirmModal(state) {
+    confirmState = state;
+    confirmTitle.textContent = state.title;
+    confirmDescription.textContent = state.description;
+    confirmSubmit.textContent = state.confirmLabel;
+    confirmSubmit.className = state.confirmClass;
+    if (state.kind === 'archive') {
+      archiveReasonWrapper.classList.remove('hidden');
+    } else {
+      archiveReasonWrapper.classList.add('hidden');
+      archiveReasonSelect.value = '';
+    }
+    confirmModal.classList.remove('hidden');
+    setBodyScrollLocked(true);
+  }
+
+  document.addEventListener('click', function(event) {
+    if (!event.target.closest('.lista-menu')) {
+      closeMenus();
+    }
+  });
+
+  document.querySelectorAll('[data-close-list-move]').forEach(button => {
+    button.addEventListener('click', closeMoveModal);
+  });
+
+  document.querySelectorAll('[data-close-list-confirm]').forEach(button => {
+    button.addEventListener('click', closeConfirmModal);
+  });
+
+  document.querySelectorAll('[data-list-action]').forEach(button => {
+    button.addEventListener('click', function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenus();
+
+      const state = {
+        cardId: this.dataset.cardId,
+        cardTitle: this.dataset.cardTitle,
+        currentEtapa: this.dataset.currentEtapa,
+        updateUrl: this.dataset.updateUrl,
+        deleteUrl: this.dataset.deleteUrl,
+      };
+
+      if (this.dataset.listAction === 'move' || this.dataset.listAction === 'restore') {
+        openMoveModal(state);
+        return;
+      }
+
+      if (this.dataset.listAction === 'archive') {
+        openConfirmModal({
+          ...state,
+          kind: 'archive',
+          title: 'Arquivar card',
+          description: `O card "${state.cardTitle}" sairá da lista de ativos e ficará disponível no filtro Arquivados.`,
+          confirmLabel: 'Arquivar',
+          confirmClass: 'rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800',
+        });
+        return;
+      }
+
+      openConfirmModal({
+        ...state,
+        kind: 'delete',
+        title: 'Excluir card',
+        description: `O card "${state.cardTitle}" será removido definitivamente. Essa ação não pode ser desfeita.`,
+        confirmLabel: 'Excluir',
+        confirmClass: 'rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700',
+      });
+    });
+  });
+
+  moveForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    if (!moveState) return;
+
+    const targetEtapa = moveSelect.value;
+    if (!targetEtapa || targetEtapa === moveState.currentEtapa) {
+      closeMoveModal();
+      return;
+    }
+
+    moveSubmit.disabled = true;
+    moveSubmit.classList.add('opacity-60');
+
+    try {
+      await postStage(moveState.updateUrl, targetEtapa);
+      window.location.reload();
+    } catch (error) {
+      console.error(error);
+      window.location.reload();
+    }
+  });
+
+  confirmSubmit.addEventListener('click', async function() {
+    if (!confirmState) return;
+
+    confirmSubmit.disabled = true;
+    confirmSubmit.classList.add('opacity-60');
+
+    try {
+      if (confirmState.kind === 'archive') {
+        await postStage(confirmState.updateUrl, 'arquivado', {
+          motivo_arquivamento: archiveReasonSelect.value
+        });
+        window.location.reload();
+        return;
+      }
+
+      const response = await fetch(confirmState.deleteUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Erro ao excluir card: ${response.status}`);
+      }
+      window.location.reload();
+    } catch (error) {
+      console.error(error);
+      window.location.reload();
+    }
+  });
+});
+
 function carregarTabelaLancesImovel(imovelId) {
   fetch(`/kanban/${imovelId}/tabela-lances/`)
     .then(response => response.json())
     .then(data => {
       if (data.success) {
         const giroMeses = data.giro_meses;
-        
-        // Atualiza título
-        document.getElementById('modal-titulo').textContent = `📊 Tabela de Lances Progressivos — ${data.imovel_endereco}`;
-        
-        let html = '<div class="overflow-x-auto"><table class="w-full text-xs border-collapse">';
-        
-        // Cabeçalho
-        html += '<thead class="sticky top-0 bg-blue-50 border-b-2 border-blue-200">';
-        html += '<tr>';
-        html += '<th class="p-2 text-left font-bold text-gray-700 border-r border-gray-200">Lance</th>';
-        
+        document.getElementById('modal-titulo').textContent = `Tabela de Lances Progressivos — ${data.imovel_endereco}`;
+
+        let html = '<div class="overflow-x-auto"><table class="w-full border-collapse text-xs">';
+        html += '<thead class="sticky top-0 border-b-2 border-blue-200 bg-blue-50"><tr>';
+        html += '<th class="border-r border-gray-200 p-2 text-left font-bold text-gray-700">Lance</th>';
         for (const mes of giroMeses) {
-          html += `<th class="p-2 text-center font-bold text-gray-700 border-r border-gray-200">${mes} meses</th>`;
+          html += `<th class="border-r border-gray-200 p-2 text-center font-bold text-gray-700">${mes} meses</th>`;
         }
-        
         html += '</tr></thead>';
-        
-        // Corpo da tabela
         html += '<tbody>' + data.html + '</tbody>';
         html += '</table></div>';
-        
+
         document.getElementById('tabela-lances-lista-container').innerHTML = html;
         document.getElementById('modal-lances-lista').showModal();
       } else {
-        document.getElementById('tabela-lances-lista-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro ao carregar tabela</p>';
+        document.getElementById('tabela-lances-lista-container').innerHTML = '<p class="p-4 text-center text-red-600">Erro ao carregar tabela.</p>';
       }
     })
     .catch(err => {
       console.error('Erro:', err);
-      document.getElementById('tabela-lances-lista-container').innerHTML = '<p class="text-red-600 text-center p-4">Erro na requisição</p>';
+      document.getElementById('tabela-lances-lista-container').innerHTML = '<p class="p-4 text-center text-red-600">Erro na requisição.</p>';
     });
 }
-</script>
 
-<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
 {% endblock %}

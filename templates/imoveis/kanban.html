@@ -6,9 +6,9 @@
 
 {% block header_actions %}
 <div class="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-  <input type="text" id="search-input" placeholder="Pesquisar por endereço…" class="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 sm:w-72">
-  <a href="{% url 'listar' %}" class="flex-1 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 text-center sm:flex-none">📋 Lista</a>
-  <a href="{% url 'criar' %}" class="flex-1 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-sm font-bold transition-colors text-center sm:flex-none sm:px-6">➕ Novo card</a>
+  <input type="text" id="search-input" placeholder="Pesquisar por endereço..." class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 sm:w-72">
+  <a href="{% url 'listar' %}" class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 sm:flex-none">Lista</a>
+  <a href="{% url 'criar' %}" class="flex-1 rounded-lg bg-teal-500 px-4 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-teal-600 sm:flex-none sm:px-6">Novo card</a>
 </div>
 {% endblock %}
 
@@ -23,34 +23,34 @@
 </style>
 
 <div x-data="kanbanBoard('{{ aba }}')" data-kanban-root class="space-y-4">
-
-  <!-- Abas -->
   <div class="flex gap-0 overflow-x-auto border-b border-gray-200 bg-white">
-    <button @click="setAba('pre')" :class="aba === 'pre' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
-      🎯 Pré-Arrematação <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 font-medium">{{ total_pre }}</span>
+    <button @click="setAba('pre')" :class="aba === 'pre' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
+      Pré-Arrematação <span class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-600">{{ total_pre }}</span>
     </button>
-    <button @click="setAba('pos')" :class="aba === 'pos' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
-      ✅ Pós-Arrematação <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 font-medium">{{ total_pos }}</span>
+    <button @click="setAba('pos')" :class="aba === 'pos' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
+      Pós-Arrematação <span class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-600">{{ total_pos }}</span>
     </button>
-    <button @click="setAba('financeiro')" :class="aba === 'financeiro' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 font-bold text-sm transition-colors sm:px-6">
-      💰 Financeiro
+    <button @click="setAba('arquivados')" :class="aba === 'arquivados' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
+      Arquivados <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{{ total_arquivados }}</span>
+    </button>
+    <button @click="setAba('financeiro')" :class="aba === 'financeiro' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
+      Financeiro
     </button>
   </div>
 
-  <!-- ABA PRÉ-ARREMATAÇÃO -->
-  <div x-show="aba === 'pre'" x-cloak class="bg-gray-50 rounded-xl p-3 sm:p-5">
+  <div x-show="aba === 'pre'" x-cloak class="rounded-xl bg-gray-50 p-3 sm:p-5">
     <div class="overflow-x-auto">
       <div class="flex gap-4 pb-4" style="width: max-content;">
         {% for coluna in colunas_pre %}
-        <div class="flex flex-col gap-3 w-[18rem] bg-white rounded-lg p-4 border border-gray-200 shadow-sm kanban-col sm:w-80" data-etapa="{{ coluna.key }}">
-          <div class="rounded-lg p-3 border-l-4 bg-gray-50 col-header" style="border-left-color: {{ coluna.cor }};">
-            <div class="font-bold text-sm text-gray-900">{{ coluna.label }}</div>
-            <div class="text-xs text-gray-500 mt-1 card-count"><span class="count">{{ coluna.count }}</span> cards</div>
+        <div class="kanban-col flex w-[18rem] flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:w-80" data-etapa="{{ coluna.key }}">
+          <div class="col-header rounded-lg border-l-4 bg-gray-50 p-3" style="border-left-color: {{ coluna.cor }};">
+            <div class="text-sm font-bold text-gray-900">{{ coluna.label }}</div>
+            <div class="card-count mt-1 text-xs text-gray-500"><span class="count">{{ coluna.count }}</span> cards</div>
           </div>
-          <div class="space-y-3 flex-1 kanban-cards" data-sortable-group="kanban">
+          <div class="kanban-cards flex-1 space-y-3" data-sortable-group="kanban">
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
-            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" draggable="true">
+            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}">
               <details class="kanban-menu absolute right-2 top-2 z-20" onclick="event.stopPropagation()">
                 <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
                   <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -60,34 +60,18 @@
                   </svg>
                 </summary>
                 <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
-                  <button type="button"
-                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                          data-kanban-action="move"
-                          data-card-id="{{ im.id }}"
-                          data-card-title="{{ im.titulo_card }}"
-                          data-current-etapa="{{ im.etapa }}"
-                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="move" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
                     Mover card
                   </button>
-                  <button type="button"
-                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                          data-kanban-action="archive"
-                          data-card-id="{{ im.id }}"
-                          data-card-title="{{ im.titulo_card }}"
-                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="archive" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
                     Arquivar
                   </button>
-                  <button type="button"
-                          class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
-                          data-kanban-action="delete"
-                          data-card-id="{{ im.id }}"
-                          data-card-title="{{ im.titulo_card }}"
-                          data-delete-url="{% url 'excluir' im.id %}">
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-kanban-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
                     Excluir
                   </button>
                 </div>
               </details>
-              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md cursor-grab group-hover:cursor-grabbing">
+              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block cursor-grab overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md group-hover:cursor-grabbing">
                 {% if card.imagem_url %}
                 <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
                 {% else %}
@@ -96,10 +80,10 @@
                 </div>
                 {% endif %}
                 <div class="p-3">
-                  <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
-                  <div class="text-xs text-gray-600 mb-2">💰 {{ im.lance|brl }}</div>
-                  {% if im.data_leilao %}<div class="text-xs text-gray-500">📅 {{ im.data_leilao|date:"d/m/Y" }}</div>{% endif %}
-                  {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">ROI 12m: <strong class="{% if r.roi >= 15 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ r.roi|pct }}</strong></div>{% endif %}
+                  <div class="mb-2 line-clamp-2 text-xs font-bold text-gray-900">{{ im.titulo_card }}</div>
+                  <div class="mb-2 text-xs text-gray-600">Lance: {{ im.lance|brl }}</div>
+                  {% if im.data_leilao %}<div class="text-xs text-gray-500">Leilão: {{ im.data_leilao|date:"d/m/Y" }}</div>{% endif %}
+                  {% if r %}<div class="mt-2 border-t border-gray-100 pt-2 text-xs">ROI {{ im.giro_padrao }}m: <strong class="{% if r.roi >= 15 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ r.roi|pct }}</strong></div>{% endif %}
                 </div>
               </a>
             </div>
@@ -108,15 +92,12 @@
           </div>
         </div>
         {% endfor %}
-        <div class="kanban-col kanban-drop-arrematado flex w-[18rem] flex-col rounded-lg border-2 border-dashed border-gray-300 bg-white/70 p-4 shadow-sm transition-colors sm:w-80"
-             data-etapa="registro_desocupacao"
-             data-arrematado-drop="true">
+        <div class="kanban-col kanban-drop-arrematado flex w-[18rem] flex-col rounded-lg border-2 border-dashed border-gray-300 bg-white/70 p-4 shadow-sm transition-colors sm:w-80" data-etapa="registro_desocupacao" data-arrematado-drop="true">
           <div class="rounded-lg border-l-4 border-gray-300 bg-gray-50 p-3">
-            <div class="font-bold text-sm text-gray-500">Arrematado</div>
+            <div class="text-sm font-bold text-gray-500">Arrematado</div>
             <div class="mt-1 text-xs text-gray-400">Solte aqui para iniciar o pós-arrematação</div>
           </div>
-          <div class="kanban-cards flex min-h-[28rem] flex-1 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-4 text-center"
-               data-sortable-group="kanban">
+          <div class="kanban-cards flex min-h-[28rem] flex-1 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-4 text-center" data-sortable-group="kanban">
             <div class="pointer-events-none flex max-w-[14rem] flex-col items-center gap-3 text-gray-400">
               <div class="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-white">
                 <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -134,20 +115,19 @@
     </div>
   </div>
 
-  <!-- ABA PÓS-ARREMATAÇÃO -->
-  <div x-show="aba === 'pos'" x-cloak class="bg-gray-50 rounded-xl p-3 sm:p-5">
+  <div x-show="aba === 'pos'" x-cloak class="rounded-xl bg-gray-50 p-3 sm:p-5">
     <div class="overflow-x-auto">
       <div class="flex gap-4 pb-4" style="width: max-content;">
         {% for coluna in colunas_pos %}
-        <div class="flex flex-col gap-3 w-[18rem] bg-white rounded-lg p-4 border border-gray-200 shadow-sm kanban-col sm:w-80" data-etapa="{{ coluna.key }}">
-          <div class="rounded-lg p-3 border-l-4 bg-gray-50 col-header" style="border-left-color: {{ coluna.cor }};">
-            <div class="font-bold text-sm text-gray-900">{{ coluna.label }}</div>
-            <div class="text-xs text-gray-500 mt-1 card-count"><span class="count">{{ coluna.count }}</span> cards</div>
+        <div class="kanban-col flex w-[18rem] flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:w-80" data-etapa="{{ coluna.key }}">
+          <div class="col-header rounded-lg border-l-4 bg-gray-50 p-3" style="border-left-color: {{ coluna.cor }};">
+            <div class="text-sm font-bold text-gray-900">{{ coluna.label }}</div>
+            <div class="card-count mt-1 text-xs text-gray-500"><span class="count">{{ coluna.count }}</span> cards</div>
           </div>
-          <div class="space-y-3 flex-1 kanban-cards" data-sortable-group="kanban">
+          <div class="kanban-cards flex-1 space-y-3" data-sortable-group="kanban">
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
-            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" draggable="true">
+            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}">
               <details class="kanban-menu absolute right-2 top-2 z-20" onclick="event.stopPropagation()">
                 <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
                   <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -157,34 +137,18 @@
                   </svg>
                 </summary>
                 <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
-                  <button type="button"
-                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                          data-kanban-action="move"
-                          data-card-id="{{ im.id }}"
-                          data-card-title="{{ im.titulo_card }}"
-                          data-current-etapa="{{ im.etapa }}"
-                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="move" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
                     Mover card
                   </button>
-                  <button type="button"
-                          class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                          data-kanban-action="archive"
-                          data-card-id="{{ im.id }}"
-                          data-card-title="{{ im.titulo_card }}"
-                          data-update-url="{% url 'atualizar_etapa' im.id %}">
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="archive" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
                     Arquivar
                   </button>
-                  <button type="button"
-                          class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
-                          data-kanban-action="delete"
-                          data-card-id="{{ im.id }}"
-                          data-card-title="{{ im.titulo_card }}"
-                          data-delete-url="{% url 'excluir' im.id %}">
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-kanban-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
                     Excluir
                   </button>
                 </div>
               </details>
-              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md cursor-grab group-hover:cursor-grabbing">
+              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block cursor-grab overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md group-hover:cursor-grabbing">
                 {% if card.imagem_url %}
                 <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
                 {% else %}
@@ -193,9 +157,9 @@
                 </div>
                 {% endif %}
                 <div class="p-3">
-                  <div class="font-bold text-xs text-gray-900 line-clamp-2 mb-2">{{ im.titulo_card }}</div>
-                  <div class="text-xs text-gray-600 mb-2">💰 {{ im.preco_venda|brl }}</div>
-                  {% if r %}<div class="text-xs mt-2 pt-2 border-t border-gray-100">Resultado: <strong class="{% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.resultado|brl }}</strong></div>{% endif %}
+                  <div class="mb-2 line-clamp-2 text-xs font-bold text-gray-900">{{ im.titulo_card }}</div>
+                  <div class="mb-2 text-xs text-gray-600">Venda: {{ im.preco_venda|brl }}</div>
+                  {% if r %}<div class="mt-2 border-t border-gray-100 pt-2 text-xs">Resultado: <strong class="{% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.resultado|brl }}</strong></div>{% endif %}
                 </div>
               </a>
             </div>
@@ -208,11 +172,93 @@
     </div>
   </div>
 
-  <!-- ABA FINANCEIRO -->
-  <div x-show="aba === 'financeiro'" x-cloak class="bg-white rounded-xl border border-gray-200 p-8 shadow-sm text-center sm:p-12">
-    <div class="text-5xl mb-3">💰</div>
+  <div x-show="aba === 'arquivados'" x-cloak class="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <div class="flex flex-col gap-1 border-b border-gray-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 class="text-base font-bold text-gray-900">Cards arquivados</h2>
+        <p class="text-sm text-gray-500">Itens fora do funil ativo. Use desarquivar para devolver o card a uma etapa operacional.</p>
+      </div>
+      <div class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">{{ total_arquivados }} arquivado{{ total_arquivados|pluralize }}</div>
+    </div>
+
+    {% if cards_arquivados %}
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      {% for card in cards_arquivados %}
+      {% with im=card.imovel r=card.resultado %}
+      <div class="kanban-card group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}">
+        <details class="kanban-menu absolute right-3 top-3 z-20" onclick="event.stopPropagation()">
+          <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="5" r="1.75"></circle>
+              <circle cx="12" cy="12" r="1.75"></circle>
+              <circle cx="12" cy="19" r="1.75"></circle>
+            </svg>
+          </summary>
+          <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
+            <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="restore" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
+              Desarquivar para...
+            </button>
+            <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-kanban-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
+              Excluir
+            </button>
+          </div>
+        </details>
+        <a href="{% url 'detalhe' im.id %}" class="block">
+          {% if card.imagem_url %}
+          <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="this.style.display='none'">
+          {% else %}
+          <div class="flex h-40 w-full items-center justify-center bg-gray-100 text-gray-300">
+            <svg class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
+          </div>
+          {% endif %}
+          <div class="space-y-3 p-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">Arquivado</span>
+              {% if im.motivo_arquivamento_label %}
+              <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">{{ im.motivo_arquivamento_label }}</span>
+              {% endif %}
+              {% if im.arquivado_em %}
+              <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500">{{ im.arquivado_em|date:"d/m/Y H:i" }}</span>
+              {% endif %}
+            </div>
+            <div>
+              <div class="text-sm font-bold text-gray-900">{{ im.titulo_card }}</div>
+              <p class="mt-1 text-xs text-gray-500">{{ im.cidade }} — {{ im.estado }}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="rounded-lg bg-gray-50 p-3">
+                <div class="text-gray-500">Última atualização</div>
+                <div class="mt-1 font-semibold text-gray-900">{{ im.updated_at|date:"d/m/Y H:i" }}</div>
+              </div>
+              <div class="rounded-lg bg-gray-50 p-3">
+                <div class="text-gray-500">Lance</div>
+                <div class="mt-1 font-semibold text-gray-900">{{ im.lance|brl }}</div>
+              </div>
+            </div>
+            {% if r %}
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs">
+              <div class="text-gray-500">Resultado {{ im.giro_padrao }}m</div>
+              <div class="mt-1 font-semibold {% if r.resultado >= 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.resultado|brl }}</div>
+            </div>
+            {% endif %}
+          </div>
+        </a>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
+      <div class="text-base font-semibold text-gray-700">Nenhum card arquivado</div>
+      <p class="mt-2 text-sm text-gray-500">Arquive cards concluídos, vencidos ou fora de interesse para limpar o funil ativo sem perder histórico.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div x-show="aba === 'financeiro'" x-cloak class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm sm:p-12">
+    <div class="mb-3 text-5xl">💰</div>
     <p class="font-semibold text-gray-900">Gestão Financeira</p>
-    <p class="text-sm mt-2 text-gray-500"><a href="{% url 'financeiro' %}" class="text-teal-600 hover:underline">Acessar dashboard completo →</a></p>
+    <p class="mt-2 text-sm text-gray-500"><a href="{% url 'financeiro' %}" class="text-teal-600 hover:underline">Acessar dashboard completo →</a></p>
   </div>
 
   <div id="kanban-move-modal" class="fixed inset-0 z-50 hidden">
@@ -221,7 +267,7 @@
       <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <h3 class="text-lg font-bold text-gray-950">Mover card</h3>
+            <h3 id="kanban-move-title" class="text-lg font-bold text-gray-950">Mover card</h3>
             <p id="kanban-move-description" class="mt-1 text-sm text-gray-600"></p>
           </div>
           <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-move>
@@ -236,11 +282,11 @@
             <label for="kanban-move-select" class="mb-2 block text-sm font-semibold text-gray-700">Destino</label>
             <select id="kanban-move-select" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
               {% for grupo in etapas_menu %}
-                <optgroup label="{{ grupo.grupo }}">
-                  {% for etapa in grupo.opcoes %}
-                    <option value="{{ etapa.key }}" data-phase="{{ etapa.fase }}">{{ etapa.label }}</option>
-                  {% endfor %}
-                </optgroup>
+              <optgroup label="{{ grupo.grupo }}">
+                {% for etapa in grupo.opcoes %}
+                <option value="{{ etapa.key }}" data-phase="{{ etapa.fase }}">{{ etapa.label }}</option>
+                {% endfor %}
+              </optgroup>
               {% endfor %}
             </select>
           </div>
@@ -269,6 +315,15 @@
             </svg>
           </button>
         </div>
+        <div id="kanban-archive-reason-wrapper" class="mt-5 hidden">
+          <label for="kanban-archive-reason" class="mb-2 block text-sm font-semibold text-gray-700">Motivo do arquivamento <span class="font-normal text-gray-400">(opcional)</span></label>
+          <select id="kanban-archive-reason" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <option value="">Selecionar motivo</option>
+            {% for motivo in arquivamento_motivos %}
+            <option value="{{ motivo.key }}">{{ motivo.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
         <div class="mt-5 flex items-center justify-end gap-3">
           <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-confirm>Cancelar</button>
           <button type="button" id="kanban-confirm-submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">Confirmar</button>
@@ -276,7 +331,6 @@
       </div>
     </div>
   </div>
-
 </div>
 
 <script>
@@ -293,9 +347,10 @@ function kanbanBoard(initialAba) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  const containers = document.querySelectorAll('.kanban-cards');
+  const sortableContainers = document.querySelectorAll('.kanban-cards[data-sortable-group="kanban"]');
   const cardMenus = document.querySelectorAll('.kanban-menu');
   const moveModal = document.getElementById('kanban-move-modal');
+  const moveTitle = document.getElementById('kanban-move-title');
   const moveForm = document.getElementById('kanban-move-form');
   const moveSelect = document.getElementById('kanban-move-select');
   const moveDescription = document.getElementById('kanban-move-description');
@@ -304,6 +359,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmTitle = document.getElementById('kanban-confirm-title');
   const confirmDescription = document.getElementById('kanban-confirm-description');
   const confirmSubmit = document.getElementById('kanban-confirm-submit');
+  const archiveReasonWrapper = document.getElementById('kanban-archive-reason-wrapper');
+  const archiveReasonSelect = document.getElementById('kanban-archive-reason');
   let moveState = null;
   let confirmState = null;
 
@@ -328,20 +385,34 @@ document.addEventListener('DOMContentLoaded', function() {
   function closeConfirmModal() {
     confirmModal.classList.add('hidden');
     confirmState = null;
+    archiveReasonSelect.value = '';
+    archiveReasonWrapper.classList.add('hidden');
     confirmSubmit.disabled = false;
     confirmSubmit.classList.remove('opacity-60');
     setBodyScrollLocked(false);
   }
 
-  function removeCardElement(cardId) {
-    const card = document.querySelector(`.kanban-card[data-id="${cardId}"]`);
-    if (card) {
-      card.remove();
-      updateCounters();
-    }
+  function reloadCurrentView() {
+    window.location.href = window.location.href;
   }
 
-  async function postStage(updateUrl, etapa) {
+  function updateCounters() {
+    document.querySelectorAll('.kanban-col').forEach(col => {
+      const count = col.querySelectorAll('.kanban-card').length;
+      const countElement = col.querySelector('.count');
+      if (countElement) {
+        countElement.textContent = count;
+      }
+    });
+  }
+
+  async function postStage(updateUrl, etapa, extraData = {}) {
+    const params = new URLSearchParams({ etapa });
+    Object.entries(extraData).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
     const response = await fetch(updateUrl, {
       method: 'POST',
       headers: {
@@ -349,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'X-CSRFToken': getCookie('csrftoken'),
         'X-Requested-With': 'XMLHttpRequest'
       },
-      body: `etapa=${encodeURIComponent(etapa)}`
+      body: params.toString()
     });
     if (!response.ok) {
       throw new Error(`Erro ao atualizar etapa: ${response.status}`);
@@ -359,8 +430,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function openMoveModal(state) {
     moveState = state;
-    moveDescription.textContent = `Escolha a nova coluna para "${state.cardTitle}".`;
-    moveSelect.value = state.currentEtapa;
+    const isRestore = state.currentEtapa === 'arquivado';
+    moveTitle.textContent = isRestore ? 'Desarquivar card' : 'Mover card';
+    moveDescription.textContent = isRestore
+      ? `Escolha para qual etapa ativa o card "${state.cardTitle}" deve voltar.`
+      : `Escolha a nova coluna para "${state.cardTitle}".`;
+    moveSubmit.textContent = isRestore ? 'Desarquivar' : 'Mover';
+    const optionValues = Array.from(moveSelect.options).map(option => option.value);
+    moveSelect.value = optionValues.includes(state.currentEtapa) ? state.currentEtapa : optionValues[0];
     moveModal.classList.remove('hidden');
     setBodyScrollLocked(true);
   }
@@ -371,6 +448,12 @@ document.addEventListener('DOMContentLoaded', function() {
     confirmDescription.textContent = state.description;
     confirmSubmit.textContent = state.confirmLabel;
     confirmSubmit.className = state.confirmClass;
+    if (state.kind === 'archive') {
+      archiveReasonWrapper.classList.remove('hidden');
+    } else {
+      archiveReasonWrapper.classList.add('hidden');
+      archiveReasonSelect.value = '';
+    }
     confirmModal.classList.remove('hidden');
     setBodyScrollLocked(true);
   }
@@ -403,7 +486,7 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteUrl: this.dataset.deleteUrl,
       };
 
-      if (this.dataset.kanbanAction === 'move') {
+      if (this.dataset.kanbanAction === 'move' || this.dataset.kanbanAction === 'restore') {
         openMoveModal(state);
         return;
       }
@@ -413,7 +496,7 @@ document.addEventListener('DOMContentLoaded', function() {
           ...state,
           kind: 'archive',
           title: 'Arquivar card',
-          description: `O card "${state.cardTitle}" sairá do kanban principal e poderá ser recuperado depois pela etapa Arquivado.`,
+          description: `O card "${state.cardTitle}" sairá do funil ativo e ficará disponível na aba Arquivados.`,
           confirmLabel: 'Arquivar',
           confirmClass: 'rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800',
         });
@@ -431,7 +514,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  containers.forEach(container => {
+  sortableContainers.forEach(container => {
     new Sortable(container, {
       group: 'kanban',
       animation: 150,
@@ -441,7 +524,9 @@ document.addEventListener('DOMContentLoaded', function() {
       handle: '.kanban-card-link',
       onStart: function() {
         const dropzone = document.querySelector('[data-arrematado-drop="true"]');
-        if (dropzone) dropzone.classList.add('border-teal-400', 'bg-teal-50');
+        if (dropzone) {
+          dropzone.classList.add('border-teal-400', 'bg-teal-50');
+        }
       },
       onEnd: function(evt) {
         const card = evt.item;
@@ -452,40 +537,26 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('[data-arrematado-drop="true"]').forEach(function(dropzone) {
           dropzone.classList.remove('border-teal-400', 'bg-teal-50');
         });
-        
-        // Atualiza contadores localmente
+
         updateCounters();
 
-        fetch(`/kanban/${cardId}/etapa/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': getCookie('csrftoken'),
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: `etapa=${newEtapa}`
-        })
-        .then(response => {
-          if (!response.ok) {
-            console.error('Erro ao atualizar etapa:', response.status);
-            location.reload();
-            return null;
-          }
-          return response.json();
-        })
-        .then(data => {
-          if (!data || !data.success) return;
-          if (isArrematadoDrop) {
-            targetCol.classList.add('border-teal-500', 'bg-teal-50');
-            window.setTimeout(function() {
-              window.location.href = "{% url 'kanban' %}?aba=pos";
-            }, 450);
-          }
-        })
-        .catch(error => {
-          console.error('Erro na requisição:', error);
-          location.reload();
-        });
+        postStage(`/kanban/${cardId}/etapa/`, newEtapa)
+          .then(data => {
+            if (!data || !data.success) {
+              window.location.reload();
+              return;
+            }
+            if (isArrematadoDrop) {
+              targetCol.classList.add('border-teal-500', 'bg-teal-50');
+              window.setTimeout(function() {
+                window.location.href = "{% url 'kanban' %}?aba=pos";
+              }, 450);
+            }
+          })
+          .catch(function(error) {
+            console.error(error);
+            window.location.reload();
+          });
       }
     });
   });
@@ -525,9 +596,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     try {
       if (confirmState.kind === 'archive') {
-        await postStage(confirmState.updateUrl, 'arquivado');
-        removeCardElement(confirmState.cardId);
+        await postStage(confirmState.updateUrl, 'arquivado', {
+          motivo_arquivamento: archiveReasonSelect.value
+        });
         closeConfirmModal();
+        reloadCurrentView();
         return;
       }
 
@@ -541,24 +614,16 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!response.ok) {
         throw new Error(`Erro ao excluir card: ${response.status}`);
       }
-      removeCardElement(confirmState.cardId);
       closeConfirmModal();
+      reloadCurrentView();
     } catch (error) {
       console.error(error);
       window.location.reload();
     }
   });
-});
 
-function updateCounters() {
-  document.querySelectorAll('.kanban-col').forEach(col => {
-    const count = col.querySelectorAll('.kanban-card').length;
-    const countElement = col.querySelector('.count');
-    if (countElement) {
-      countElement.textContent = count;
-    }
-  });
-}
+  updateCounters();
+});
 
 function getCookie(name) {
   let cookieValue = null;

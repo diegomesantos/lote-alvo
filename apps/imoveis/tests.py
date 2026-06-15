@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import CHECKLIST_PADRAO, Imovel, ImovelArquivo, ImovelChecklistItem, ImovelComentario
 
@@ -206,18 +207,81 @@ class ImovelInteracaoTests(TestCase):
     def test_arquivar_remove_card_do_kanban(self):
         response = self.client.post(
             reverse("atualizar_etapa", args=[self.imovel.pk]),
-            {"etapa": "arquivado"},
+            {"etapa": "arquivado", "motivo_arquivamento": "sem_interesse"},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
         self.imovel.refresh_from_db()
         kanban = self.client.get(reverse("kanban"))
         data = response.json()
+        titulos_ativos = [
+            card["imovel"].titulo_card
+            for coluna in list(kanban.context["colunas_pre"]) + list(kanban.context["colunas_pos"])
+            for card in coluna["cards"]
+        ]
+        titulos_arquivados = [card["imovel"].titulo_card for card in kanban.context["cards_arquivados"]]
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(data["success"])
         self.assertEqual(self.imovel.etapa, "arquivado")
-        self.assertNotContains(kanban, self.imovel.titulo_card)
+        self.assertEqual(self.imovel.motivo_arquivamento, "sem_interesse")
+        self.assertIsNotNone(self.imovel.arquivado_em)
+        self.assertNotIn(self.imovel.titulo_card, titulos_ativos)
+        self.assertIn(self.imovel.titulo_card, titulos_arquivados)
+
+    def test_desarquivar_limpa_metadados_e_retorna_para_etapa_ativa(self):
+        self.client.post(
+            reverse("atualizar_etapa", args=[self.imovel.pk]),
+            {"etapa": "arquivado", "motivo_arquivamento": "aguardar"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        response = self.client.post(
+            reverse("atualizar_etapa", args=[self.imovel.pk]),
+            {"etapa": "triagem_financeira"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.imovel.refresh_from_db()
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(self.imovel.etapa, "triagem_financeira")
+        self.assertIsNone(self.imovel.arquivado_em)
+        self.assertEqual(self.imovel.motivo_arquivamento, "")
+
+    def test_lista_filtra_ativos_arquivados_e_todos(self):
+        arquivado = Imovel.objects.create(
+            user=self.user,
+            endereco="Rua Arquivada 456",
+            cidade="Salvador",
+            estado="BA",
+            etapa="arquivado",
+            arquivado_em=timezone.now(),
+            motivo_arquivamento="leilao_encerrado",
+            lance=90000,
+            avaliacao=140000,
+            preco_venda=170000,
+        )
+
+        ativos = self.client.get(reverse("listar"))
+        arquivados = self.client.get(f"{reverse('listar')}?status=arquivados")
+        todos = self.client.get(f"{reverse('listar')}?status=todos")
+
+        ativos_ids = {str(card["imovel"].pk) for card in ativos.context["cards"]}
+        arquivados_ids = {str(card["imovel"].pk) for card in arquivados.context["cards"]}
+        todos_ids = {str(card["imovel"].pk) for card in todos.context["cards"]}
+
+        self.assertEqual(ativos.context["status"], "ativos")
+        self.assertIn(str(self.imovel.pk), ativos_ids)
+        self.assertNotIn(str(arquivado.pk), ativos_ids)
+        self.assertEqual(arquivados.context["status"], "arquivados")
+        self.assertNotIn(str(self.imovel.pk), arquivados_ids)
+        self.assertIn(str(arquivado.pk), arquivados_ids)
+        self.assertEqual(todos.context["status"], "todos")
+        self.assertIn(str(self.imovel.pk), todos_ids)
+        self.assertIn(str(arquivado.pk), todos_ids)
 
     def test_excluir_ajax_remove_card(self):
         response = self.client.post(

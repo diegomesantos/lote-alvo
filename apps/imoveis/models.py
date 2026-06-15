@@ -181,6 +181,14 @@ PRIORIDADE_COR = {
     "urgente": ("#fee2e2", "#991b1b"),
 }
 
+ARQUIVAMENTO_MOTIVO_CHOICES = [
+    ("leilao_encerrado", "Leilão encerrado"),
+    ("sem_interesse", "Sem interesse"),
+    ("duplicado", "Duplicado"),
+    ("aguardar", "Aguardar depois"),
+    ("outro", "Outro"),
+]
+
 GIRO_MESES_CHOICES = [(m, f"{m} meses") for m in [1, 3, 4, 6, 7, 9, 10, 12]]
 ESTADO_CHOICES = [(uf, f"{uf} — {ESTADOS_NOMES.get(uf, uf)}") for uf in TODOS_ESTADOS]
 
@@ -203,6 +211,13 @@ class Imovel(models.Model):
     foto         = models.ImageField("Foto", upload_to="imoveis/fotos/", null=True, blank=True)
     obs          = models.TextField("Observações", blank=True)
     caixa_imovel_id = models.CharField("ID do imóvel Caixa", max_length=50, blank=True, db_index=True)
+    arquivado_em = models.DateTimeField("Arquivado em", null=True, blank=True, db_index=True)
+    motivo_arquivamento = models.CharField(
+        "Motivo do arquivamento",
+        max_length=30,
+        choices=ARQUIVAMENTO_MOTIVO_CHOICES,
+        blank=True,
+    )
 
     # Valores
     avaliacao = models.DecimalField("Valor de avaliação (R$)", max_digits=14, decimal_places=2, default=0)
@@ -306,6 +321,16 @@ class Imovel(models.Model):
         elif self.etapa in ETAPAS_POS_KEYS:
             return "pos"
         return "arquivado"
+
+    @property
+    def arquivado(self):
+        return self.etapa == "arquivado"
+
+    @property
+    def motivo_arquivamento_label(self):
+        if not self.motivo_arquivamento:
+            return ""
+        return dict(ARQUIVAMENTO_MOTIVO_CHOICES).get(self.motivo_arquivamento, self.motivo_arquivamento)
 
     @property
     def desconto_pct(self):
