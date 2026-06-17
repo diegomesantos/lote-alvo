@@ -413,6 +413,49 @@ def extrair_secao(texto: str, inicio: str, fim: str | None = None) -> str:
     return limpar_texto(conteudo)
 
 
+def _classificar_despesa(trecho: str) -> str:
+    """Classifica a responsabilidade por uma despesa (condomínio/tributos).
+
+    Retorna um dos valores de ImovelCaixa.DESPESA_CHOICES.
+    """
+    texto = (trecho or "").lower()
+    if not texto.strip():
+        return "indeterminado"
+
+    tem_comprador = "comprador" in texto
+    tem_caixa = "caixa" in texto
+    # "até o limite de 10%" / "exceder o limite de 10%" => comprador paga até 10%
+    tem_limite_10 = bool(re.search(r"limite\s+de\s+10\s*%", texto))
+
+    if tem_comprador and tem_limite_10:
+        return "comprador_ate_10"
+    if tem_comprador:
+        return "comprador"
+    if tem_caixa:
+        return "caixa"
+    return "indeterminado"
+
+
+def extrair_regras_despesas(regras_texto: str) -> dict:
+    """Estrutura o texto livre de "REGRAS PARA PAGAMENTO DAS DESPESAS".
+
+    A Caixa lista as despesas no formato "Condomínio: ... Tributos: ...".
+    Retorna {"despesa_condominio": <choice>, "despesa_tributos": <choice>}.
+    """
+    texto = limpar_texto(regras_texto)
+    if not texto:
+        return {"despesa_condominio": "indeterminado", "despesa_tributos": "indeterminado"}
+
+    # Separa o trecho de condomínio do trecho de tributos.
+    cond_match = re.search(r"condom[íi]nio\s*:?(.*?)(?=tributos\s*:|$)", texto, re.IGNORECASE | re.DOTALL)
+    trib_match = re.search(r"tributos\s*:?(.*)$", texto, re.IGNORECASE | re.DOTALL)
+
+    return {
+        "despesa_condominio": _classificar_despesa(cond_match.group(1) if cond_match else ""),
+        "despesa_tributos": _classificar_despesa(trib_match.group(1) if trib_match else ""),
+    }
+
+
 def extrair_detalhes_html(html: str, url: str = "") -> dict:
     if "Radware Bot Manager CAPTCHA" in html or "perfdrive" in html:
         raise RuntimeError("A Caixa exibiu CAPTCHA na página de detalhe")
@@ -527,6 +570,10 @@ def aplicar_detalhes(imovel: ImovelCaixa, detalhes: dict) -> ImovelCaixa:
 
     imovel.possui_penhora = "penhora" in texto
     imovel.formas_pagamento = formas_pagamento
+
+    regras_despesas = extrair_regras_despesas(detalhes.get("regras_pagamento_texto", ""))
+    imovel.despesa_condominio = regras_despesas["despesa_condominio"]
+    imovel.despesa_tributos = regras_despesas["despesa_tributos"]
     imovel.detalhes = {
         **(imovel.detalhes or {}),
         "detalhe_caixa": detalhes,
