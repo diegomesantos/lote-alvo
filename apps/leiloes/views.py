@@ -202,6 +202,25 @@ def explorador_leiloes(request):
     if tipos:
         queryset = queryset.filter(tipo__in=tipos)
 
+    # 🏷️ Filtro por modalidade/tipo de venda (multiseleção)
+    modalidades = request.GET.getlist('modalidades')
+    if modalidades:
+        queryset = queryset.filter(modalidade_venda__in=modalidades)
+
+    # 🧾 Filtro por responsabilidade de despesas (condomínio / tributos)
+    despesas_validas = {value for value, _ in ImovelCaixa.DESPESA_CHOICES}
+    despesa_condominio = request.GET.get('despesa_condominio', '')
+    if despesa_condominio not in despesas_validas:
+        despesa_condominio = ''
+    if despesa_condominio:
+        queryset = queryset.filter(despesa_condominio=despesa_condominio)
+
+    despesa_tributos = request.GET.get('despesa_tributos', '')
+    if despesa_tributos not in despesas_validas:
+        despesa_tributos = ''
+    if despesa_tributos:
+        queryset = queryset.filter(despesa_tributos=despesa_tributos)
+
     # 💰 Filtro por valor (range)
     valor_min = request.GET.get('valor_min')
     valor_max = request.GET.get('valor_max')
@@ -303,6 +322,14 @@ def explorador_leiloes(request):
         .distinct()
         .order_by('estado', 'cidade', 'bairro')
     )
+    modalidades_disponiveis = list(
+        opcoes_queryset
+        .exclude(modalidade_venda__isnull=True)
+        .exclude(modalidade_venda='')
+        .values_list('modalidade_venda', flat=True)
+        .distinct()
+        .order_by('modalidade_venda')
+    )
     query_params = request.GET.copy()
     query_params.pop('page', None)
 
@@ -338,9 +365,17 @@ def explorador_leiloes(request):
             {'value': value, 'label': label}
             for value, label in ImovelCaixa.TIPO_CHOICES
         ],
+        'modalidades_opcoes': [
+            {'value': modalidade, 'label': modalidade}
+            for modalidade in modalidades_disponiveis
+        ],
         'pagamentos_opcoes': [
             {'value': value, 'label': label}
             for value, label in PAGAMENTOS_FILTRO.items()
+        ],
+        'despesas_opcoes': [
+            {'value': value, 'label': label}
+            for value, label in ImovelCaixa.DESPESA_CHOICES
         ],
         'filtros_ativos': {
             'q': busca,
@@ -349,6 +384,9 @@ def explorador_leiloes(request):
             'bairros': bairros,
             'bairro_mode': bairro_mode,
             'tipos': tipos,
+            'modalidades': modalidades,
+            'despesa_condominio': despesa_condominio,
+            'despesa_tributos': despesa_tributos,
             'desconto': desconto_faixa,
             'valor_min': valor_min or '',
             'valor_max': valor_max or '',

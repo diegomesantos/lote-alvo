@@ -16,6 +16,14 @@ class ImovelCaixa(models.Model):
         ('judicial', 'Judicial'),
     ]
 
+    # Responsabilidade por despesas (condomínio / tributos) conforme regras da Caixa
+    DESPESA_CHOICES = [
+        ('comprador', 'Por conta do comprador'),
+        ('comprador_ate_10', 'Comprador até 10% (Caixa paga o excedente)'),
+        ('caixa', 'Quitado pela Caixa'),
+        ('indeterminado', 'Não informado'),
+    ]
+
     # Identificação
     imovel_id_caixa = models.CharField(unique=True, max_length=50)
     endereco = models.CharField(max_length=255)
@@ -43,6 +51,14 @@ class ImovelCaixa(models.Model):
     hora_leilao = models.TimeField(null=True, blank=True)
     tipo_leilao = models.CharField(max_length=20, choices=TIPO_LEILAO_CHOICES)
     modalidade_venda = models.CharField(max_length=100, blank=True, db_index=True)
+
+    # Regras de pagamento das despesas (extraídas de regras_pagamento_texto no enriquecimento)
+    despesa_condominio = models.CharField(
+        max_length=20, choices=DESPESA_CHOICES, default='indeterminado', db_index=True
+    )
+    despesa_tributos = models.CharField(
+        max_length=20, choices=DESPESA_CHOICES, default='indeterminado', db_index=True
+    )
 
     # Formas de Pagamento (usando JSONField)
     formas_pagamento = models.JSONField(default=dict)

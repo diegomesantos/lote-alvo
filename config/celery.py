@@ -17,7 +17,9 @@ app.conf.beat_schedule = {
     'enriquecer-leiloes-caixa-pendentes-cada-hora': {
         'task': 'apps.leiloes.tasks.enriquecer_leiloes_caixa_pendentes_task',
         'schedule': crontab(minute=20, hour='*'),
-        'args': (50, 1.0),
+        # 300 imóveis/hora (~7.2k/dia) para zerar o backlog inicial de detalhes
+        # mais rápido. Serial + intervalo de 1s por design anti-CAPTCHA da Caixa.
+        'args': (300, 1.0),
     },
 }
 
