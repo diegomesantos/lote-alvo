@@ -207,19 +207,21 @@ def explorador_leiloes(request):
     if modalidades:
         queryset = queryset.filter(modalidade_venda__in=modalidades)
 
-    # 🧾 Filtro por responsabilidade de despesas (condomínio / tributos)
+    # 🧾 Filtro por responsabilidade de despesas (condomínio / tributos, multiseleção)
     despesas_validas = {value for value, _ in ImovelCaixa.DESPESA_CHOICES}
-    despesa_condominio = request.GET.get('despesa_condominio', '')
-    if despesa_condominio not in despesas_validas:
-        despesa_condominio = ''
+    despesa_condominio = [
+        valor for valor in request.GET.getlist('despesa_condominio')
+        if valor in despesas_validas
+    ]
     if despesa_condominio:
-        queryset = queryset.filter(despesa_condominio=despesa_condominio)
+        queryset = queryset.filter(despesa_condominio__in=despesa_condominio)
 
-    despesa_tributos = request.GET.get('despesa_tributos', '')
-    if despesa_tributos not in despesas_validas:
-        despesa_tributos = ''
+    despesa_tributos = [
+        valor for valor in request.GET.getlist('despesa_tributos')
+        if valor in despesas_validas
+    ]
     if despesa_tributos:
-        queryset = queryset.filter(despesa_tributos=despesa_tributos)
+        queryset = queryset.filter(despesa_tributos__in=despesa_tributos)
 
     # 💰 Filtro por valor (range)
     valor_min = request.GET.get('valor_min')
@@ -376,6 +378,7 @@ def explorador_leiloes(request):
         'despesas_opcoes': [
             {'value': value, 'label': label}
             for value, label in ImovelCaixa.DESPESA_CHOICES
+            if value != 'indeterminado'
         ],
         'filtros_ativos': {
             'q': busca,
