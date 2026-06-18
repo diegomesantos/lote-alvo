@@ -1,13 +1,17 @@
 from decimal import Decimal
+from unittest.mock import Mock, patch
 
 from django.test import TestCase
 from django.urls import reverse
+from bs4 import BeautifulSoup
 
 from .analise_juridica import (
     _erro_documento_nao_pdf,
     _pagina_precisa_ocr,
 )
+from .caixa_csv import extrair_fotos
 from .models import ImovelCaixa
+from .regras_despesas import extrair_regras_despesas
 
 
 class ExploradorLeiloesFiltroBairroTests(TestCase):
@@ -76,6 +80,175 @@ class ExploradorLeiloesFiltroBairroTests(TestCase):
                 self.pituba.imovel_id_caixa,
             },
         )
+
+
+class RegrasDespesasParserTests(TestCase):
+    def test_classifica_limite_condominio_e_tributo_integral_comprador(self):
+        regras = extrair_regras_despesas(
+            "Condomínio: Sob responsabilidade do comprador, até o limite de "
+            "10% em relação ao valor de avaliação do imóvel. A CAIXA realizará "
+            "o pagamento apenas do valor que exceder o limite de 10%. "
+            "Tributos: Sob responsabilidade do comprador."
+        )
+
+        self.assertEqual(regras["despesa_condominio"], "comprador_ate_10")
+        self.assertEqual(regras["despesa_tributos"], "comprador")
+
+    def test_classifica_redacao_inferior_superior_a_dez_por_cento(self):
+        regras = extrair_regras_despesas(
+            "Condomínio: Sob responsabilidade do comprador, até o limite de 10%. "
+            "A CAIXA paga o excedente. Tributos: Sob responsabilidade do comprador, "
+            "quando o débito for inferior a 10% do valor de avaliação. A CAIXA "
+            "paga integralmente quando o débito for superior a 10%."
+        )
+
+        self.assertEqual(regras["despesa_condominio"], "comprador_ate_10")
+        self.assertEqual(regras["despesa_tributos"], "comprador_ate_10")
+
+    def test_classifica_regra_combinada_quitada_pela_caixa(self):
+        regras = extrair_regras_despesas(
+            "Tributos e condomínio: A CAIXA pagará integralmente. "
+            "Corretores credenciados Regras da Venda Online"
+        )
+
+        self.assertEqual(regras["despesa_condominio"], "caixa")
+        self.assertEqual(regras["despesa_tributos"], "caixa")
+
+    def test_retorna_indeterminado_sem_texto_de_regras(self):
+        regras = extrair_regras_despesas("Imóvel sem informação sobre despesas.")
+
+        self.assertEqual(regras["despesa_condominio"], "indeterminado")
+        self.assertEqual(regras["despesa_tributos"], "indeterminado")
+
+
+class ExploradorLeiloesFiltroDespesasTests(TestCase):
+    def setUp(self):
+        self.url = reverse("leiloes:explorador")
+        base = {
+            "endereco": "Rua Teste",
+            "cidade": "Salvador",
+            "estado": "BA",
+            "tipo": "apto",
+            "valor_avaliacao": Decimal("300000.00"),
+            "percentual_desconto": Decimal("20.00"),
+            "valor_minimo_lance": Decimal("240000.00"),
+            "tipo_leilao": "extra",
+        }
+        self.limite = ImovelCaixa.objects.create(
+            imovel_id_caixa="DESP-1",
+            despesa_condominio="comprador_ate_10",
+            despesa_tributos="comprador",
+            **base,
+        )
+        self.caixa = ImovelCaixa.objects.create(
+            imovel_id_caixa="DESP-2",
+            despesa_condominio="caixa",
+            despesa_tributos="caixa",
+            **base,
+        )
+
+    def test_filtra_condominio_ate_dez_por_cento(self):
+        response = self.client.get(
+            self.url,
+            {"despesa_condominio": ["comprador_ate_10"]},
+        )
+
+        ids = {
+            imovel.imovel_id_caixa
+            for imovel in response.context["page_obj"].object_list
+        }
+        self.assertEqual(ids, {self.limite.imovel_id_caixa})
+
+    def test_multiselecao_de_despesas_usa_ou_no_mesmo_campo(self):
+        response = self.client.get(
+            self.url,
+            {"despesa_condominio": ["comprador_ate_10", "caixa"]},
+        )
+
+        ids = {
+            imovel.imovel_id_caixa
+            for imovel in response.context["page_obj"].object_list
+        }
+        self.assertEqual(ids, {self.limite.imovel_id_caixa, self.caixa.imovel_id_caixa})
+
+
+class ExtracaoFotosTests(TestCase):
+    def test_extrai_fotos_de_atributos_e_scripts(self):
+        soup = BeautifulSoup(
+            """
+            <html>
+              <body>
+                <img data-src="/fotos/F12321.jpg" />
+                <script>
+                  const galeria = ["/fotos/F12322.jpg"];
+                </script>
+              </body>
+            </html>
+            """,
+            "html.parser",
+        )
+
+        fotos = extrair_fotos(soup)
+
+        self.assertEqual(
+            fotos,
+            [
+                "https://venda-imoveis.caixa.gov.br/fotos/F12321.jpg",
+                "https://venda-imoveis.caixa.gov.br/fotos/F12322.jpg",
+            ],
+        )
+
+
+class ImagemImovelCaixaTests(TestCase):
+    def setUp(self):
+        self.imovel = ImovelCaixa.objects.create(
+            imovel_id_caixa="IMG-1",
+            endereco="Rua Teste, 1",
+            cidade="Salvador",
+            estado="BA",
+            tipo="apto",
+            valor_avaliacao=Decimal("300000.00"),
+            percentual_desconto=Decimal("20.00"),
+            valor_minimo_lance=Decimal("240000.00"),
+            tipo_leilao="extra",
+            link_caixa="https://venda-imoveis.caixa.gov.br/sistema/detalhe-imovel.asp?imovel=IMG-1",
+            foto_url="https://venda-imoveis.caixa.gov.br/fotos/FIMG-121.jpg",
+        )
+
+    @patch("apps.leiloes.views.requests.get")
+    def test_tenta_fallback_22_e_salva_url_valida(self, mock_get):
+        resposta_404 = Mock()
+        resposta_404.status_code = 404
+        resposta_404.headers = {"content-type": "text/html"}
+        resposta_404.close = Mock()
+
+        resposta_200 = Mock()
+        resposta_200.status_code = 200
+        resposta_200.headers = {
+            "content-type": "image/jpeg",
+            "content-length": "3",
+        }
+        resposta_200.iter_content = Mock(return_value=iter([b"abc"]))
+        resposta_200.close = Mock()
+
+        mock_get.side_effect = [resposta_404, resposta_200]
+
+        response = self.client.get(reverse("leiloes:imagem", args=[self.imovel.imovel_id_caixa]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/jpeg")
+        self.assertEqual(b"".join(response.streaming_content), b"abc")
+        self.imovel.refresh_from_db()
+        self.assertEqual(
+            self.imovel.foto_url,
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-122.jpg",
+        )
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(
+            mock_get.call_args_list[0].args[0],
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-121.jpg",
+        )
+        self.assertEqual(mock_get.call_args_list[1].args[0], "https://venda-imoveis.caixa.gov.br/fotos/FIMG-122.jpg")
 
 
 class AnaliseJuridicaExtracaoTests(TestCase):

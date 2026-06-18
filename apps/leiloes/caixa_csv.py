@@ -13,9 +13,8 @@ from bs4 import BeautifulSoup
 from django.db import close_old_connections
 from django.db.models import Q
 from django.utils import timezone
-from playwright.sync_api import sync_playwright
-
 from .models import ImovelCaixa
+from .regras_despesas import extrair_regras_despesas
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,14 @@ ESTADOS = [
     "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC",
     "SE", "SP", "TO",
 ]
+
+
+def _sync_playwright():
+    # Import tardio: comandos que apenas consultam ou reprocessam o banco não
+    # devem depender das bibliotecas nativas do Chromium.
+    from playwright.sync_api import sync_playwright
+
+    return sync_playwright()
 
 
 def limpar_texto(valor) -> str:
@@ -147,7 +154,7 @@ def baixar_csv_caixa(estado: str = "geral", destino_dir: str | Path = "media/cai
     if estado != "geral" and estado not in ESTADOS:
         raise ValueError(f"Estado inválido: {estado}")
 
-    with sync_playwright() as playwright:
+    with _sync_playwright() as playwright:
         browser = playwright.chromium.launch(
             headless=headless,
             args=["--disable-blink-features=AutomationControlled"],
@@ -376,11 +383,24 @@ def extrair_documentos(soup: BeautifulSoup) -> dict:
 
 def extrair_fotos(soup: BeautifulSoup) -> list[str]:
     fotos = []
-    for img in soup.find_all("img"):
-        src = img.get("src") or ""
-        if "/fotos/" not in src:
-            continue
-        url = urljoin(BASE_URL, src)
+    atributos = ("src", "data-src", "data-lazy-src", "href")
+    for elemento in soup.find_all(["img", "source", "a"]):
+        for atributo in atributos:
+            valor = elemento.get(atributo) or ""
+            if "/fotos/" not in valor.lower():
+                continue
+            url = urljoin(BASE_URL, valor)
+            if url not in fotos:
+                fotos.append(url)
+
+    # Algumas versões da página carregam a galeria em JavaScript e não deixam
+    # a URL em um atributo de <img>. Nesse caso, recuperamos os caminhos do HTML.
+    for caminho in re.findall(
+        r"(?:https?://venda-imoveis\.caixa\.gov\.br)?(/fotos/[^\"'\s)]+\.(?:jpe?g|png|webp))",
+        str(soup),
+        flags=re.IGNORECASE,
+    ):
+        url = urljoin(BASE_URL, caminho)
         if url not in fotos:
             fotos.append(url)
     return fotos
@@ -411,49 +431,6 @@ def extrair_secao(texto: str, inicio: str, fim: str | None = None) -> str:
         if pos_fim != -1:
             conteudo = conteudo[:pos_fim]
     return limpar_texto(conteudo)
-
-
-def _classificar_despesa(trecho: str) -> str:
-    """Classifica a responsabilidade por uma despesa (condomínio/tributos).
-
-    Retorna um dos valores de ImovelCaixa.DESPESA_CHOICES.
-    """
-    texto = (trecho or "").lower()
-    if not texto.strip():
-        return "indeterminado"
-
-    tem_comprador = "comprador" in texto
-    tem_caixa = "caixa" in texto
-    # "até o limite de 10%" / "exceder o limite de 10%" => comprador paga até 10%
-    tem_limite_10 = bool(re.search(r"limite\s+de\s+10\s*%", texto))
-
-    if tem_comprador and tem_limite_10:
-        return "comprador_ate_10"
-    if tem_comprador:
-        return "comprador"
-    if tem_caixa:
-        return "caixa"
-    return "indeterminado"
-
-
-def extrair_regras_despesas(regras_texto: str) -> dict:
-    """Estrutura o texto livre de "REGRAS PARA PAGAMENTO DAS DESPESAS".
-
-    A Caixa lista as despesas no formato "Condomínio: ... Tributos: ...".
-    Retorna {"despesa_condominio": <choice>, "despesa_tributos": <choice>}.
-    """
-    texto = limpar_texto(regras_texto)
-    if not texto:
-        return {"despesa_condominio": "indeterminado", "despesa_tributos": "indeterminado"}
-
-    # Separa o trecho de condomínio do trecho de tributos.
-    cond_match = re.search(r"condom[íi]nio\s*:?(.*?)(?=tributos\s*:|$)", texto, re.IGNORECASE | re.DOTALL)
-    trib_match = re.search(r"tributos\s*:?(.*)$", texto, re.IGNORECASE | re.DOTALL)
-
-    return {
-        "despesa_condominio": _classificar_despesa(cond_match.group(1) if cond_match else ""),
-        "despesa_tributos": _classificar_despesa(trib_match.group(1) if trib_match else ""),
-    }
 
 
 def extrair_detalhes_html(html: str, url: str = "") -> dict:
@@ -596,7 +573,7 @@ def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, head
     erros = []
     atualizados = 0
 
-    with sync_playwright() as playwright, ThreadPoolExecutor(max_workers=1) as executor:
+    with _sync_playwright() as playwright, ThreadPoolExecutor(max_workers=1) as executor:
         browser = playwright.chromium.launch(
             headless=headless,
             args=["--disable-blink-features=AutomationControlled"],
