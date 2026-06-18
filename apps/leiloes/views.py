@@ -332,22 +332,36 @@ def explorador_leiloes(request):
         .distinct()
         .order_by('modalidade_venda')
     )
-    despesas_labels = dict(ImovelCaixa.DESPESA_CHOICES)
-
     def opcoes_despesa(campo):
-        return [
-            {
-                'value': linha[campo],
-                'label': despesas_labels[linha[campo]],
-                'total': linha['total'],
-            }
+        totais = {
+            linha[campo]: linha['total']
             for linha in (
                 opcoes_queryset
                 .exclude(**{campo: 'indeterminado'})
                 .values(campo)
                 .annotate(total=Count('id'))
-                .order_by(campo)
             )
+        }
+        labels_filtro = {
+            'comprador': 'Comprador paga tudo',
+            'comprador_ate_10': 'Comprador paga até 10%',
+            'caixa': 'Tudo por conta da Caixa',
+        }
+        descricoes_filtro = {
+            'comprador': 'Responsabilidade integral do comprador',
+            'comprador_ate_10': 'Comprador paga até 10% da avaliação; Caixa paga o excedente',
+            'caixa': 'Responsabilidade integral da Caixa',
+        }
+        return [
+            {
+                'value': value,
+                'label': labels_filtro.get(value, label),
+                'description': descricoes_filtro.get(value, ''),
+                'total': totais.get(value, 0),
+                'disabled': totais.get(value, 0) == 0,
+            }
+            for value, label in ImovelCaixa.DESPESA_CHOICES
+            if value != 'indeterminado'
         ]
 
     despesas_condominio_opcoes = opcoes_despesa('despesa_condominio')

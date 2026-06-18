@@ -171,6 +171,22 @@ class ExploradorLeiloesFiltroDespesasTests(TestCase):
         }
         self.assertEqual(ids, {self.limite.imovel_id_caixa, self.caixa.imovel_id_caixa})
 
+    def test_opcoes_exibem_todas_as_regras_e_desabilitam_as_sem_resultado(self):
+        response = self.client.get(self.url)
+
+        opcoes_condominio = {
+            opcao["value"]: opcao
+            for opcao in response.context["despesas_condominio_opcoes"]
+        }
+        self.assertEqual(
+            list(opcoes_condominio),
+            ["comprador", "comprador_ate_10", "caixa"],
+        )
+        self.assertEqual(opcoes_condominio["comprador"]["total"], 0)
+        self.assertTrue(opcoes_condominio["comprador"]["disabled"])
+        self.assertEqual(opcoes_condominio["caixa"]["total"], 1)
+        self.assertFalse(opcoes_condominio["caixa"]["disabled"])
+
 
 class ExtracaoFotosTests(TestCase):
     def test_extrai_fotos_de_atributos_e_scripts(self):
