@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
-from apps.leiloes.caixa_csv import extrair_regras_despesas
 from apps.leiloes.models import ImovelCaixa
+from apps.leiloes.regras_despesas import extrair_regras_despesas
 
 
 class Command(BaseCommand):

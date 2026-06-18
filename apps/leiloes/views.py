@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, redirect, render
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.core.paginator import Paginator
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -332,6 +332,26 @@ def explorador_leiloes(request):
         .distinct()
         .order_by('modalidade_venda')
     )
+    despesas_labels = dict(ImovelCaixa.DESPESA_CHOICES)
+
+    def opcoes_despesa(campo):
+        return [
+            {
+                'value': linha[campo],
+                'label': despesas_labels[linha[campo]],
+                'total': linha['total'],
+            }
+            for linha in (
+                opcoes_queryset
+                .exclude(**{campo: 'indeterminado'})
+                .values(campo)
+                .annotate(total=Count('id'))
+                .order_by(campo)
+            )
+        ]
+
+    despesas_condominio_opcoes = opcoes_despesa('despesa_condominio')
+    despesas_tributos_opcoes = opcoes_despesa('despesa_tributos')
     query_params = request.GET.copy()
     query_params.pop('page', None)
 
@@ -375,11 +395,14 @@ def explorador_leiloes(request):
             {'value': value, 'label': label}
             for value, label in PAGAMENTOS_FILTRO.items()
         ],
-        'despesas_opcoes': [
-            {'value': value, 'label': label}
-            for value, label in ImovelCaixa.DESPESA_CHOICES
-            if value != 'indeterminado'
-        ],
+        'despesas_condominio_opcoes': despesas_condominio_opcoes,
+        'despesas_tributos_opcoes': despesas_tributos_opcoes,
+        'despesas_condominio_cobertura': sum(
+            opcao['total'] for opcao in despesas_condominio_opcoes
+        ),
+        'despesas_tributos_cobertura': sum(
+            opcao['total'] for opcao in despesas_tributos_opcoes
+        ),
         'filtros_ativos': {
             'q': busca,
             'estados': estados,
@@ -655,20 +678,22 @@ def cadastrar_em_meus_imoveis(request, imovel_id):
 
 
 def imagem_imovel_caixa(request, imovel_id):
-    """Redireciona para a foto da Caixa. Usa foto_url salva no banco como cache permanente."""
+    """Entrega a foto usando a Caixa como origem e a URL salva como cache."""
     try:
         imovel = ImovelCaixa.objects.get(imovel_id_caixa=imovel_id)
     except ImovelCaixa.DoesNotExist:
         raise Http404("Imóvel não encontrado")
 
-    # Se já temos a URL salva no banco, redirecionar direto (evita round-trip desnecessário)
-    if imovel.foto_url:
-        response = HttpResponse(status=302)
-        response['Location'] = imovel.foto_url
-        response['Cache-Control'] = 'public, max-age=86400'
-        return response
-
-    candidatos = [f'https://venda-imoveis.caixa.gov.br/fotos/F{imovel_id}21.jpg']
+    candidatos = []
+    if imovel.foto_url and imovel.foto_url.startswith(
+        'https://venda-imoveis.caixa.gov.br/fotos/'
+    ):
+        candidatos.append(imovel.foto_url)
+    candidatos.extend([
+        f'https://venda-imoveis.caixa.gov.br/fotos/F{imovel_id}21.jpg',
+        f'https://venda-imoveis.caixa.gov.br/fotos/F{imovel_id}22.jpg',
+    ])
+    candidatos = list(dict.fromkeys(candidatos))
 
     headers = {
         'User-Agent': (
@@ -681,19 +706,38 @@ def imagem_imovel_caixa(request, imovel_id):
 
     for url in candidatos:
         try:
-            resposta = requests.head(url, headers=headers, timeout=8, allow_redirects=True)
+            resposta = requests.get(
+                url,
+                headers=headers,
+                timeout=(4, 15),
+                allow_redirects=True,
+                stream=True,
+            )
         except requests.RequestException:
             continue
 
         content_type = resposta.headers.get('content-type', '').lower()
         if resposta.status_code == 200 and content_type.startswith('image/'):
-            # Persiste a URL no banco para próximas requisições (cache permanente sem disco)
-            imovel.foto_url = url
-            imovel.save(update_fields=['foto_url', 'atualizado_em'])
-            response = HttpResponse(status=302)
-            response['Location'] = url
+            if imovel.foto_url != url:
+                imovel.foto_url = url
+                imovel.save(update_fields=['foto_url', 'atualizado_em'])
+
+            def conteudo_imagem():
+                try:
+                    yield from resposta.iter_content(chunk_size=64 * 1024)
+                finally:
+                    resposta.close()
+
+            response = StreamingHttpResponse(
+                conteudo_imagem(),
+                content_type=content_type.split(';', 1)[0],
+            )
             response['Cache-Control'] = 'public, max-age=86400'
+            if resposta.headers.get('content-length'):
+                response['Content-Length'] = resposta.headers['content-length']
             return response
+
+        resposta.close()
 
     raise Http404("Foto não encontrada")
 
