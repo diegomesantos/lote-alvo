@@ -2,8 +2,8 @@
 builder = "NIXPACKS"
 
 [deploy]
-preDeployCommand = ["python manage.py migrate --settings=config.settings.production && python manage.py collectstatic --noinput --settings=config.settings.production"]
-startCommand = "PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright gunicorn config.wsgi --log-file -"
-healthcheckPath = "/accounts/login/"
+preDeployCommand = ["python manage.py migrate --settings=config.settings.production"]
+startCommand = "PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright gunicorn config.wsgi --access-logfile - --error-logfile - --capture-output"
+healthcheckPath = "/healthz/"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
