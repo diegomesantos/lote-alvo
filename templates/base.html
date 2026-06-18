@@ -4,7 +4,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f766e">
   <title>{% block title %}LoteAlvo{% endblock %}</title>
+  <link rel="icon" href="{% static 'brand/lotealvo-mark.svg' %}" type="image/svg+xml">
+  <link rel="icon" href="{% static 'brand/favicon-32x32.png' %}" sizes="32x32" type="image/png">
+  <link rel="icon" href="{% static 'brand/favicon-16x16.png' %}" sizes="16x16" type="image/png">
+  <link rel="shortcut icon" href="{% static 'brand/favicon.ico' %}">
+  <link rel="apple-touch-icon" href="{% static 'brand/apple-touch-icon.png' %}" sizes="180x180">
+  <link rel="manifest" href="{% static 'brand/site.webmanifest' %}">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -255,7 +262,7 @@
         </svg>
       </button>
       <div class="sidebar-collapse flex min-w-0 items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-teal-600 flex flex-shrink-0 items-center justify-center text-sm font-black tracking-tight shadow">LA</div>
+        <img src="{% static 'brand/lotealvo-mark.svg' %}" alt="" aria-hidden="true" class="h-9 w-9 flex-shrink-0 rounded-lg shadow">
         <div class="min-w-0">
         <div class="font-bold text-white text-sm leading-tight">LoteAlvo</div>
         <div class="text-xs text-stone-400">Gestão de arrematação</div>
