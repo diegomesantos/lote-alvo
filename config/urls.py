@@ -5,8 +5,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth.decorators import login_required
 from django.views.static import serve
+from core.views import healthz
 
 urlpatterns = [
+    path("healthz/", healthz, name="healthz"),
     path("admin/", admin.site.urls),
     path("", RedirectView.as_view(url="/kanban/", permanent=False)),
     path("accounts/", include("apps.accounts.urls")),
