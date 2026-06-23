@@ -189,6 +189,15 @@ ARQUIVAMENTO_MOTIVO_CHOICES = [
     ("outro", "Outro"),
 ]
 
+COMPARTILHAMENTO_PERMISSAO_CHOICES = [
+    ("leitura", "Somente leitura"),
+    ("edicao", "Pode editar"),
+]
+
+NOTIFICACAO_TIPO_CHOICES = [
+    ("compartilhamento", "Compartilhamento"),
+]
+
 GIRO_MESES_CHOICES = [(m, f"{m} meses") for m in [1, 3, 4, 6, 7, 9, 10, 12]]
 ESTADO_CHOICES = [(uf, f"{uf} — {ESTADOS_NOMES.get(uf, uf)}") for uf in TODOS_ESTADOS]
 
@@ -374,6 +383,66 @@ class Imovel(models.Model):
             "lucro_minimo":    float(self.lucro_minimo),
             "incremento_lance":float(self.incremento_lance),
         }
+
+
+class ImovelCompartilhamento(models.Model):
+    imovel = models.ForeignKey(Imovel, on_delete=models.CASCADE, related_name="compartilhamentos")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="imoveis_compartilhados")
+    permissao = models.CharField("Permissão", max_length=20, choices=COMPARTILHAMENTO_PERMISSAO_CHOICES)
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="compartilhamentos_criados")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    ativo = models.BooleanField("Ativo", default=True)
+
+    class Meta:
+        ordering = ["user__first_name", "user__username"]
+        verbose_name = "Compartilhamento de imóvel"
+        verbose_name_plural = "Compartilhamentos de imóveis"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["imovel", "user"],
+                name="unique_compartilhamento_imovel_usuario",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "ativo"]),
+            models.Index(fields=["imovel", "ativo"]),
+        ]
+
+    @property
+    def permissao_label(self):
+        return dict(COMPARTILHAMENTO_PERMISSAO_CHOICES).get(self.permissao, self.permissao)
+
+    def __str__(self):
+        return f"{self.imovel} compartilhado com {self.user} ({self.permissao_label})"
+
+
+class NotificacaoUsuario(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notificacoes")
+    tipo = models.CharField("Tipo", max_length=30, choices=NOTIFICACAO_TIPO_CHOICES, default="compartilhamento")
+    titulo = models.CharField("Título", max_length=160)
+    mensagem = models.TextField("Mensagem", blank=True)
+    url = models.CharField("URL interna", max_length=500, blank=True)
+    imovel = models.ForeignKey(Imovel, on_delete=models.CASCADE, null=True, blank=True, related_name="notificacoes")
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificacoes_criadas")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    lida_em = models.DateTimeField("Lida em", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        verbose_name = "Notificação"
+        verbose_name_plural = "Notificações"
+        indexes = [
+            models.Index(fields=["user", "lida_em"]),
+            models.Index(fields=["user", "criado_em"]),
+        ]
+
+    @property
+    def lida(self):
+        return self.lida_em is not None
+
+    def __str__(self):
+        return f"{self.titulo} para {self.user}"
 
 
 def imovel_arquivo_upload_to(instance, filename):

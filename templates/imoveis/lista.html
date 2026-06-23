@@ -34,6 +34,9 @@
       <a href="{% url 'listar' %}?status=arquivados" class="rounded-lg px-4 py-2 text-sm font-semibold transition {% if status == 'arquivados' %}bg-white text-teal-600 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
         Arquivados <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ totais_status.arquivados }}</span>
       </a>
+      <a href="{% url 'listar' %}?status=compartilhados" class="rounded-lg px-4 py-2 text-sm font-semibold transition {% if status == 'compartilhados' %}bg-white text-teal-600 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+        Compartilhados <span class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-600">{{ totais_status.compartilhados }}</span>
+      </a>
       <a href="{% url 'listar' %}?status=todos" class="rounded-lg px-4 py-2 text-sm font-semibold transition {% if status == 'todos' %}bg-white text-teal-600 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
         Todos <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ totais_status.todos }}</span>
       </a>
@@ -46,6 +49,9 @@
     {% if status == "arquivados" %}
     <h3 class="text-xl font-bold text-gray-700">Nenhum imóvel arquivado</h3>
     <p class="mt-2 text-sm text-gray-500">Arquive cards sem interesse, leilões encerrados ou itens duplicados para limpar a operação ativa.</p>
+    {% elif status == "compartilhados" %}
+    <h3 class="text-xl font-bold text-gray-700">Nenhum imóvel compartilhado</h3>
+    <p class="mt-2 text-sm text-gray-500">Quando outro usuário liberar acesso para você, o imóvel aparecerá aqui.</p>
     {% elif status == "ativos" %}
     <h3 class="text-xl font-bold text-gray-700">Nenhum imóvel ativo</h3>
     <p class="mt-2 text-sm text-gray-500">Cadastre um imóvel novo ou restaure um card arquivado para retomar o trabalho.</p>
@@ -65,6 +71,7 @@
     {% for card in cards %}
     {% with im=card.imovel r=card.resultado %}
     <div class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-teal-200 hover:shadow-md">
+      {% if card.can_edit %}
       <details class="lista-menu absolute right-3 top-3 z-20" onclick="event.stopPropagation()">
         <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -86,11 +93,17 @@
             Arquivar
           </button>
           {% endif %}
+          {% if card.is_owner %}
+          <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-teal-700 transition hover:bg-teal-50" data-list-action="share" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-share-url="{% url 'compartilhar_imovel' im.id %}">
+            Compartilhar
+          </button>
           <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-list-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
             Excluir
           </button>
+          {% endif %}
         </div>
       </details>
+      {% endif %}
 
       <div class="h-1.5" style="background: {{ im.etapa_cor }}"></div>
 
@@ -107,6 +120,9 @@
             {% if im.arquivado %}
             <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">Arquivado</span>
             {% endif %}
+            {% if card.is_shared %}
+            <span class="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700">Compartilhado · {{ card.permissao_label }}</span>
+            {% endif %}
             {% if im.motivo_arquivamento_label %}
             <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{{ im.motivo_arquivamento_label }}</span>
             {% endif %}
@@ -116,6 +132,9 @@
               {{ im.titulo_card }}
             </a>
             <p class="mt-0.5 text-xs text-gray-500">📍 {{ im.cidade }} — {{ im.estado }}</p>
+            {% if card.is_shared %}
+            <p class="mt-1 text-xs text-teal-700">Compartilhado por {{ card.owner_label }}</p>
+            {% endif %}
             {% if im.arquivado_em %}
             <p class="mt-1 text-xs text-gray-400">Arquivado em {{ im.arquivado_em|date:"d/m/Y H:i" }}</p>
             {% endif %}
@@ -163,9 +182,11 @@
           <button onclick="carregarTabelaLancesImovel('{{ im.pk }}')" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100" title="Tabela de lances progressivos">
             Tabela
           </button>
+          {% if card.can_edit %}
           <a href="{% url 'editar' im.pk %}" class="rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200">
             Editar
           </a>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -244,6 +265,54 @@
       </div>
     </div>
   </div>
+
+  <div id="lista-share-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-950/55" data-close-list-share></div>
+    <div class="relative flex min-h-full items-center justify-center p-4">
+      <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 id="lista-share-title" class="text-lg font-bold text-gray-950">Compartilhar imóvel</h3>
+            <p id="lista-share-description" class="mt-1 text-sm leading-relaxed text-gray-600"></p>
+          </div>
+          <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-list-share>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <form id="lista-share-form" method="post" class="mt-5 space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div>
+            <label for="lista-share-user" class="mb-2 block text-sm font-semibold text-gray-700">Usuário cadastrado</label>
+            <select id="lista-share-user" name="user_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="">Selecione um usuário</option>
+              {% for usuario in usuarios_compartilhamento %}
+              <option value="{{ usuario.pk }}">{{ usuario.get_full_name|default:usuario.username }}{% if usuario.email %} · {{ usuario.email }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="lista-share-permission" class="mb-2 block text-sm font-semibold text-gray-700">Permissão</label>
+            <select id="lista-share-permission" name="permissao" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+              {% for valor, label in permissoes_compartilhamento %}
+              <option value="{{ valor }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="rounded-lg bg-teal-50 p-3 text-xs leading-relaxed text-teal-800">
+            O acesso vale apenas para usuários logados. Não será criado link público.
+          </div>
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-list-share>Cancelar</button>
+            <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700">Compartilhar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 <dialog id="modal-lances-lista" class="w-11/12 max-w-7xl rounded-2xl p-0 shadow-2xl backdrop:bg-black/50">
@@ -278,6 +347,12 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmSubmit = document.getElementById('lista-confirm-submit');
   const archiveReasonWrapper = document.getElementById('lista-archive-reason-wrapper');
   const archiveReasonSelect = document.getElementById('lista-archive-reason');
+  const shareModal = document.getElementById('lista-share-modal');
+  const shareTitle = document.getElementById('lista-share-title');
+  const shareDescription = document.getElementById('lista-share-description');
+  const shareForm = document.getElementById('lista-share-form');
+  const shareUser = document.getElementById('lista-share-user');
+  const sharePermission = document.getElementById('lista-share-permission');
   const listMenus = document.querySelectorAll('.lista-menu');
   let moveState = null;
   let confirmState = null;
@@ -307,6 +382,14 @@ document.addEventListener('DOMContentLoaded', function() {
     confirmSubmit.classList.remove('opacity-60');
     archiveReasonSelect.value = '';
     archiveReasonWrapper.classList.add('hidden');
+    setBodyScrollLocked(false);
+  }
+
+  function closeShareModal() {
+    shareModal.classList.add('hidden');
+    shareForm.removeAttribute('action');
+    shareUser.value = '';
+    sharePermission.value = sharePermission.options[0] ? sharePermission.options[0].value : '';
     setBodyScrollLocked(false);
   }
 
@@ -362,6 +445,14 @@ document.addEventListener('DOMContentLoaded', function() {
     setBodyScrollLocked(true);
   }
 
+  function openShareModal(state) {
+    shareTitle.textContent = 'Compartilhar imóvel';
+    shareDescription.textContent = `Libere acesso ao card "${state.cardTitle}" para outro usuário cadastrado.`;
+    shareForm.action = state.shareUrl;
+    shareModal.classList.remove('hidden');
+    setBodyScrollLocked(true);
+  }
+
   document.addEventListener('click', function(event) {
     if (!event.target.closest('.lista-menu')) {
       closeMenus();
@@ -376,6 +467,10 @@ document.addEventListener('DOMContentLoaded', function() {
     button.addEventListener('click', closeConfirmModal);
   });
 
+  document.querySelectorAll('[data-close-list-share]').forEach(button => {
+    button.addEventListener('click', closeShareModal);
+  });
+
   document.querySelectorAll('[data-list-action]').forEach(button => {
     button.addEventListener('click', function(event) {
       event.preventDefault();
@@ -388,7 +483,13 @@ document.addEventListener('DOMContentLoaded', function() {
         currentEtapa: this.dataset.currentEtapa,
         updateUrl: this.dataset.updateUrl,
         deleteUrl: this.dataset.deleteUrl,
+        shareUrl: this.dataset.shareUrl,
       };
+
+      if (this.dataset.listAction === 'share') {
+        openShareModal(state);
+        return;
+      }
 
       if (this.dataset.listAction === 'move' || this.dataset.listAction === 'restore') {
         openMoveModal(state);

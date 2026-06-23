@@ -33,6 +33,9 @@
     <button @click="setAba('arquivados')" :class="aba === 'arquivados' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
       Arquivados <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{{ total_arquivados }}</span>
     </button>
+    <button @click="setAba('compartilhados')" :class="aba === 'compartilhados' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
+      Compartilhados <span class="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-600">{{ total_compartilhados }}</span>
+    </button>
     <button @click="setAba('financeiro')" :class="aba === 'financeiro' ? 'border-b-2 border-teal-500 text-teal-600' : 'text-gray-600 hover:text-gray-900'" class="flex-shrink-0 px-4 py-4 text-sm font-bold transition-colors sm:px-6">
       Financeiro
     </button>
@@ -50,7 +53,8 @@
           <div class="kanban-cards flex-1 space-y-3" data-sortable-group="kanban">
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
-            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}">
+            <div class="kanban-card {% if card.can_edit %}kanban-card-draggable{% endif %} group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" data-can-edit="{{ card.can_edit|yesno:'1,0' }}">
+              {% if card.can_edit %}
               <details class="kanban-menu absolute right-2 top-2 z-20" onclick="event.stopPropagation()">
                 <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
                   <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -66,12 +70,18 @@
                   <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="archive" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
                     Arquivar
                   </button>
+                  {% if card.is_owner %}
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-teal-700 transition hover:bg-teal-50" data-kanban-action="share" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-share-url="{% url 'compartilhar_imovel' im.id %}">
+                    Compartilhar
+                  </button>
                   <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-kanban-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
                     Excluir
                   </button>
+                  {% endif %}
                 </div>
               </details>
-              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block cursor-grab overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md group-hover:cursor-grabbing">
+              {% endif %}
+              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block {% if card.can_edit %}cursor-grab group-hover:cursor-grabbing{% else %}cursor-pointer{% endif %} overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
                 {% if card.imagem_url %}
                 <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
                 {% else %}
@@ -81,6 +91,9 @@
                 {% endif %}
                 <div class="p-3">
                   <div class="mb-2 line-clamp-2 text-xs font-bold text-gray-900">{{ im.titulo_card }}</div>
+                  {% if card.is_shared %}
+                  <div class="mb-2 rounded-full bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-700">Compartilhado por {{ card.owner_label }} · {{ card.permissao_label }}</div>
+                  {% endif %}
                   <div class="mb-2 text-xs text-gray-600">Lance: {{ im.lance|brl }}</div>
                   {% if im.data_leilao %}<div class="text-xs text-gray-500">Leilão: {{ im.data_leilao|date:"d/m/Y" }}</div>{% endif %}
                   {% if r %}<div class="mt-2 border-t border-gray-100 pt-2 text-xs">ROI {{ im.giro_padrao }}m: <strong class="{% if r.roi >= 15 %}text-green-600{% else %}text-yellow-600{% endif %}">{{ r.roi|pct }}</strong></div>{% endif %}
@@ -127,7 +140,8 @@
           <div class="kanban-cards flex-1 space-y-3" data-sortable-group="kanban">
             {% for card in coluna.cards %}
             {% with im=card.imovel r=card.resultado %}
-            <div class="kanban-card group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}">
+            <div class="kanban-card {% if card.can_edit %}kanban-card-draggable{% endif %} group relative" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" data-can-edit="{{ card.can_edit|yesno:'1,0' }}">
+              {% if card.can_edit %}
               <details class="kanban-menu absolute right-2 top-2 z-20" onclick="event.stopPropagation()">
                 <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
                   <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -143,12 +157,18 @@
                   <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="archive" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
                     Arquivar
                   </button>
+                  {% if card.is_owner %}
+                  <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-teal-700 transition hover:bg-teal-50" data-kanban-action="share" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-share-url="{% url 'compartilhar_imovel' im.id %}">
+                    Compartilhar
+                  </button>
                   <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-kanban-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
                     Excluir
                   </button>
+                  {% endif %}
                 </div>
               </details>
-              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block cursor-grab overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md group-hover:cursor-grabbing">
+              {% endif %}
+              <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block {% if card.can_edit %}cursor-grab group-hover:cursor-grabbing{% else %}cursor-pointer{% endif %} overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
                 {% if card.imagem_url %}
                 <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
                 {% else %}
@@ -158,6 +178,9 @@
                 {% endif %}
                 <div class="p-3">
                   <div class="mb-2 line-clamp-2 text-xs font-bold text-gray-900">{{ im.titulo_card }}</div>
+                  {% if card.is_shared %}
+                  <div class="mb-2 rounded-full bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-700">Compartilhado por {{ card.owner_label }} · {{ card.permissao_label }}</div>
+                  {% endif %}
                   <div class="mb-2 text-xs text-gray-600">Venda: {{ im.preco_venda|brl }}</div>
                   {% if r %}<div class="mt-2 border-t border-gray-100 pt-2 text-xs">Resultado: <strong class="{% if r.resultado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ r.resultado|brl }}</strong></div>{% endif %}
                 </div>
@@ -185,7 +208,8 @@
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
       {% for card in cards_arquivados %}
       {% with im=card.imovel r=card.resultado %}
-      <div class="kanban-card group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}">
+      <div class="kanban-card group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" data-can-edit="{{ card.can_edit|yesno:'1,0' }}">
+        {% if card.can_edit %}
         <details class="kanban-menu absolute right-3 top-3 z-20" onclick="event.stopPropagation()">
           <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -198,11 +222,17 @@
             <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="restore" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
               Desarquivar para...
             </button>
+            {% if card.is_owner %}
+            <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-teal-700 transition hover:bg-teal-50" data-kanban-action="share" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-share-url="{% url 'compartilhar_imovel' im.id %}">
+              Compartilhar
+            </button>
             <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50" data-kanban-action="delete" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-delete-url="{% url 'excluir' im.id %}">
               Excluir
             </button>
+            {% endif %}
           </div>
         </details>
+        {% endif %}
         <a href="{% url 'detalhe' im.id %}" class="block">
           {% if card.imagem_url %}
           <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="this.style.display='none'">
@@ -214,6 +244,9 @@
           <div class="space-y-3 p-4">
             <div class="flex flex-wrap items-center gap-2">
               <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">Arquivado</span>
+              {% if card.is_shared %}
+              <span class="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">Compartilhado · {{ card.permissao_label }}</span>
+              {% endif %}
               {% if im.motivo_arquivamento_label %}
               <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">{{ im.motivo_arquivamento_label }}</span>
               {% endif %}
@@ -251,6 +284,91 @@
     <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
       <div class="text-base font-semibold text-gray-700">Nenhum card arquivado</div>
       <p class="mt-2 text-sm text-gray-500">Arquive cards concluídos, vencidos ou fora de interesse para limpar o funil ativo sem perder histórico.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div x-show="aba === 'compartilhados'" x-cloak class="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <div class="flex flex-col gap-1 border-b border-gray-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 class="text-base font-bold text-gray-900">Compartilhados comigo</h2>
+        <p class="text-sm text-gray-500">Imóveis liberados por outros usuários. A permissão define se você pode apenas ler ou também editar.</p>
+      </div>
+      <div class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">{{ total_compartilhados }} compartilhado{{ total_compartilhados|pluralize }}</div>
+    </div>
+
+    {% if cards_compartilhados %}
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      {% for card in cards_compartilhados %}
+      {% with im=card.imovel r=card.resultado %}
+      <div class="kanban-card group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" data-id="{{ im.id }}" data-etapa="{{ im.etapa }}" data-titulo="{{ im.titulo_card }}" data-can-edit="{{ card.can_edit|yesno:'1,0' }}">
+        {% if card.can_edit %}
+        <details class="kanban-menu absolute right-3 top-3 z-20" onclick="event.stopPropagation()">
+          <summary class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-500 shadow-sm transition hover:bg-white hover:text-gray-900" title="Ações do card">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="5" r="1.75"></circle>
+              <circle cx="12" cy="12" r="1.75"></circle>
+              <circle cx="12" cy="19" r="1.75"></circle>
+            </svg>
+          </summary>
+          <div class="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-xl">
+            <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="{% if im.arquivado %}restore{% else %}move{% endif %}" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-current-etapa="{{ im.etapa }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
+              {% if im.arquivado %}Desarquivar para...{% else %}Mover card{% endif %}
+            </button>
+            {% if not im.arquivado %}
+            <button type="button" class="block w-full px-4 py-2 text-left text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-kanban-action="archive" data-card-id="{{ im.id }}" data-card-title="{{ im.titulo_card }}" data-update-url="{% url 'atualizar_etapa' im.id %}">
+              Arquivar
+            </button>
+            {% endif %}
+          </div>
+        </details>
+        {% endif %}
+        <a href="{% url 'detalhe' im.id %}" class="block">
+          {% if card.imagem_url %}
+          <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="this.style.display='none'">
+          {% else %}
+          <div class="flex h-40 w-full items-center justify-center bg-gray-100 text-gray-300">
+            <svg class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
+          </div>
+          {% endif %}
+          <div class="space-y-3 p-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">{{ card.permissao_label }}</span>
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold" style="background: {{ im.etapa_cor }}22; color: {{ im.etapa_cor }}">{{ im.etapa_display }}</span>
+              {% if im.arquivado %}
+              <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">Arquivado</span>
+              {% endif %}
+            </div>
+            <div>
+              <div class="text-sm font-bold text-gray-900">{{ im.titulo_card }}</div>
+              <p class="mt-1 text-xs text-gray-500">De {{ card.owner_label }} · {{ im.cidade }} — {{ im.estado }}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="rounded-lg bg-gray-50 p-3">
+                <div class="text-gray-500">Lance</div>
+                <div class="mt-1 font-semibold text-gray-900">{{ im.lance|brl }}</div>
+              </div>
+              <div class="rounded-lg bg-gray-50 p-3">
+                <div class="text-gray-500">Venda</div>
+                <div class="mt-1 font-semibold text-gray-900">{{ im.preco_venda|brl }}</div>
+              </div>
+            </div>
+            {% if r %}
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs">
+              <div class="text-gray-500">Resultado {{ im.giro_padrao }}m</div>
+              <div class="mt-1 font-semibold {% if r.resultado >= 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ r.resultado|brl }}</div>
+            </div>
+            {% endif %}
+          </div>
+        </a>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-12 text-center">
+      <div class="text-base font-semibold text-gray-700">Nenhum imóvel compartilhado com você</div>
+      <p class="mt-2 text-sm text-gray-500">Quando outro usuário liberar acesso, o imóvel aparecerá aqui sem precisar de link público.</p>
     </div>
     {% endif %}
   </div>
@@ -331,6 +449,54 @@
       </div>
     </div>
   </div>
+
+  <div id="kanban-share-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-950/55" data-close-share></div>
+    <div class="relative flex min-h-full items-center justify-center p-4">
+      <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 id="kanban-share-title" class="text-lg font-bold text-gray-950">Compartilhar imóvel</h3>
+            <p id="kanban-share-description" class="mt-1 text-sm leading-relaxed text-gray-600"></p>
+          </div>
+          <button type="button" class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" data-close-share>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <form id="kanban-share-form" method="post" class="mt-5 space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div>
+            <label for="kanban-share-user" class="mb-2 block text-sm font-semibold text-gray-700">Usuário cadastrado</label>
+            <select id="kanban-share-user" name="user_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="">Selecione um usuário</option>
+              {% for usuario in usuarios_compartilhamento %}
+              <option value="{{ usuario.pk }}">{{ usuario.get_full_name|default:usuario.username }}{% if usuario.email %} · {{ usuario.email }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="kanban-share-permission" class="mb-2 block text-sm font-semibold text-gray-700">Permissão</label>
+            <select id="kanban-share-permission" name="permissao" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+              {% for valor, label in permissoes_compartilhamento %}
+              <option value="{{ valor }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="rounded-lg bg-teal-50 p-3 text-xs leading-relaxed text-teal-800">
+            O acesso vale apenas para usuários logados. Não será criado link público.
+          </div>
+          <div class="flex items-center justify-end gap-3">
+            <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50" data-close-share>Cancelar</button>
+            <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700">Compartilhar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -361,6 +527,12 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmSubmit = document.getElementById('kanban-confirm-submit');
   const archiveReasonWrapper = document.getElementById('kanban-archive-reason-wrapper');
   const archiveReasonSelect = document.getElementById('kanban-archive-reason');
+  const shareModal = document.getElementById('kanban-share-modal');
+  const shareTitle = document.getElementById('kanban-share-title');
+  const shareDescription = document.getElementById('kanban-share-description');
+  const shareForm = document.getElementById('kanban-share-form');
+  const shareUser = document.getElementById('kanban-share-user');
+  const sharePermission = document.getElementById('kanban-share-permission');
   let moveState = null;
   let confirmState = null;
 
@@ -389,6 +561,14 @@ document.addEventListener('DOMContentLoaded', function() {
     archiveReasonWrapper.classList.add('hidden');
     confirmSubmit.disabled = false;
     confirmSubmit.classList.remove('opacity-60');
+    setBodyScrollLocked(false);
+  }
+
+  function closeShareModal() {
+    shareModal.classList.add('hidden');
+    shareForm.removeAttribute('action');
+    shareUser.value = '';
+    sharePermission.value = sharePermission.options[0] ? sharePermission.options[0].value : '';
     setBodyScrollLocked(false);
   }
 
@@ -458,6 +638,14 @@ document.addEventListener('DOMContentLoaded', function() {
     setBodyScrollLocked(true);
   }
 
+  function openShareModal(state) {
+    shareTitle.textContent = 'Compartilhar imóvel';
+    shareDescription.textContent = `Libere acesso ao card "${state.cardTitle}" para outro usuário cadastrado.`;
+    shareForm.action = state.shareUrl;
+    shareModal.classList.remove('hidden');
+    setBodyScrollLocked(true);
+  }
+
   document.addEventListener('click', function(event) {
     if (!event.target.closest('.kanban-menu')) {
       closeCardMenus();
@@ -472,6 +660,10 @@ document.addEventListener('DOMContentLoaded', function() {
     button.addEventListener('click', closeConfirmModal);
   });
 
+  document.querySelectorAll('[data-close-share]').forEach(button => {
+    button.addEventListener('click', closeShareModal);
+  });
+
   document.querySelectorAll('[data-kanban-action]').forEach(button => {
     button.addEventListener('click', function(event) {
       event.preventDefault();
@@ -484,7 +676,13 @@ document.addEventListener('DOMContentLoaded', function() {
         currentEtapa: this.dataset.currentEtapa,
         updateUrl: this.dataset.updateUrl,
         deleteUrl: this.dataset.deleteUrl,
+        shareUrl: this.dataset.shareUrl,
       };
+
+      if (this.dataset.kanbanAction === 'share') {
+        openShareModal(state);
+        return;
+      }
 
       if (this.dataset.kanbanAction === 'move' || this.dataset.kanbanAction === 'restore') {
         openMoveModal(state);
@@ -520,7 +718,7 @@ document.addEventListener('DOMContentLoaded', function() {
       animation: 150,
       ghostClass: 'sortable-ghost',
       dragClass: 'sortable-drag',
-      draggable: '.kanban-card',
+      draggable: '.kanban-card-draggable',
       handle: '.kanban-card-link',
       onStart: function() {
         const dropzone = document.querySelector('[data-arrematado-drop="true"]');
@@ -530,6 +728,10 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       onEnd: function(evt) {
         const card = evt.item;
+        if (card.dataset.canEdit !== '1') {
+          window.location.reload();
+          return;
+        }
         const cardId = card.dataset.id;
         const targetCol = card.parentElement.closest('.kanban-col');
         const newEtapa = targetCol.dataset.etapa;

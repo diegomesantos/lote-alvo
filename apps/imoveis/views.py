@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
@@ -13,11 +14,123 @@ from core.calculos.cartorio import (
 )
 from apps.leiloes.models import ImovelCaixa
 from .models import (
-    Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario,
+    Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario, ImovelCompartilhamento,
+    NotificacaoUsuario,
     ARQUIVAMENTO_MOTIVO_CHOICES, CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR,
-    ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS
+    ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS,
+    COMPARTILHAMENTO_PERMISSAO_CHOICES
 )
 from .forms import ImovelForm, ImovelArquivoForm, ImovelCalculoForm
+
+
+PERMISSAO_LEITURA = "leitura"
+PERMISSAO_EDICAO = "edicao"
+
+
+def _imoveis_acessiveis_queryset(user):
+    return (
+        Imovel.objects
+        .filter(Q(user=user) | Q(compartilhamentos__user=user, compartilhamentos__ativo=True))
+        .select_related("user")
+        .distinct()
+    )
+
+
+def _imoveis_compartilhados_queryset(user):
+    return (
+        Imovel.objects
+        .filter(compartilhamentos__user=user, compartilhamentos__ativo=True)
+        .select_related("user")
+        .distinct()
+    )
+
+
+def _imovel_query_por_acesso(user, *, escrita=False, proprietario=False):
+    queryset = Imovel.objects.select_related("user")
+    if proprietario:
+        return queryset.filter(user=user)
+    if escrita:
+        return queryset.filter(
+            Q(user=user)
+            | Q(compartilhamentos__user=user, compartilhamentos__ativo=True, compartilhamentos__permissao=PERMISSAO_EDICAO)
+        ).distinct()
+    return queryset.filter(
+        Q(user=user) | Q(compartilhamentos__user=user, compartilhamentos__ativo=True)
+    ).distinct()
+
+
+def _get_imovel_com_acesso(pk, user, *, escrita=False, proprietario=False):
+    return get_object_or_404(
+        _imovel_query_por_acesso(user, escrita=escrita, proprietario=proprietario),
+        pk=pk,
+    )
+
+
+def _acesso_context(imovel, user):
+    if imovel.user_id == user.id:
+        return {
+            "is_owner": True,
+            "is_shared": False,
+            "can_edit": True,
+            "can_manage_shares": True,
+            "permissao": "proprietario",
+            "permissao_label": "Proprietário",
+        }
+
+    compartilhamento = (
+        ImovelCompartilhamento.objects
+        .filter(imovel=imovel, user=user, ativo=True)
+        .select_related("criado_por")
+        .first()
+    )
+    permissao = compartilhamento.permissao if compartilhamento else ""
+    return {
+        "is_owner": False,
+        "is_shared": bool(compartilhamento),
+        "can_edit": permissao == PERMISSAO_EDICAO,
+        "can_manage_shares": False,
+        "permissao": permissao,
+        "permissao_label": compartilhamento.permissao_label if compartilhamento else "",
+    }
+
+
+def _usuarios_compartilhamento(user):
+    return (
+        User.objects
+        .exclude(pk=user.pk)
+        .order_by("first_name", "last_name", "username")
+        .only("id", "username", "email", "first_name", "last_name")[:200]
+    )
+
+
+def _nome_usuario(user):
+    return user.get_full_name() or user.email or user.username
+
+
+def _criar_notificacao_compartilhamento(compartilhamento, *, criado):
+    imovel = compartilhamento.imovel
+    autor = compartilhamento.criado_por
+    autor_nome = _nome_usuario(autor) if autor else "Um usuário"
+    titulo = "Imóvel compartilhado com você" if criado else "Acesso ao imóvel atualizado"
+    mensagem = (
+        f"{autor_nome} compartilhou o imóvel {imovel.titulo_card} com permissão "
+        f"{compartilhamento.permissao_label.lower()}."
+    )
+    if not criado:
+        mensagem = (
+            f"{autor_nome} atualizou seu acesso ao imóvel {imovel.titulo_card} para "
+            f"{compartilhamento.permissao_label.lower()}."
+        )
+
+    NotificacaoUsuario.objects.create(
+        user=compartilhamento.user,
+        tipo="compartilhamento",
+        titulo=titulo,
+        mensagem=mensagem,
+        url=reverse("detalhe", args=[imovel.pk]),
+        imovel=imovel,
+        criado_por=autor,
+    )
 
 
 def _resultado_resumo(imovel, meses=6):
@@ -377,7 +490,7 @@ def _arquivamento_motivos_context():
 def _filtrar_por_status(queryset, status):
     if status == "arquivados":
         return queryset.filter(etapa="arquivado")
-    if status == "todos":
+    if status in {"todos", "compartilhados"}:
         return queryset
     return queryset.exclude(etapa="arquivado")
 
@@ -392,13 +505,33 @@ def _resolver_caixa_ids_validos(imoveis):
     )
 
 
-def _cards_context(imoveis, caixa_ids_validos):
+def _cards_context(imoveis, caixa_ids_validos, user):
+    imoveis = list(imoveis)
+    imovel_ids = [imovel.pk for imovel in imoveis]
+    compartilhamentos = {
+        item.imovel_id: item
+        for item in ImovelCompartilhamento.objects.filter(
+            imovel_id__in=imovel_ids,
+            user=user,
+            ativo=True,
+        )
+    }
     cards = []
     for imovel in imoveis:
+        compartilhamento = compartilhamentos.get(imovel.pk)
+        is_owner = imovel.user_id == user.id
+        can_edit = is_owner or (
+            compartilhamento is not None and compartilhamento.permissao == PERMISSAO_EDICAO
+        )
         cards.append({
             "imovel": imovel,
             "resultado": _resultado_resumo(imovel, imovel.giro_padrao),
             "imagem_url": _imagem_card_url(imovel, caixa_ids_validos),
+            "is_owner": is_owner,
+            "is_shared": not is_owner and compartilhamento is not None,
+            "can_edit": can_edit,
+            "permissao_label": "Proprietário" if is_owner else (compartilhamento.permissao_label if compartilhamento else ""),
+            "owner_label": imovel.user.get_full_name() or imovel.user.username,
         })
     return cards
 
@@ -424,26 +557,30 @@ def _aplicar_transicao_etapa(imovel, nova_etapa, motivo_arquivamento=""):
 
 @login_required
 def kanban(request):
-    imoveis_base = Imovel.objects.filter(user=request.user)
+    imoveis_base = _imoveis_acessiveis_queryset(request.user)
+    imoveis_compartilhados_base = _imoveis_compartilhados_queryset(request.user)
     busca = request.GET.get("q", "").strip()
     aba = request.GET.get("aba", "pre")
-    abas_validas = {"pre", "pos", "arquivados", "financeiro"}
+    abas_validas = {"pre", "pos", "arquivados", "compartilhados", "financeiro"}
     if aba not in abas_validas:
         aba = "pre"
 
     if busca:
-        imoveis_base = imoveis_base.filter(
+        filtro_busca = (
             Q(endereco__icontains=busca)
             | Q(cidade__icontains=busca)
             | Q(titulo_personalizado__icontains=busca)
         )
+        imoveis_base = imoveis_base.filter(filtro_busca)
+        imoveis_compartilhados_base = imoveis_compartilhados_base.filter(filtro_busca)
 
     imoveis_ativos = list(imoveis_base.exclude(etapa="arquivado"))
     imoveis_pre = [im for im in imoveis_ativos if im.etapa in ETAPAS_PRE_KEYS]
     imoveis_pos = [im for im in imoveis_ativos if im.etapa in ETAPAS_POS_KEYS]
     imoveis_arquivados = list(imoveis_base.filter(etapa="arquivado"))
+    imoveis_compartilhados = list(imoveis_compartilhados_base)
 
-    caixa_ids_validos = _resolver_caixa_ids_validos(imoveis_ativos + imoveis_arquivados)
+    caixa_ids_validos = _resolver_caixa_ids_validos(imoveis_ativos + imoveis_arquivados + imoveis_compartilhados)
 
     def _montar_pipeline(etapas_keys, etapas_labels):
         colunas = []
@@ -451,7 +588,7 @@ def kanban(request):
             if key not in etapas_keys:
                 continue
             grupo = [im for im in imoveis_ativos if im.etapa == key]
-            cards = _cards_context(grupo, caixa_ids_validos)
+            cards = _cards_context(grupo, caixa_ids_validos, request.user)
             colunas.append({
                 "key": key, "label": label, "cor": ETAPA_COR[key], "cards": cards,
                 "count": len(cards)
@@ -460,33 +597,38 @@ def kanban(request):
 
     colunas_pre = _montar_pipeline(ETAPAS_PRE_KEYS, ETAPA_PRE)
     colunas_pos = _montar_pipeline(ETAPAS_POS_KEYS, ETAPA_POS)
-    cards_arquivados = _cards_context(imoveis_arquivados, caixa_ids_validos)
+    cards_arquivados = _cards_context(imoveis_arquivados, caixa_ids_validos, request.user)
+    cards_compartilhados = _cards_context(imoveis_compartilhados, caixa_ids_validos, request.user)
 
     totais = {}
     for key, _ in ETAPA_CHOICES:
         if key != "arquivado":
-            totais[key] = Imovel.objects.filter(user=request.user, etapa=key).count()
+            totais[key] = _imoveis_acessiveis_queryset(request.user).filter(etapa=key).count()
 
     return render(request, "imoveis/kanban.html", {
         "aba": aba,
         "colunas_pre": colunas_pre,
         "colunas_pos": colunas_pos,
         "cards_arquivados": cards_arquivados,
+        "cards_compartilhados": cards_compartilhados,
         "totais": totais,
         "busca": busca,
         "total_pre": len(imoveis_pre),
         "total_pos": len(imoveis_pos),
         "total_arquivados": len(imoveis_arquivados),
+        "total_compartilhados": len(imoveis_compartilhados),
         "total_geral": len(imoveis_ativos),
         "etapas_menu": _etapas_menu_context(),
         "arquivamento_motivos": _arquivamento_motivos_context(),
+        "usuarios_compartilhamento": _usuarios_compartilhamento(request.user),
+        "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
     })
 
 
 @login_required
 @require_POST
 def atualizar_etapa(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     nova_etapa = request.POST.get("etapa")
     motivo_arquivamento = request.POST.get("motivo_arquivamento", "").strip()
     etapa_anterior = imovel.etapa
@@ -526,16 +668,18 @@ def atualizar_etapa(request, pk):
 @login_required
 def listar(request):
     status = request.GET.get("status", "ativos")
-    if status not in {"ativos", "arquivados", "todos"}:
+    if status not in {"ativos", "arquivados", "compartilhados", "todos"}:
         status = "ativos"
 
-    imoveis = list(_filtrar_por_status(Imovel.objects.filter(user=request.user), status))
+    base_queryset = _imoveis_compartilhados_queryset(request.user) if status == "compartilhados" else _imoveis_acessiveis_queryset(request.user)
+    imoveis = list(_filtrar_por_status(base_queryset, status))
     caixa_ids_validos = _resolver_caixa_ids_validos(imoveis)
-    cards = _cards_context(imoveis, caixa_ids_validos)
+    cards = _cards_context(imoveis, caixa_ids_validos, request.user)
     totais_status = {
-        "ativos": Imovel.objects.filter(user=request.user).exclude(etapa="arquivado").count(),
-        "arquivados": Imovel.objects.filter(user=request.user, etapa="arquivado").count(),
-        "todos": Imovel.objects.filter(user=request.user).count(),
+        "ativos": _imoveis_acessiveis_queryset(request.user).exclude(etapa="arquivado").count(),
+        "arquivados": _imoveis_acessiveis_queryset(request.user).filter(etapa="arquivado").count(),
+        "compartilhados": _imoveis_compartilhados_queryset(request.user).count(),
+        "todos": _imoveis_acessiveis_queryset(request.user).count(),
     }
     return render(request, "imoveis/lista.html", {
         "cards": cards,
@@ -543,13 +687,17 @@ def listar(request):
         "totais_status": totais_status,
         "etapas_menu": _etapas_menu_context(),
         "arquivamento_motivos": _arquivamento_motivos_context(),
+        "usuarios_compartilhamento": _usuarios_compartilhamento(request.user),
+        "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
     })
 
 
 @login_required
 def detalhe(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
-    _garantir_checklist_padrao(imovel, request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user)
+    acesso = _acesso_context(imovel, request.user)
+    if acesso["can_edit"]:
+        _garantir_checklist_padrao(imovel, request.user)
     p = imovel.to_calc_dict()
     tg = tabela_giro(p)
     r_padrao = tg.get(imovel.giro_padrao, tg.get(12))
@@ -669,6 +817,11 @@ def detalhe(request, pk):
     checklist_operacional = _checklist_context(imovel)
     arquivos = imovel.arquivos.select_related("enviado_por")
     comentarios = imovel.comentarios.select_related("user")
+    compartilhamentos = (
+        imovel.compartilhamentos
+        .filter(ativo=True)
+        .select_related("user", "criado_por")
+    )
 
     export_rows = [
         ("Imóvel", imovel.titulo_card),
@@ -727,6 +880,10 @@ def detalhe(request, pk):
         "arquivo_form": ImovelArquivoForm(),
         "calculo_form": ImovelCalculoForm(instance=imovel),
         "comentarios": comentarios,
+        "acesso": acesso,
+        "compartilhamentos": compartilhamentos,
+        "usuarios_compartilhamento": _usuarios_compartilhamento(request.user) if acesso["can_manage_shares"] else [],
+        "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
         "export_rows": export_rows,
     })
 
@@ -734,7 +891,7 @@ def detalhe(request, pk):
 @login_required
 @require_POST
 def atualizar_dados_calculo(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     form = ImovelCalculoForm(request.POST, instance=imovel)
     destino = f"{reverse('detalhe', args=[imovel.pk])}#financeiro"
     if form.is_valid():
@@ -764,7 +921,7 @@ def criar(request):
 
 @login_required
 def editar(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     if request.method == "POST":
         form = ImovelForm(request.POST, request.FILES, instance=imovel)
         if form.is_valid():
@@ -779,7 +936,7 @@ def editar(request, pk):
 @login_required
 @require_POST
 def excluir(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, proprietario=True)
     imovel_id = str(imovel.pk)
     nome = imovel.endereco
     imovel.delete()
@@ -791,8 +948,95 @@ def excluir(request, pk):
 
 @login_required
 @require_POST
+def compartilhar_imovel(request, pk):
+    imovel = _get_imovel_com_acesso(pk, request.user, proprietario=True)
+    destino = request.POST.get("next") or f"{reverse('detalhe', args=[imovel.pk])}#acessos"
+    permissao = request.POST.get("permissao", "").strip()
+    user_id = request.POST.get("user_id")
+
+    permissoes_validas = dict(COMPARTILHAMENTO_PERMISSAO_CHOICES)
+    if permissao not in permissoes_validas:
+        messages.error(request, "Selecione uma permissão válida para compartilhar.")
+        return redirect(destino)
+
+    try:
+        convidado = User.objects.get(pk=user_id)
+    except (User.DoesNotExist, TypeError, ValueError):
+        messages.error(request, "Usuário selecionado não foi encontrado.")
+        return redirect(destino)
+
+    if convidado.pk == request.user.pk:
+        messages.error(request, "O proprietário já tem acesso completo ao imóvel.")
+        return redirect(destino)
+
+    compartilhamento, criado = ImovelCompartilhamento.objects.get_or_create(
+        imovel=imovel,
+        user=convidado,
+        defaults={
+            "permissao": permissao,
+            "ativo": True,
+            "criado_por": request.user,
+        },
+    )
+    deve_notificar = criado
+    if not criado:
+        deve_notificar = compartilhamento.permissao != permissao or not compartilhamento.ativo
+        compartilhamento.permissao = permissao
+        compartilhamento.ativo = True
+        compartilhamento.criado_por = request.user
+        compartilhamento.save(update_fields=["permissao", "ativo", "criado_por", "atualizado_em"])
+
+    if deve_notificar:
+        _criar_notificacao_compartilhamento(compartilhamento, criado=criado)
+
+    nome = _nome_usuario(convidado)
+    messages.success(request, f"Acesso de {nome} definido como {permissoes_validas[permissao]}.")
+    return redirect(destino)
+
+
+@login_required
+@require_POST
+def remover_compartilhamento(request, pk, compartilhamento_id):
+    imovel = _get_imovel_com_acesso(pk, request.user, proprietario=True)
+    destino = request.POST.get("next") or f"{reverse('detalhe', args=[imovel.pk])}#acessos"
+    compartilhamento = get_object_or_404(
+        ImovelCompartilhamento,
+        pk=compartilhamento_id,
+        imovel=imovel,
+    )
+    nome = _nome_usuario(compartilhamento.user)
+    NotificacaoUsuario.objects.filter(
+        user=compartilhamento.user,
+        imovel=imovel,
+        tipo="compartilhamento",
+        lida_em__isnull=True,
+    ).update(lida_em=timezone.now())
+    compartilhamento.delete()
+    messages.success(request, f"Acesso de {nome} removido.")
+    return redirect(destino)
+
+
+@login_required
+def abrir_notificacao(request, notificacao_id):
+    notificacao = get_object_or_404(NotificacaoUsuario, pk=notificacao_id, user=request.user)
+    if notificacao.lida_em is None:
+        notificacao.lida_em = timezone.now()
+        notificacao.save(update_fields=["lida_em"])
+    return redirect(notificacao.url or reverse("kanban"))
+
+
+@login_required
+@require_POST
+def marcar_notificacoes_lidas(request):
+    NotificacaoUsuario.objects.filter(user=request.user, lida_em__isnull=True).update(lida_em=timezone.now())
+    destino = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("kanban")
+    return redirect(destino)
+
+
+@login_required
+@require_POST
 def atualizar_identidade(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     imovel.titulo_personalizado = request.POST.get("titulo_personalizado", "").strip()[:160]
     update_fields = ["titulo_personalizado", "updated_at"]
     if request.FILES.get("foto"):
@@ -806,7 +1050,7 @@ def atualizar_identidade(request, pk):
 @login_required
 @require_POST
 def toggle_checklist_item(request, pk, item_id):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     item = get_object_or_404(ImovelChecklistItem, pk=item_id, imovel=imovel)
     checked = request.POST.get("concluido")
     if checked is None:
@@ -835,7 +1079,7 @@ def toggle_checklist_item(request, pk, item_id):
 @login_required
 @require_POST
 def adicionar_checklist_item(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     etapa = request.POST.get("etapa")
     texto = request.POST.get("texto", "").strip()
     if etapa not in dict(ETAPA_CHOICES) or etapa == "arquivado":
@@ -866,7 +1110,7 @@ def adicionar_checklist_item(request, pk):
 @login_required
 @require_POST
 def adicionar_arquivo(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     form = ImovelArquivoForm(request.POST, request.FILES)
     if form.is_valid():
         arquivo = form.save(commit=False)
@@ -882,7 +1126,7 @@ def adicionar_arquivo(request, pk):
 @login_required
 @require_POST
 def excluir_arquivo(request, pk, arquivo_id):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     arquivo = get_object_or_404(ImovelArquivo, pk=arquivo_id, imovel=imovel)
     arquivo.arquivo.delete(save=False)
     arquivo.delete()
@@ -893,7 +1137,7 @@ def excluir_arquivo(request, pk, arquivo_id):
 @login_required
 @require_POST
 def adicionar_comentario(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
     texto = request.POST.get("texto", "").strip()
     if not texto:
         messages.error(request, "Escreva um comentário antes de enviar.")
@@ -911,7 +1155,7 @@ def tabela_lances_imovel(request, pk):
     """Retorna tabela de lances progressivos para um imóvel específico."""
     from django.http import JsonResponse
     
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user)
     p = imovel.to_calc_dict()
     
     tabela = tabela_lances(p)
@@ -968,7 +1212,7 @@ def simular_moradia_imovel(request, pk):
     Pré-preenche com os dados de financiamento do imóvel e aceita overrides
     do usuário. Retorna JSON com resumo + séries para os gráficos.
     """
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user)
 
     # Defaults vindos do imóvel
     # valor_imovel = preço pago (lance/arremate); valor_mercado = avaliação/revenda
@@ -1056,7 +1300,7 @@ def gerar_analise_juridica_imovel(request, pk):
     from apps.leiloes.tasks import gerar_analise_juridica_imovel_task
 
     _logger = _logging.getLogger(__name__)
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user, escrita=True)
 
     analise_atual = imovel.analise_juridica_ia or {}
     if analise_atual.get("status") == "processando":
@@ -1093,7 +1337,7 @@ def gerar_analise_juridica_imovel(request, pk):
 
 @login_required
 def analise_juridica_imovel_status(request, pk):
-    imovel = get_object_or_404(Imovel, pk=pk, user=request.user)
+    imovel = _get_imovel_com_acesso(pk, request.user)
     analise = imovel.analise_juridica_ia or {}
     return JsonResponse({
         "status": analise.get("status") or "nao_iniciada",
