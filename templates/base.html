@@ -32,6 +32,12 @@
   <style>
     [x-cloak] { display: none !important; }
     .sidebar-link.active { background: rgba(20,184,166,0.16); color: #5eead4; }
+    .notification-menu summary {
+      list-style: none;
+    }
+    .notification-menu summary::-webkit-details-marker {
+      display: none;
+    }
     .app-sidebar {
       width: min(18rem, calc(100vw - 2rem));
       transform: translateX(-110%);
@@ -278,8 +284,12 @@
         <span class="sidebar-icon text-lg">📊</span><span class="sidebar-text">Kanban</span>
       </a>
       <a href="{% url 'listar' %}"
-         class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-stone-300 hover:bg-stone-900 hover:text-white transition-colors {% if request.resolver_match.url_name == 'listar' %}active{% endif %}">
+         class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-stone-300 hover:bg-stone-900 hover:text-white transition-colors {% if request.resolver_match.url_name == 'listar' and request.GET.status != 'compartilhados' %}active{% endif %}">
         <span class="sidebar-icon text-lg">🏠</span><span class="sidebar-text">Meus Imóveis</span>
+      </a>
+      <a href="{% url 'listar' %}?status=compartilhados"
+         class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-stone-300 hover:bg-stone-900 hover:text-white transition-colors {% if request.resolver_match.url_name == 'listar' and request.GET.status == 'compartilhados' %}active{% endif %}">
+        <span class="sidebar-icon text-lg">🤝</span><span class="sidebar-text">Compartilhados</span>
       </a>
       <a href="{% url 'criar' %}"
          class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-stone-300 hover:bg-stone-900 hover:text-white transition-colors {% if request.resolver_match.url_name == 'criar' %}active{% endif %}">
@@ -360,6 +370,60 @@
           <p class="truncate text-xs text-gray-500">{% block page_subtitle %}{% endblock %}</p>
         </div>
       </div>
+      {% if user.is_authenticated %}
+      <details class="notification-menu relative no-print">
+        <summary class="relative inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 hover:text-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500" title="Notificações">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          {% if notificacoes_nao_lidas_count %}
+          <span class="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+            {{ notificacoes_nao_lidas_count }}
+          </span>
+          {% endif %}
+        </summary>
+        <div class="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
+          <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+            <div>
+              <div class="text-sm font-bold text-gray-950">Notificações</div>
+              <div class="text-xs text-gray-500">{{ notificacoes_nao_lidas_count }} não lida{{ notificacoes_nao_lidas_count|pluralize }}</div>
+            </div>
+            {% if notificacoes_nao_lidas_count %}
+            <form method="post" action="{% url 'marcar_notificacoes_lidas' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="text-xs font-bold text-teal-700 hover:text-teal-900">Marcar todas</button>
+            </form>
+            {% endif %}
+          </div>
+          <div class="max-h-96 overflow-y-auto">
+            {% for notificacao in notificacoes_recentes %}
+            <a href="{% url 'abrir_notificacao' notificacao.pk %}"
+               class="block border-b border-gray-100 px-4 py-3 transition hover:bg-gray-50 {% if not notificacao.lida %}bg-teal-50/60{% endif %}">
+              <div class="flex items-start gap-3">
+                <span class="mt-1 h-2 w-2 flex-shrink-0 rounded-full {% if notificacao.lida %}bg-gray-300{% else %}bg-teal-600{% endif %}"></span>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-gray-950">{{ notificacao.titulo }}</div>
+                  <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-600">{{ notificacao.mensagem }}</p>
+                  <div class="mt-2 text-[11px] font-medium text-gray-400">{{ notificacao.criado_em|date:"d/m H:i" }}</div>
+                </div>
+              </div>
+            </a>
+            {% empty %}
+            <div class="px-4 py-8 text-center text-sm text-gray-500">
+              Nenhuma notificação por enquanto.
+            </div>
+            {% endfor %}
+          </div>
+          <div class="border-t border-gray-100 bg-gray-50 px-4 py-3">
+            <a href="{% url 'listar' %}?status=compartilhados" class="block text-center text-xs font-bold text-teal-700 hover:text-teal-900">
+              Ver imóveis compartilhados
+            </a>
+          </div>
+        </div>
+      </details>
+      {% endif %}
       <div class="header-actions flex min-w-0 flex-wrap items-center justify-end gap-3">
         {% block header_actions %}{% endblock %}
       </div>

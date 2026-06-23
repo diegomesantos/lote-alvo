@@ -9,13 +9,29 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import CHECKLIST_PADRAO, Imovel, ImovelArquivo, ImovelChecklistItem, ImovelComentario
+from .models import (
+    CHECKLIST_PADRAO,
+    Imovel,
+    ImovelArquivo,
+    ImovelChecklistItem,
+    ImovelComentario,
+    ImovelCompartilhamento,
+    NotificacaoUsuario,
+)
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp(prefix="imoveis-test-media-")
+TEST_STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 
-@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT, STORAGES=TEST_STORAGES)
 class ImovelInteracaoTests(TestCase):
     @classmethod
     def tearDownClass(cls):
@@ -26,6 +42,16 @@ class ImovelInteracaoTests(TestCase):
         self.user = User.objects.create_user(
             username="investidor",
             email="investidor@example.com",
+            password="senha123",
+        )
+        self.leitor = User.objects.create_user(
+            username="leitor",
+            email="leitor@example.com",
+            password="senha123",
+        )
+        self.editor = User.objects.create_user(
+            username="editor",
+            email="editor@example.com",
             password="senha123",
         )
         self.client.force_login(self.user)
@@ -295,3 +321,151 @@ class ImovelInteracaoTests(TestCase):
         self.assertTrue(data["success"])
         self.assertFalse(Imovel.objects.filter(pk=self.imovel.pk).exists())
         self.assertEqual(data["deleted_id"], str(self.imovel.pk))
+
+    def test_proprietario_compartilha_e_remove_acesso(self):
+        response = self.client.post(
+            reverse("compartilhar_imovel", args=[self.imovel.pk]),
+            {"user_id": self.leitor.pk, "permissao": "leitura"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        compartilhamento = ImovelCompartilhamento.objects.get(imovel=self.imovel, user=self.leitor)
+        notificacao = NotificacaoUsuario.objects.get(user=self.leitor, imovel=self.imovel)
+        self.assertEqual(compartilhamento.permissao, "leitura")
+        self.assertTrue(compartilhamento.ativo)
+        self.assertEqual(compartilhamento.criado_por, self.user)
+        self.assertEqual(notificacao.tipo, "compartilhamento")
+        self.assertIsNone(notificacao.lida_em)
+        self.assertIn("compartilhou", notificacao.mensagem)
+
+        self.client.force_login(self.leitor)
+        detalhe = self.client.get(reverse("detalhe", args=[self.imovel.pk]))
+        lista = self.client.get(f"{reverse('listar')}?status=compartilhados")
+
+        self.assertEqual(detalhe.status_code, 200)
+        self.assertFalse(detalhe.context["acesso"]["can_edit"])
+        self.assertTrue(detalhe.context["acesso"]["is_shared"])
+        self.assertEqual(detalhe.context["notificacoes_nao_lidas_count"], 1)
+        self.assertIn(str(self.imovel.pk), {str(card["imovel"].pk) for card in lista.context["cards"]})
+
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("remover_compartilhamento", args=[self.imovel.pk, compartilhamento.pk]),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ImovelCompartilhamento.objects.filter(pk=compartilhamento.pk).exists())
+        self.assertEqual(NotificacaoUsuario.objects.filter(user=self.leitor, imovel=self.imovel, lida_em__isnull=True).count(), 0)
+
+        self.client.force_login(self.leitor)
+        response = self.client.get(reverse("detalhe", args=[self.imovel.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_usuario_com_leitura_nao_altera_card_compartilhado(self):
+        ImovelCompartilhamento.objects.create(
+            imovel=self.imovel,
+            user=self.leitor,
+            permissao="leitura",
+            criado_por=self.user,
+        )
+
+        self.client.force_login(self.leitor)
+        mover = self.client.post(
+            reverse("atualizar_etapa", args=[self.imovel.pk]),
+            {"etapa": "triagem_financeira"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        excluir = self.client.post(
+            reverse("excluir", args=[self.imovel.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.imovel.refresh_from_db()
+        self.assertEqual(mover.status_code, 404)
+        self.assertEqual(excluir.status_code, 404)
+        self.assertEqual(self.imovel.etapa, "estoque")
+
+    def test_usuario_com_edicao_altera_mas_nao_exclui_card_compartilhado(self):
+        ImovelCompartilhamento.objects.create(
+            imovel=self.imovel,
+            user=self.editor,
+            permissao="edicao",
+            criado_por=self.user,
+        )
+
+        self.client.force_login(self.editor)
+        mover = self.client.post(
+            reverse("atualizar_etapa", args=[self.imovel.pk]),
+            {"etapa": "triagem_financeira"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        excluir = self.client.post(
+            reverse("excluir", args=[self.imovel.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        compartilhar = self.client.post(
+            reverse("compartilhar_imovel", args=[self.imovel.pk]),
+            {"user_id": self.leitor.pk, "permissao": "leitura"},
+        )
+
+        self.imovel.refresh_from_db()
+        self.assertEqual(mover.status_code, 200)
+        self.assertEqual(excluir.status_code, 404)
+        self.assertEqual(compartilhar.status_code, 404)
+        self.assertEqual(self.imovel.etapa, "triagem_financeira")
+        self.assertTrue(Imovel.objects.filter(pk=self.imovel.pk).exists())
+        self.assertFalse(ImovelCompartilhamento.objects.filter(imovel=self.imovel, user=self.leitor).exists())
+
+    def test_abrir_notificacao_marca_como_lida_e_redireciona(self):
+        notificacao = NotificacaoUsuario.objects.create(
+            user=self.leitor,
+            tipo="compartilhamento",
+            titulo="Imóvel compartilhado com você",
+            mensagem="Teste",
+            url=reverse("detalhe", args=[self.imovel.pk]),
+            imovel=self.imovel,
+            criado_por=self.user,
+        )
+        ImovelCompartilhamento.objects.create(
+            imovel=self.imovel,
+            user=self.leitor,
+            permissao="leitura",
+            criado_por=self.user,
+        )
+
+        self.client.force_login(self.leitor)
+        response = self.client.get(reverse("abrir_notificacao", args=[notificacao.pk]))
+
+        notificacao.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("detalhe", args=[self.imovel.pk]))
+        self.assertIsNotNone(notificacao.lida_em)
+
+    def test_marcar_todas_notificacoes_como_lidas(self):
+        NotificacaoUsuario.objects.create(
+            user=self.leitor,
+            tipo="compartilhamento",
+            titulo="Aviso 1",
+            mensagem="Teste",
+            url=reverse("kanban"),
+            imovel=self.imovel,
+            criado_por=self.user,
+        )
+        NotificacaoUsuario.objects.create(
+            user=self.leitor,
+            tipo="compartilhamento",
+            titulo="Aviso 2",
+            mensagem="Teste",
+            url=reverse("kanban"),
+            imovel=self.imovel,
+            criado_por=self.user,
+        )
+
+        self.client.force_login(self.leitor)
+        response = self.client.post(
+            reverse("marcar_notificacoes_lidas"),
+            {"next": reverse("kanban")},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(NotificacaoUsuario.objects.filter(user=self.leitor, lida_em__isnull=True).count(), 0)
