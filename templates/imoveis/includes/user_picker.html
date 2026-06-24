@@ -1,0 +1,30 @@
+<div class="relative {{ wrapper_class|default:'' }}"
+     data-user-picker
+     data-search-url="{% url 'buscar_usuarios_compartilhamento' %}">
+  <label for="{{ input_id }}-query" class="{{ label_class|default:'mb-2 block text-sm font-semibold text-gray-700' }}">
+    {{ label_text|default:'Usuário cadastrado' }}
+  </label>
+  <input id="{{ input_id }}" type="hidden" name="user_id" data-user-picker-value>
+  <div class="relative">
+    <input id="{{ input_id }}-query"
+           type="text"
+           autocomplete="off"
+           required
+           data-user-picker-input
+           data-user-picker-required-message="Selecione um usuário da lista."
+           aria-autocomplete="list"
+           aria-expanded="false"
+           aria-controls="{{ input_id }}-results"
+           placeholder="{{ placeholder|default:'Digite @, nome ou e-mail' }}"
+           class="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-semibold text-gray-400" data-user-picker-status>@</span>
+  </div>
+  <div class="mt-2 hidden rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-xs text-teal-900" data-user-picker-selected></div>
+  <div id="{{ input_id }}-results"
+       class="absolute z-50 mt-1 hidden max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-xl"
+       data-user-picker-results
+       role="listbox"></div>
+  <p class="mt-1 text-xs text-gray-500" data-user-picker-help>
+    Digite <span class="font-semibold">@</span> para listar usuários ou pesquise por nome/e-mail.
+  </p>
+</div>

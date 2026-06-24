@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from django.db import close_old_connections
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils import timezone
 from .models import ImovelCaixa
 from .regras_despesas import extrair_regras_despesas
@@ -28,6 +28,17 @@ ESTADOS = [
     "SE", "SP", "TO",
 ]
 
+MENSAGENS_IMOVEL_INDISPONIVEL = (
+    "o imovel que voce procura nao esta mais disponivel para venda",
+    "o imóvel que você procura não está mais disponível para venda",
+    "nenhum imovel encontrado para o filtro selecionado",
+    "nenhum imóvel encontrado para o filtro selecionado",
+)
+
+
+class ImovelCaixaIndisponivelError(RuntimeError):
+    """A pagina de detalhe existe, mas a Caixa informa que o imovel saiu da venda."""
+
 
 def _sync_playwright():
     # Import tardio: comandos que apenas consultam ou reprocessam o banco não
@@ -39,6 +50,31 @@ def _sync_playwright():
 
 def limpar_texto(valor) -> str:
     return " ".join(str(valor or "").replace("\xa0", " ").split()).strip()
+
+
+def pagina_indisponivel_caixa(texto: str) -> bool:
+    texto_normalizado = limpar_texto(texto).casefold()
+    return any(mensagem in texto_normalizado for mensagem in MENSAGENS_IMOVEL_INDISPONIVEL)
+
+
+def filtrar_detalhe_pendente(queryset):
+    filtro_indisponivel = Q()
+    for mensagem in MENSAGENS_IMOVEL_INDISPONIVEL:
+        filtro_indisponivel |= Q(detalhes__detalhe_caixa__texto_extraido__icontains=mensagem)
+
+    return queryset.filter(
+        Q(detalhe_atualizado_em__isnull=True) | filtro_indisponivel
+    )
+
+
+def ordenar_detalhe_pendente(queryset):
+    return queryset.annotate(
+        _detalhe_pendente_prioridade=Case(
+            When(detalhe_atualizado_em__isnull=False, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    ).order_by("_detalhe_pendente_prioridade", "estado", "cidade", "imovel_id_caixa")
 
 
 def parse_decimal_br(valor, default=Decimal("0")) -> Decimal:
@@ -439,6 +475,9 @@ def extrair_detalhes_html(html: str, url: str = "") -> dict:
 
     soup = BeautifulSoup(html, "html.parser")
     texto = texto_pagina(soup)
+    if pagina_indisponivel_caixa(texto):
+        raise ImovelCaixaIndisponivelError("Imóvel não disponível na página de detalhe da Caixa")
+
     documentos = extrair_documentos(soup)
     fotos = extrair_fotos(soup)
     datas_leilao = extrair_datas_leilao(texto)
@@ -569,9 +608,39 @@ def aplicar_detalhes_por_pk(imovel_pk: int, detalhes: dict) -> ImovelCaixa:
         close_old_connections()
 
 
+def inativar_imovel_indisponivel_por_pk(imovel_pk: int, motivo: str, url: str) -> ImovelCaixa:
+    close_old_connections()
+    try:
+        imovel = ImovelCaixa.objects.get(pk=imovel_pk)
+        agora = timezone.now()
+        detalhes = dict(imovel.detalhes or {})
+        detalhes["detalhe_caixa_indisponivel"] = {
+            "motivo": motivo,
+            "url": url,
+            "verificado_em": agora.isoformat(),
+        }
+        imovel.ativo_caixa = False
+        imovel.removido_da_caixa_em = agora
+        imovel.ultima_sincronizacao_caixa = agora
+        imovel.detalhes = detalhes
+        imovel.save(
+            update_fields=[
+                "ativo_caixa",
+                "removido_da_caixa_em",
+                "ultima_sincronizacao_caixa",
+                "detalhes",
+                "atualizado_em",
+            ]
+        )
+        return imovel
+    finally:
+        close_old_connections()
+
+
 def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, headless=True) -> dict:
     erros = []
     atualizados = 0
+    inativados = 0
 
     with _sync_playwright() as playwright, ThreadPoolExecutor(max_workers=1) as executor:
         browser = playwright.chromium.launch(
@@ -598,6 +667,19 @@ def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, head
                 executor.submit(aplicar_detalhes_por_pk, imovel.pk, detalhes).result()
                 atualizados += 1
                 logger.info("Imóvel Caixa %s enriquecido com sucesso", imovel.imovel_id_caixa)
+            except ImovelCaixaIndisponivelError as exc:
+                executor.submit(
+                    inativar_imovel_indisponivel_por_pk,
+                    imovel.pk,
+                    str(exc),
+                    page.url,
+                ).result()
+                inativados += 1
+                logger.info(
+                    "Imóvel Caixa %s inativado durante enriquecimento: %s",
+                    imovel.imovel_id_caixa,
+                    exc,
+                )
             except Exception as exc:
                 logger.exception("Erro ao enriquecer imóvel %s", imovel.imovel_id_caixa)
                 erros.append(f"{imovel.imovel_id_caixa}: {exc}")
@@ -607,4 +689,4 @@ def enriquecer_imoveis_caixa(imoveis: Iterable[ImovelCaixa], intervalo=1.0, head
 
         browser.close()
 
-    return {"atualizados": atualizados, "erros": erros}
+    return {"atualizados": atualizados, "inativados": inativados, "erros": erros}

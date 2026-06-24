@@ -7,8 +7,10 @@ from apps.leiloes.caixa_csv import (
     ESTADOS,
     baixar_csv_caixa,
     enriquecer_imoveis_caixa,
+    filtrar_detalhe_pendente,
     importar_csv_caixa,
     marcar_imoveis_ausentes_como_inativos,
+    ordenar_detalhe_pendente,
 )
 from apps.leiloes.models import ImovelCaixa
 
@@ -155,8 +157,10 @@ class Command(BaseCommand):
                 ultima_sincronizacao_caixa__gte=sincronizacao_inicio,
             )
             if options["somente_pendentes_detalhe"]:
-                queryset = queryset.filter(detalhe_atualizado_em__isnull=True)
-            queryset = queryset.order_by("estado", "cidade", "imovel_id_caixa")
+                queryset = filtrar_detalhe_pendente(queryset)
+                queryset = ordenar_detalhe_pendente(queryset)
+            else:
+                queryset = queryset.order_by("estado", "cidade", "imovel_id_caixa")
             if options["max_detalhes"]:
                 queryset = queryset[: options["max_detalhes"]]
 
@@ -169,6 +173,7 @@ class Command(BaseCommand):
             )
             detalhe_msg = (
                 f"\nDetalhes: {detalhe['atualizados']} atualizados, "
+                f"{detalhe['inativados']} inativados, "
                 f"{len(detalhe['erros'])} erro(s)"
             )
             if detalhe["erros"]:
