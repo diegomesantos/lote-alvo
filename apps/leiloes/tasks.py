@@ -8,8 +8,10 @@ from .caixa_csv import (
     ESTADOS,
     baixar_csv_caixa,
     enriquecer_imoveis_caixa,
+    filtrar_detalhe_pendente,
     importar_csv_caixa,
     marcar_imoveis_ausentes_como_inativos,
+    ordenar_detalhe_pendente,
 )
 from .models import ImovelCaixa
 
@@ -102,15 +104,17 @@ def _sincronizar_csv_caixa(
             sincronizacao_inicio=sincronizacao_inicio,
         )
 
-    detalhe = {"atualizados": 0, "erros": []}
+    detalhe = {"atualizados": 0, "inativados": 0, "erros": []}
     if enriquecer:
         queryset = ImovelCaixa.objects.filter(
             ativo_caixa=True,
             ultima_sincronizacao_caixa__gte=sincronizacao_inicio,
         )
         if somente_pendentes_detalhe:
-            queryset = queryset.filter(detalhe_atualizado_em__isnull=True)
-        queryset = queryset.order_by("estado", "cidade", "imovel_id_caixa")
+            queryset = filtrar_detalhe_pendente(queryset)
+            queryset = ordenar_detalhe_pendente(queryset)
+        else:
+            queryset = queryset.order_by("estado", "cidade", "imovel_id_caixa")
         if max_detalhes:
             queryset = queryset[:max_detalhes]
 
@@ -128,6 +132,7 @@ def _sincronizar_csv_caixa(
         "reativados": total_reativados,
         "inativados": inativados,
         "detalhes_atualizados": detalhe["atualizados"],
+        "detalhes_inativados": detalhe["inativados"],
         "erros_detalhes": detalhe["erros"],
     }
     logger.info("Sincronização CSV Caixa concluída: %s", resultado)
@@ -171,9 +176,9 @@ def enriquecer_leiloes_caixa_pendentes_task(max_detalhes=300, intervalo=1.0):
     """Busca foto, edital, matrícula e detalhes dos imóveis ativos ainda pendentes."""
     queryset = (
         ImovelCaixa.objects
-        .filter(ativo_caixa=True, detalhe_atualizado_em__isnull=True)
-        .order_by("estado", "cidade", "imovel_id_caixa")
+        .filter(ativo_caixa=True)
     )
+    queryset = ordenar_detalhe_pendente(filtrar_detalhe_pendente(queryset))
     if max_detalhes:
         queryset = queryset[:max_detalhes]
 
@@ -182,6 +187,7 @@ def enriquecer_leiloes_caixa_pendentes_task(max_detalhes=300, intervalo=1.0):
     resultado = {
         "selecionados": len(imoveis),
         "atualizados": detalhe["atualizados"],
+        "inativados": detalhe["inativados"],
         "erros": detalhe["erros"],
     }
     logger.info("Enriquecimento Caixa concluído: %s", resultado)

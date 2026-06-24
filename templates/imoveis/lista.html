@@ -285,15 +285,7 @@
         <form id="lista-share-form" method="post" class="mt-5 space-y-4">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <div>
-            <label for="lista-share-user" class="mb-2 block text-sm font-semibold text-gray-700">Usuário cadastrado</label>
-            <select id="lista-share-user" name="user_id" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
-              <option value="">Selecione um usuário</option>
-              {% for usuario in usuarios_compartilhamento %}
-              <option value="{{ usuario.pk }}">{{ usuario.get_full_name|default:usuario.username }}{% if usuario.email %} · {{ usuario.email }}{% endif %}</option>
-              {% endfor %}
-            </select>
-          </div>
+          {% include "imoveis/includes/user_picker.html" with input_id="lista-share-user" %}
           <div>
             <label for="lista-share-permission" class="mb-2 block text-sm font-semibold text-gray-700">Permissão</label>
             <select id="lista-share-permission" name="permissao" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
@@ -388,7 +380,11 @@ document.addEventListener('DOMContentLoaded', function() {
   function closeShareModal() {
     shareModal.classList.add('hidden');
     shareForm.removeAttribute('action');
-    shareUser.value = '';
+    if (window.LoteAlvoUserPicker) {
+      window.LoteAlvoUserPicker.reset(shareForm);
+    } else if (shareUser) {
+      shareUser.value = '';
+    }
     sharePermission.value = sharePermission.options[0] ? sharePermission.options[0].value : '';
     setBodyScrollLocked(false);
   }
@@ -451,6 +447,10 @@ document.addEventListener('DOMContentLoaded', function() {
     shareForm.action = state.shareUrl;
     shareModal.classList.remove('hidden');
     setBodyScrollLocked(true);
+    if (window.LoteAlvoUserPicker) {
+      window.LoteAlvoUserPicker.reset(shareForm);
+      window.LoteAlvoUserPicker.focus(shareForm);
+    }
   }
 
   document.addEventListener('click', function(event) {

@@ -5,6 +5,7 @@ urlpatterns = [
     path("",              views.kanban,         name="kanban"),
     path("lista/",        views.listar,         name="listar"),
     path("novo/",         views.criar,          name="criar"),
+    path("usuarios/buscar/", views.buscar_usuarios_compartilhamento, name="buscar_usuarios_compartilhamento"),
     path("<uuid:pk>/",    views.detalhe,        name="detalhe"),
     path("<uuid:pk>/editar/", views.editar,     name="editar"),
     path("<uuid:pk>/excluir/", views.excluir,   name="excluir"),
