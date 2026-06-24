@@ -1113,6 +1113,7 @@
     <h2 class="text-base font-bold text-gray-900 sm:text-lg">Tabela de lances progressivos — {{ imovel.endereco }}</h2>
     <button onclick="document.getElementById('modal-lances-imovel').close()" class="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
   </div>
+  {% include "components/roi_lances_legend.html" %}
 
   <div id="tabela-lances-imovel-container" class="max-h-96 overflow-auto p-4 sm:p-6">
     <div class="py-8 text-center">
