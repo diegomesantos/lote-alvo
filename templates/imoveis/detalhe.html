@@ -31,10 +31,11 @@
     Exportar CSV
   </button>
   {% if acesso.can_manage_shares %}
-  <a href="#acessos"
-     class="no-print rounded-lg border border-teal-300 bg-white px-4 py-2 text-center text-sm font-bold text-teal-700 transition-colors hover:bg-teal-50">
+  <button type="button"
+          onclick="abrirModalCompartilharImovel()"
+          class="no-print rounded-lg border border-teal-300 bg-white px-4 py-2 text-center text-sm font-bold text-teal-700 transition-colors hover:bg-teal-50">
     Compartilhar
-  </a>
+  </button>
   {% endif %}
   {% if acesso.can_edit %}
   <a href="{% url 'editar' imovel.pk %}"
@@ -61,7 +62,8 @@
     .no-print,
     .app-sidebar,
     #modal-lances-imovel,
-    #modal-calculo-imovel {
+    #modal-calculo-imovel,
+    #modal-compartilhar-imovel {
       display: none !important;
     }
     body {
@@ -845,32 +847,14 @@
       {% if acesso.can_manage_shares %}
       <section id="acessos" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <h3 class="text-base font-bold text-gray-950">Acessos compartilhados</h3>
-        <p class="mt-1 text-sm text-gray-600">Libere este imóvel apenas para usuários cadastrados e logados.</p>
-
-        <form method="post" action="{% url 'compartilhar_imovel' imovel.pk %}" class="no-print mt-4 space-y-3">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}#acessos">
-          <div>
-            <label class="text-xs font-semibold uppercase text-gray-500">Usuário</label>
-            <select name="user_id" required class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
-              <option value="">Selecione</option>
-              {% for usuario in usuarios_compartilhamento %}
-              <option value="{{ usuario.pk }}">{{ usuario.get_full_name|default:usuario.username }}{% if usuario.email %} · {{ usuario.email }}{% endif %}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label class="text-xs font-semibold uppercase text-gray-500">Permissão</label>
-            <select name="permissao" required class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
-              {% for valor, label in permissoes_compartilhamento %}
-              <option value="{{ valor }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <button type="submit" class="w-full rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">
-            Compartilhar acesso
+        <div class="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-gray-600">Acompanhe e remova permissões concedidas para usuários cadastrados.</p>
+          <button type="button"
+                  onclick="abrirModalCompartilharImovel()"
+                  class="no-print rounded-lg border border-teal-300 bg-white px-4 py-2 text-sm font-bold text-teal-700 transition-colors hover:bg-teal-50">
+            Novo acesso
           </button>
-        </form>
+        </div>
 
         <div class="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-200">
           {% for compartilhamento in compartilhamentos %}
@@ -898,6 +882,54 @@
   </div>
 </div>
 {% endwith %}
+
+{% if acesso.can_manage_shares %}
+<dialog id="modal-compartilhar-imovel" class="w-11/12 max-w-lg rounded-lg p-0 shadow-2xl backdrop:bg-gray-950/55">
+  <form method="post" action="{% url 'compartilhar_imovel' imovel.pk %}" class="bg-white">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <div class="flex items-start justify-between gap-3 border-b border-gray-200 p-4 sm:p-5">
+      <div>
+        <div class="text-xs font-bold uppercase tracking-wide text-teal-700">Acessos compartilhados</div>
+        <h2 class="mt-1 text-lg font-bold text-gray-950">Compartilhar imóvel</h2>
+        <p class="mt-1 text-sm leading-relaxed text-gray-600">Libere este imóvel apenas para usuários cadastrados e logados.</p>
+      </div>
+      <button type="button"
+              onclick="fecharModalCompartilharImovel()"
+              class="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
+    </div>
+
+    <div class="space-y-4 p-4 sm:p-5">
+      {% include "imoveis/includes/user_picker.html" with input_id="detalhe-share-user" %}
+      <div>
+        <label for="detalhe-share-permission" class="mb-2 block text-sm font-semibold text-gray-700">Permissão</label>
+        <select id="detalhe-share-permission"
+                name="permissao"
+                required
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-400">
+          {% for valor, label in permissoes_compartilhamento %}
+          <option value="{{ valor }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="rounded-lg bg-teal-50 p-3 text-xs leading-relaxed text-teal-800">
+        O acesso vale apenas para usuários logados. Não será criado link público.
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2 border-t border-gray-200 bg-gray-50 p-4 sm:flex-row sm:justify-end">
+      <button type="button"
+              onclick="fecharModalCompartilharImovel()"
+              class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        Cancelar
+      </button>
+      <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700">
+        Compartilhar acesso
+      </button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
 
 {% if acesso.can_edit %}
 <dialog id="modal-calculo-imovel" class="w-11/12 max-w-6xl rounded-lg p-0 shadow-2xl backdrop:bg-gray-950/55">
@@ -1351,6 +1383,27 @@
 </dialog>
 
 <script>
+function abrirModalCompartilharImovel() {
+  const modal = document.getElementById('modal-compartilhar-imovel');
+  if (!modal) return;
+  if (window.LoteAlvoUserPicker) {
+    window.LoteAlvoUserPicker.reset(modal);
+  }
+  modal.showModal();
+  if (window.LoteAlvoUserPicker) {
+    window.LoteAlvoUserPicker.focus(modal);
+  }
+}
+
+function fecharModalCompartilharImovel() {
+  const modal = document.getElementById('modal-compartilhar-imovel');
+  if (!modal) return;
+  modal.close();
+  if (window.LoteAlvoUserPicker) {
+    window.LoteAlvoUserPicker.reset(modal);
+  }
+}
+
 function carregarTabelaLancesImovel() {
   fetch('{% url "tabela_lances_imovel" imovel.pk %}')
     .then(response => response.json())

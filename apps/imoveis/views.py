@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from urllib.parse import urlencode
 from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, tabela_lances, simular_moradia
 from core.calculos.cartorio import (
@@ -94,17 +94,49 @@ def _acesso_context(imovel, user):
     }
 
 
-def _usuarios_compartilhamento(user):
-    return (
-        User.objects
-        .exclude(pk=user.pk)
-        .order_by("first_name", "last_name", "username")
-        .only("id", "username", "email", "first_name", "last_name")[:200]
-    )
-
-
 def _nome_usuario(user):
     return user.get_full_name() or user.email or user.username
+
+
+def _usuario_compartilhamento_payload(user):
+    nome = user.get_full_name().strip() or user.username
+    email = user.email or ""
+    iniciais_base = nome if nome else user.username
+    iniciais = "".join(parte[:1] for parte in iniciais_base.split()[:2]).upper() or user.username[:1].upper()
+    return {
+        "id": user.pk,
+        "label": nome,
+        "username": user.username,
+        "email": email,
+        "meta": f"@{user.username}" + (f" · {email}" if email else ""),
+        "initials": iniciais[:2],
+    }
+
+
+@login_required
+@require_GET
+def buscar_usuarios_compartilhamento(request):
+    termo_original = request.GET.get("q", "").strip()
+    termo = termo_original[1:].strip() if termo_original.startswith("@") else termo_original
+    usuarios = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
+
+    if termo:
+        for token in termo.split():
+            usuarios = usuarios.filter(
+                Q(username__icontains=token)
+                | Q(email__icontains=token)
+                | Q(first_name__icontains=token)
+                | Q(last_name__icontains=token)
+            )
+    elif termo_original != "@":
+        return JsonResponse({"results": []})
+
+    usuarios = usuarios.order_by("first_name", "last_name", "username").only(
+        "id", "username", "email", "first_name", "last_name"
+    )[:20]
+    return JsonResponse({
+        "results": [_usuario_compartilhamento_payload(usuario) for usuario in usuarios]
+    })
 
 
 def _criar_notificacao_compartilhamento(compartilhamento, *, criado):
@@ -620,7 +652,6 @@ def kanban(request):
         "total_geral": len(imoveis_ativos),
         "etapas_menu": _etapas_menu_context(),
         "arquivamento_motivos": _arquivamento_motivos_context(),
-        "usuarios_compartilhamento": _usuarios_compartilhamento(request.user),
         "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
     })
 
@@ -687,7 +718,6 @@ def listar(request):
         "totais_status": totais_status,
         "etapas_menu": _etapas_menu_context(),
         "arquivamento_motivos": _arquivamento_motivos_context(),
-        "usuarios_compartilhamento": _usuarios_compartilhamento(request.user),
         "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
     })
 
@@ -882,7 +912,6 @@ def detalhe(request, pk):
         "comentarios": comentarios,
         "acesso": acesso,
         "compartilhamentos": compartilhamentos,
-        "usuarios_compartilhamento": _usuarios_compartilhamento(request.user) if acesso["can_manage_shares"] else [],
         "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
         "export_rows": export_rows,
     })
@@ -960,7 +989,7 @@ def compartilhar_imovel(request, pk):
         return redirect(destino)
 
     try:
-        convidado = User.objects.get(pk=user_id)
+        convidado = User.objects.get(pk=user_id, is_active=True)
     except (User.DoesNotExist, TypeError, ValueError):
         messages.error(request, "Usuário selecionado não foi encontrado.")
         return redirect(destino)

@@ -361,6 +361,34 @@ class ImovelInteracaoTests(TestCase):
         response = self.client.get(reverse("detalhe", args=[self.imovel.pk]))
         self.assertEqual(response.status_code, 404)
 
+    def test_busca_usuarios_compartilhamento_por_mention_nome_e_email(self):
+        self.editor.first_name = "Maria"
+        self.editor.last_name = "Silva"
+        self.editor.save(update_fields=["first_name", "last_name"])
+
+        response = self.client.get(reverse("buscar_usuarios_compartilhamento"), {"q": "@leit"})
+        ids = {item["id"] for item in response.json()["results"]}
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.leitor.pk, ids)
+        self.assertNotIn(self.user.pk, ids)
+
+        response = self.client.get(reverse("buscar_usuarios_compartilhamento"), {"q": "maria silva"})
+        ids = {item["id"] for item in response.json()["results"]}
+        self.assertIn(self.editor.pk, ids)
+
+        response = self.client.get(reverse("buscar_usuarios_compartilhamento"), {"q": "editor@example.com"})
+        ids = {item["id"] for item in response.json()["results"]}
+        self.assertIn(self.editor.pk, ids)
+
+        response = self.client.get(reverse("buscar_usuarios_compartilhamento"), {"q": "@"})
+        ids = {item["id"] for item in response.json()["results"]}
+        self.assertIn(self.leitor.pk, ids)
+        self.assertIn(self.editor.pk, ids)
+
+        response = self.client.get(reverse("buscar_usuarios_compartilhamento"), {"q": ""})
+        self.assertEqual(response.json()["results"], [])
+
     def test_usuario_com_leitura_nao_altera_card_compartilhado(self):
         ImovelCompartilhamento.objects.create(
             imovel=self.imovel,

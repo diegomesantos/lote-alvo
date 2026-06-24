@@ -3,13 +3,19 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from bs4 import BeautifulSoup
 
 from .analise_juridica import (
     _erro_documento_nao_pdf,
     _pagina_precisa_ocr,
 )
-from .caixa_csv import extrair_fotos
+from .caixa_csv import (
+    ImovelCaixaIndisponivelError,
+    extrair_detalhes_html,
+    extrair_fotos,
+    filtrar_detalhe_pendente,
+)
 from .models import ImovelCaixa
 from .regras_despesas import extrair_regras_despesas
 
@@ -213,6 +219,52 @@ class ExtracaoFotosTests(TestCase):
                 "https://venda-imoveis.caixa.gov.br/fotos/F12322.jpg",
             ],
         )
+
+
+class ExtracaoDetalhesIndisponiveisTests(TestCase):
+    def test_nao_salva_como_detalhe_valido_quando_caixa_informa_indisponivel(self):
+        html = """
+        <html>
+          <body>
+            <main>
+              Ocorreu um erro ao tentar recuperar os dados do imóvel.
+              O imóvel que você procura não está mais disponível para venda.
+            </main>
+          </body>
+        </html>
+        """
+
+        with self.assertRaises(ImovelCaixaIndisponivelError):
+            extrair_detalhes_html(html, url="https://venda-imoveis.caixa.gov.br/sistema/detalhe-imovel.asp")
+
+    def test_fila_reprocessa_detalhe_antigo_com_pagina_indisponivel(self):
+        imovel = ImovelCaixa.objects.create(
+            imovel_id_caixa="INDISP-1",
+            endereco="Rua Teste",
+            cidade="Salvador",
+            estado="BA",
+            tipo="apto",
+            valor_avaliacao=Decimal("300000.00"),
+            percentual_desconto=Decimal("20.00"),
+            valor_minimo_lance=Decimal("240000.00"),
+            tipo_leilao="extra",
+            detalhe_atualizado_em=timezone.now(),
+            detalhes={
+                "detalhe_caixa": {
+                    "texto_extraido": (
+                        "Topo Ocorreu um erro ao tentar recuperar os dados do imóvel. "
+                        "O imóvel que você procura não está mais disponível para venda."
+                    )
+                }
+            },
+        )
+
+        ids = {
+            item.imovel_id_caixa
+            for item in filtrar_detalhe_pendente(ImovelCaixa.objects.all())
+        }
+
+        self.assertIn(imovel.imovel_id_caixa, ids)
 
 
 class ImagemImovelCaixaTests(TestCase):
