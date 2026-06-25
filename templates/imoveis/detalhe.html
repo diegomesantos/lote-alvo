@@ -441,6 +441,92 @@
               </div>
             {% endif %}
           </div>
+
+          {% if analise_resultado.onus_restricoes %}
+            <div class="mt-5">
+              <h4 class="text-sm font-bold text-gray-950">Ônus e restrições</h4>
+              <div class="mt-3 space-y-2">
+                {% for onus in analise_resultado.onus_restricoes %}
+                  <div class="rounded-lg border border-gray-200 p-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm font-bold text-gray-950">{{ onus.tipo }}</span>
+                      <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-700">{{ onus.gravidade|title }}</span>
+                      {% if onus.efeito_na_arrematacao == 'extinto_com_arrematacao' %}
+                        <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-800">Extinto na arrematação</span>
+                      {% elif onus.efeito_na_arrematacao == 'permanece_para_arrematante' %}
+                        <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">Permanece p/ arrematante</span>
+                      {% else %}
+                        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">Efeito indeterminado</span>
+                      {% endif %}
+                    </div>
+                    {% if onus.evidencia %}<p class="mt-2 text-sm leading-relaxed text-gray-700">{{ onus.evidencia }}</p>{% endif %}
+                    {% if onus.impacto %}<p class="mt-1 text-sm text-gray-800"><span class="font-semibold">Impacto:</span> {{ onus.impacto }}</p>{% endif %}
+                    {% if onus.fonte %}<p class="mt-1 text-xs text-gray-400">Fonte: {{ onus.fonte }}</p>{% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          {% if analise_resultado.debitos_responsabilidades %}
+            <div class="mt-5">
+              <h4 class="text-sm font-bold text-gray-950">Débitos e responsabilidades</h4>
+              <div class="mt-3 space-y-2">
+                {% for deb in analise_resultado.debitos_responsabilidades %}
+                  <div class="rounded-lg border border-gray-200 p-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm font-bold text-gray-950">{{ deb.tipo }}</span>
+                      {% if deb.responsavel %}<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-700">Resp.: {{ deb.responsavel }}</span>{% endif %}
+                      {% if deb.valor_estimado %}<span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{{ deb.valor_estimado }}</span>{% endif %}
+                    </div>
+                    {% if deb.momento %}<p class="mt-2 text-sm text-gray-700"><span class="font-semibold">Quando:</span> {{ deb.momento }}</p>{% endif %}
+                    {% if deb.impacto %}<p class="mt-1 text-sm text-gray-800">{{ deb.impacto }}</p>{% endif %}
+                    {% if deb.fonte %}<p class="mt-1 text-xs text-gray-400">Fonte: {{ deb.fonte }}</p>{% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          {% if analise_resultado.inconsistencias %}
+            <div class="mt-5">
+              <h4 class="text-sm font-bold text-gray-950">Inconsistências (sistema × documentos)</h4>
+              <div class="mt-3 space-y-2">
+                {% for inc in analise_resultado.inconsistencias %}
+                  <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm font-bold text-amber-900">{{ inc.descricao }}</span>
+                      <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{{ inc.gravidade|title }}</span>
+                    </div>
+                    {% if inc.evidencia %}<p class="mt-2 text-sm leading-relaxed text-amber-800">{{ inc.evidencia }}</p>{% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          {% if analise_resultado.checklist_due_diligence %}
+            <div class="mt-5">
+              <h4 class="text-sm font-bold text-gray-950">Checklist de due diligence</h4>
+              <ul class="mt-3 space-y-2">
+                {% for item in analise_resultado.checklist_due_diligence %}
+                  <li class="flex items-start gap-3 rounded-lg border border-gray-200 p-3">
+                    {% if item.prioridade == 'alta' %}
+                      <span class="mt-0.5 shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">Alta</span>
+                    {% elif item.prioridade == 'media' %}
+                      <span class="mt-0.5 shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Média</span>
+                    {% else %}
+                      <span class="mt-0.5 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">Baixa</span>
+                    {% endif %}
+                    <div>
+                      <p class="text-sm font-semibold text-gray-900">{{ item.acao }}</p>
+                      {% if item.motivo %}<p class="mt-0.5 text-sm text-gray-600">{{ item.motivo }}</p>{% endif %}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
         {% elif analise_juridica.status == 'processando' %}
           <div id="analise-avulso-processando" class="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4"
                {% if not imovel_caixa %}data-poll-url="{% url 'analise_juridica_imovel_status' imovel.pk %}"{% endif %}>
@@ -489,6 +575,60 @@
           </div>
         {% endif %}
       </section>
+
+      <section id="chat" class="no-print rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
+               x-data="chatImovel('{% url 'enviar_mensagem_chat' imovel.pk %}')">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-base font-bold text-gray-950">Assistente especialista</h3>
+            <p class="mt-1 text-sm text-gray-600">
+              Tire dúvidas sobre este imóvel, termos técnicos, riscos e próximos passos.
+              O assistente lê os dados, a análise jurídica e os documentos anexados.
+            </p>
+          </div>
+          <span class="inline-flex shrink-0 items-center rounded-full bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-700">IA</span>
+        </div>
+
+        <div class="mt-4 flex max-h-[28rem] min-h-[8rem] flex-col gap-3 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-4"
+             x-ref="lista">
+          <template x-if="mensagens.length === 0">
+            <div class="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
+              Comece perguntando, por exemplo: <em>“Quais riscos e custos sobram pra mim como arrematante?”</em>
+            </div>
+          </template>
+          <template x-for="(m, i) in mensagens" :key="i">
+            <div :class="m.role === 'user' ? 'self-end items-end' : 'self-start items-start'" class="flex max-w-[85%] flex-col">
+              <div class="rounded-2xl px-4 py-2 text-sm leading-relaxed whitespace-pre-line"
+                   :class="m.role === 'user' ? 'bg-teal-600 text-white rounded-br-sm'
+                           : (m.erro ? 'bg-red-50 text-red-700 border border-red-200 rounded-bl-sm'
+                                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm')"
+                   x-text="m.conteudo"></div>
+              <span class="mt-1 px-1 text-[11px] text-gray-400"
+                    x-text="(m.role === 'user' ? (m.autor || 'Você') : 'Assistente') + (m.criado_em_display ? ' · ' + m.criado_em_display : '')"></span>
+            </div>
+          </template>
+          <div x-show="carregando" class="self-start flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-teal-500"></span> Pensando…
+          </div>
+        </div>
+
+        <form @submit.prevent="enviar" class="mt-3">
+          <div class="flex items-end gap-2">
+            <textarea x-model="texto" rows="2" :disabled="carregando"
+                      @keydown.enter.exact.prevent="enviar"
+                      placeholder="Escreva sua pergunta…"
+                      class="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60"></textarea>
+            <button type="submit" :disabled="carregando || !texto.trim()"
+                    class="shrink-0 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50">
+              Enviar
+            </button>
+          </div>
+          <p class="mt-2 text-[11px] text-gray-400">
+            Triagem informativa e educativa — não constitui parecer jurídico nem substitui um advogado.
+          </p>
+        </form>
+      </section>
+      {{ chat_mensagens|json_script:"chat-mensagens-data" }}
 
       <section id="checklist" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1470,6 +1610,58 @@ function getCookie(name) {
     }
   }
   return cookieValue;
+}
+
+function chatImovel(endpoint) {
+  return {
+    endpoint,
+    texto: '',
+    carregando: false,
+    mensagens: [],
+    init() {
+      const el = document.getElementById('chat-mensagens-data');
+      if (el) {
+        try { this.mensagens = JSON.parse(el.textContent) || []; } catch (e) { this.mensagens = []; }
+      }
+      this.$nextTick(() => this.rolar());
+    },
+    rolar() {
+      const lista = this.$refs.lista;
+      if (lista) lista.scrollTop = lista.scrollHeight;
+    },
+    async enviar() {
+      const pergunta = this.texto.trim();
+      if (!pergunta || this.carregando) return;
+      this.mensagens.push({ role: 'user', conteudo: pergunta, autor: 'Você', criado_em_display: '' });
+      this.texto = '';
+      this.carregando = true;
+      this.$nextTick(() => this.rolar());
+
+      try {
+        const resp = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken'),
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: 'pergunta=' + encodeURIComponent(pergunta),
+        });
+        const data = await resp.json();
+        // Substitui a bolha otimista do usuário pela versão persistida (com data/autor)
+        if (data.pergunta) this.mensagens[this.mensagens.length - 1] = data.pergunta;
+        if (data.resposta) this.mensagens.push(data.resposta);
+        else if (!resp.ok) {
+          this.mensagens.push({ role: 'assistant', erro: true, conteudo: data.erro || 'Falha ao responder.', criado_em_display: '' });
+        }
+      } catch (e) {
+        this.mensagens.push({ role: 'assistant', erro: true, conteudo: 'Erro de conexão. Tente novamente.', criado_em_display: '' });
+      } finally {
+        this.carregando = false;
+        this.$nextTick(() => this.rolar());
+      }
+    },
+  };
 }
 
 function toggleChecklistItem(input, imovelId, itemId) {

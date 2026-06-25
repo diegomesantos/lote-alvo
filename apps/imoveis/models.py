@@ -281,6 +281,10 @@ class Imovel(models.Model):
     # Análise jurídica IA (armazenada localmente para imóveis avulsos)
     analise_juridica_ia = models.JSONField("Análise jurídica IA", null=True, blank=True)
 
+    # Cache do texto extraído dos documentos (matrícula, edital e demais anexos),
+    # usado como contexto do chat especialista sem reprocessar OCR a cada mensagem.
+    documentos_texto = models.JSONField("Texto extraído dos documentos", default=dict, blank=True)
+
     # Metadata
     data_cadastro = models.DateField("Data de cadastro", auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)
@@ -476,6 +480,8 @@ class ImovelArquivo(models.Model):
         ("apoio", "Apoio"),
         ("matricula", "Matrícula"),
         ("edital", "Edital"),
+        ("processo", "Processo judicial"),
+        ("certidao", "Certidão"),
         ("foto", "Foto"),
         ("financeiro", "Financeiro"),
         ("outro", "Outro"),
@@ -511,3 +517,41 @@ class ImovelComentario(models.Model):
 
     def __str__(self):
         return self.texto[:80]
+
+
+class ChatImovel(models.Model):
+    """Conversa do assistente especialista ancorada num imóvel.
+
+    Thread única e compartilhada por imóvel: quem tem acesso ao imóvel vê e
+    participa do mesmo histórico. O autor de cada pergunta fica registrado em
+    ChatMensagem.user.
+    """
+
+    imovel = models.OneToOneField(Imovel, on_delete=models.CASCADE, related_name="chat")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Chat de {self.imovel_id}"
+
+
+class ChatMensagem(models.Model):
+    ROLE_CHOICES = [
+        ("user", "Usuário"),
+        ("assistant", "Assistente"),
+    ]
+
+    chat = models.ForeignKey(ChatImovel, on_delete=models.CASCADE, related_name="mensagens")
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="mensagens_chat_imovel"
+    )
+    role = models.CharField("Papel", max_length=12, choices=ROLE_CHOICES)
+    conteudo = models.TextField("Conteúdo")
+    erro = models.BooleanField("Falhou", default=False)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["criado_em"]
+
+    def __str__(self):
+        return f"{self.role}: {self.conteudo[:60]}"

@@ -67,8 +67,23 @@ ANALISE_JURIDICA_SCHEMA = {
                     "evidencia": {"type": "string"},
                     "fonte": {"type": "string"},
                     "impacto": {"type": "string"},
+                    "efeito_na_arrematacao": {
+                        "type": "string",
+                        "enum": [
+                            "extinto_com_arrematacao",
+                            "permanece_para_arrematante",
+                            "indeterminado",
+                        ],
+                    },
                 },
-                "required": ["tipo", "gravidade", "evidencia", "fonte", "impacto"],
+                "required": [
+                    "tipo",
+                    "gravidade",
+                    "evidencia",
+                    "fonte",
+                    "impacto",
+                    "efeito_na_arrematacao",
+                ],
             },
         },
         "debitos_responsabilidades": {
@@ -79,11 +94,53 @@ ANALISE_JURIDICA_SCHEMA = {
                 "properties": {
                     "tipo": {"type": "string"},
                     "responsavel": {"type": "string"},
+                    "valor_estimado": {"type": "string"},
+                    "momento": {"type": "string"},
                     "evidencia": {"type": "string"},
                     "fonte": {"type": "string"},
                     "impacto": {"type": "string"},
                 },
-                "required": ["tipo", "responsavel", "evidencia", "fonte", "impacto"],
+                "required": [
+                    "tipo",
+                    "responsavel",
+                    "valor_estimado",
+                    "momento",
+                    "evidencia",
+                    "fonte",
+                    "impacto",
+                ],
+            },
+        },
+        "inconsistencias": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "descricao": {"type": "string"},
+                    "evidencia": {"type": "string"},
+                    "gravidade": {
+                        "type": "string",
+                        "enum": ["baixa", "media", "alta", "critica", "indeterminada"],
+                    },
+                },
+                "required": ["descricao", "evidencia", "gravidade"],
+            },
+        },
+        "checklist_due_diligence": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "acao": {"type": "string"},
+                    "prioridade": {
+                        "type": "string",
+                        "enum": ["alta", "media", "baixa"],
+                    },
+                    "motivo": {"type": "string"},
+                },
+                "required": ["acao", "prioridade", "motivo"],
             },
         },
         "processos_mencionados": {
@@ -121,6 +178,8 @@ ANALISE_JURIDICA_SCHEMA = {
         "ocupacao",
         "onus_restricoes",
         "debitos_responsabilidades",
+        "inconsistencias",
+        "checklist_due_diligence",
         "processos_mencionados",
         "cadeia_titularidade",
         "pontos_a_validar",
@@ -180,6 +239,39 @@ def _modelo_ia():
     )
 
 
+# Esforço de raciocínio agnóstico de provedor. O nível normalizado é traduzido
+# para o formato de cada provedor: "effort" no OpenAI e orçamento de tokens de
+# pensamento (thinkingBudget) no Gemini. No Anthropic, o pensamento estendido é
+# incompatível com saída estruturada via tool_choice forçado, então a análise
+# Anthropic não usa thinking (ver _gerar_com_anthropic).
+_GEMINI_THINKING_BUDGET = {"minimal": 0, "low": 1024, "medium": 4096, "high": 12000}
+
+
+def _nivel_esforco_normalizado(nivel):
+    nivel = (nivel or "").strip().lower()
+    if nivel in {"minimal", "none", "minimo", "mínimo", "nenhum"}:
+        return "minimal"
+    if nivel in {"low", "baixo"}:
+        return "low"
+    if nivel in {"high", "alto", "max", "maximo", "máximo"}:
+        return "high"
+    return "medium"
+
+
+def _esforco_ia():
+    return _nivel_esforco_normalizado(
+        _setting_str("AI_LEGAL_ANALYSIS_REASONING_EFFORT", "high")
+    )
+
+
+def _reasoning_openai_param(nivel):
+    return {"effort": _nivel_esforco_normalizado(nivel)}
+
+
+def _gemini_thinking_config(nivel):
+    return {"thinkingBudget": _GEMINI_THINKING_BUDGET[_nivel_esforco_normalizado(nivel)]}
+
+
 def _api_key_ia(provider):
     chave_generica = _setting_str("AI_LEGAL_ANALYSIS_API_KEY")
     if chave_generica:
@@ -208,8 +300,35 @@ def _system_prompt_ia():
         "execucao judicial/extrajudicial, matricula imobiliaria e "
         "edital da Caixa. Seu papel e identificar riscos provaveis, "
         "lacunas de validacao e responsabilidades do arrematante com "
-        "base somente nas evidencias fornecidas."
+        "base somente nas evidencias fornecidas. Voce classifica cada onus "
+        "ou restricao quanto ao seu efeito na arrematacao (se e extinto com a "
+        "arrematacao ou se permanece para o arrematante), aponta inconsistencias "
+        "entre os dados do sistema/anuncio e o teor dos documentos, e propoe um "
+        "checklist de due diligence priorizado e acionavel."
     )
+
+
+REGRAS_ENRIQUECIMENTO = (
+    "- Considere TODOS os documentos fornecidos (matricula, edital, peticoes/processos, "
+    "certidoes e anexos), nao apenas matricula e edital.\n"
+    "- Para cada onus/restricao, classifique o efeito na arrematacao: "
+    "'extinto_com_arrematacao' (ex.: penhoras e a propria hipoteca/alienacao fiduciaria "
+    "que originou a execucao costumam ser extintas), 'permanece_para_arrematante' "
+    "(ex.: tributos propter rem, servidoes, usufruto, locacao com clausula de vigencia, "
+    "restricoes urbanisticas) ou 'indeterminado' quando faltar base. Fundamente na "
+    "natureza do ato e nas condicoes do edital; nao chute.\n"
+    "- Em debitos_responsabilidades, quando o documento trouxer valores, preencha "
+    "valor_estimado e o momento em que sao devidos (ex.: 'ate a data da arrematacao', "
+    "'apos a imissao na posse'); senao use string vazia.\n"
+    "- Liste inconsistencias entre os dados do sistema/anuncio e o que os documentos "
+    "mostram (ex.: imovel sinalizado como desocupado mas a matricula/edital indica "
+    "ocupacao, usufruto ou acao possessoria; divergencia de area, titularidade ou "
+    "metragem). So aponte com evidencia concreta.\n"
+    "- Monte um checklist_due_diligence priorizado (alta/media/baixa) com acoes "
+    "praticas e o motivo de cada uma (ex.: obter certidao de onus atualizada, verificar "
+    "debitos de IPTU/condominio, confirmar situacao de ocupacao, conferir transito em "
+    "julgado do processo).\n"
+)
 
 
 def _agora_payload():
@@ -578,6 +697,45 @@ def _coletar_fontes(imovel):
     return fontes
 
 
+def _fontes_de_cache(cache):
+    """Converte o cache de Imovel.documentos_texto em fontes para a análise.
+
+    Permite que a análise avulsa use TODOS os documentos anexados (matrícula,
+    edital, processos, certidões e demais anexos, incluindo imagens via OCR),
+    reaproveitando o texto já extraído pelo chat sem reprocessar OCR.
+    """
+    rotulo_categoria = {
+        "matricula": "Matrícula",
+        "edital": "Edital",
+        "processo": "Processo judicial",
+        "certidao": "Certidão",
+        "financeiro": "Financeiro",
+        "apoio": "Apoio",
+        "outro": "Outro",
+    }
+    fontes = []
+    for entrada in (cache or {}).values():
+        categoria = entrada.get("categoria") or ""
+        nome = entrada.get("nome") or rotulo_categoria.get(categoria, "Documento")
+        fontes.append(
+            {
+                "nome": nome,
+                "url": "",
+                "arquivo": nome,
+                "categoria": categoria,
+                "texto": entrada.get("texto") or "",
+                "paginas": entrada.get("paginas") or 0,
+                "tamanho_bytes": 0,
+                "erro": entrada.get("erro") or "",
+                "paginas_ocr": 0,
+                "paginas_ocr_tentadas": 0,
+                "metodo_extracao": entrada.get("metodo") or "",
+                "ocr_erros": [],
+            }
+        )
+    return fontes
+
+
 def _coletar_fontes_avulso(documentos):
     """Coleta fontes para imóvel avulso: lê via Django storage ou baixa de URL."""
     fontes = []
@@ -767,6 +925,7 @@ def _prompt_usuario_avulso(imovel, fontes):
         "- Nao invente CPF, processo, credor, data, onus ou responsabilidade.\n"
         "- Nao use 'matricula atualizada' como alerta generico. So recomende atualizacao quando a data da certidao for antiga, quando a matricula trouxer apenas validacao/autenticacao ou quando faltar teor registral.\n"
         "- Quando houver atos registrais legiveis, extraia os atos concretos (R/AV), datas, partes, onus, consolidacao, penhoras e indisponibilidades antes de listar lacunas.\n"
+        f"{REGRAS_ENRIQUECIMENTO}"
         "- A resposta e triagem informativa, nao parecer juridico.\n\n"
         "Dados do imovel:\n"
         f"{json.dumps(_dados_imovel_avulso(imovel), ensure_ascii=False)}\n\n"
@@ -798,6 +957,7 @@ def _prompt_usuario(imovel, fontes):
         "- Nao use 'matricula atualizada' como alerta generico. So recomende atualizacao quando a data da certidao for antiga, quando a matricula trouxer apenas validacao/autenticacao ou quando faltar teor registral.\n"
         "- Quando houver atos registrais legiveis, extraia os atos concretos (R/AV), datas, partes, onus, consolidacao, penhoras e indisponibilidades antes de listar lacunas.\n"
         "- Use os dados estruturados da pagina Caixa como fonte complementar para condicoes de venda, despesas e responsabilidades quando o edital PDF nao estiver extraivel.\n"
+        f"{REGRAS_ENRIQUECIMENTO}"
         "- A resposta e triagem informativa, nao parecer juridico.\n\n"
         "Dados do imovel:\n"
         f"{json.dumps(_dados_imovel(imovel), ensure_ascii=False)}\n\n"
@@ -893,7 +1053,7 @@ def _schema_gemini(schema):
     return convertido
 
 
-def _gerar_com_openai(prompt_usuario, api_key, modelo):
+def _gerar_com_openai(prompt_usuario, api_key, modelo, esforco):
     try:
         from openai import OpenAI
     except ImportError as exc:
@@ -902,7 +1062,7 @@ def _gerar_com_openai(prompt_usuario, api_key, modelo):
     client = OpenAI(api_key=api_key)
     response = client.responses.create(
         model=modelo,
-        reasoning={"effort": settings.AI_LEGAL_ANALYSIS_REASONING_EFFORT},
+        reasoning=_reasoning_openai_param(esforco),
         max_output_tokens=settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
         text={
             "verbosity": "low",
@@ -931,7 +1091,10 @@ def _gerar_com_openai(prompt_usuario, api_key, modelo):
     return _json_de_texto(texto, "A IA retornou JSON invalido")
 
 
-def _gerar_com_anthropic(prompt_usuario, api_key, modelo):
+def _gerar_com_anthropic(prompt_usuario, api_key, modelo, esforco=None):
+    # O pensamento estendido do Claude exige tool_choice "auto" e temperature 1,
+    # incompatível com a saída estruturada forçada usada aqui. Por isso o esforço
+    # de raciocínio não é aplicado no caminho Anthropic da análise estruturada.
     payload = {
         "model": modelo,
         "max_tokens": settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -977,7 +1140,7 @@ def _gerar_com_anthropic(prompt_usuario, api_key, modelo):
     return _json_de_texto("\n".join(textos), "A IA retornou resposta Anthropic sem JSON valido")
 
 
-def _gerar_com_gemini(prompt_usuario, api_key, modelo):
+def _gerar_com_gemini(prompt_usuario, api_key, modelo, esforco):
     model_path = modelo if modelo.startswith("models/") else f"models/{modelo}"
     payload = {
         "systemInstruction": {
@@ -994,6 +1157,9 @@ def _gerar_com_gemini(prompt_usuario, api_key, modelo):
             "maxOutputTokens": settings.OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS,
             "responseMimeType": "application/json",
             "responseSchema": _schema_gemini(ANALISE_JURIDICA_SCHEMA),
+            # thinkingConfig requer Gemini 2.5+; em modelos sem suporte, ajuste
+            # AI_LEGAL_ANALYSIS_REASONING_EFFORT ou use outro provedor.
+            "thinkingConfig": _gemini_thinking_config(esforco),
         },
     }
     data = _post_json(
@@ -1013,19 +1179,21 @@ def _gerar_com_gemini(prompt_usuario, api_key, modelo):
     return _json_de_texto(texto, "A IA retornou resposta Gemini sem JSON valido")
 
 
-def _gerar_com_ia(prompt_usuario, provider, api_key, modelo):
+def _gerar_com_ia(prompt_usuario, provider, api_key, modelo, esforco=None):
     if not modelo:
         raise AnaliseJuridicaErro("Configure AI_LEGAL_ANALYSIS_MODEL com o modelo da IA.")
     if provider != "openai" and modelo.startswith("gpt-"):
         raise AnaliseJuridicaErro(
             "Configure AI_LEGAL_ANALYSIS_MODEL com um modelo compativel com o provider escolhido."
         )
+    if esforco is None:
+        esforco = _esforco_ia()
     if provider == "openai":
-        return _gerar_com_openai(prompt_usuario, api_key, modelo)
+        return _gerar_com_openai(prompt_usuario, api_key, modelo, esforco)
     if provider == "anthropic":
-        return _gerar_com_anthropic(prompt_usuario, api_key, modelo)
+        return _gerar_com_anthropic(prompt_usuario, api_key, modelo, esforco)
     if provider == "gemini":
-        return _gerar_com_gemini(prompt_usuario, api_key, modelo)
+        return _gerar_com_gemini(prompt_usuario, api_key, modelo, esforco)
     raise AnaliseJuridicaErro(f"Provider de IA nao suportado: {provider}")
 
 
@@ -1131,14 +1299,24 @@ def analisar_imovel_avulso(imovel, arquivos_imovel=None):
             ),
         )
 
-    documentos = _documentos_do_imovel_avulso(imovel, arquivos_imovel)
-    if not documentos:
+    # Usa TODOS os documentos anexados (matrícula, edital, processos, certidões
+    # e demais anexos, incluindo imagens via OCR), reaproveitando o cache de texto.
+    try:
+        from apps.imoveis.documentos_texto import garantir_textos_documentos
+
+        cache = garantir_textos_documentos(imovel)
+        fontes = _fontes_de_cache(cache)
+    except Exception:  # noqa: BLE001 - fallback para o coletor clássico
+        logger.exception("Falha ao usar cache de documentos do imovel %s; usando coletor classico", imovel.pk)
+        documentos = _documentos_do_imovel_avulso(imovel, arquivos_imovel)
+        fontes = _coletar_fontes_avulso(documentos)
+
+    if not fontes:
         return _payload_status(
             "sem_documentos",
-            "Anexe a matrícula ou o edital (PDF) ao imóvel para iniciar a análise.",
+            "Anexe a matrícula, o edital ou outros documentos ao imóvel para iniciar a análise.",
         )
 
-    fontes = _coletar_fontes_avulso(documentos)
     fontes_metadata = _fontes_metadata(fontes)
     if not any((fonte.get("texto") or "").strip() for fonte in fontes):
         return _payload_status(

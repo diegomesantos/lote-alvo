@@ -15,7 +15,7 @@ from core.calculos.cartorio import (
 from apps.leiloes.models import ImovelCaixa
 from .models import (
     Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario, ImovelCompartilhamento,
-    NotificacaoUsuario,
+    NotificacaoUsuario, ChatImovel, ChatMensagem,
     ARQUIVAMENTO_MOTIVO_CHOICES, CHECKLIST_PADRAO, ETAPA_CHOICES, ETAPA_COR,
     ETAPAS_PRE_KEYS, ETAPAS_POS_KEYS, ETAPA_PRE, ETAPA_POS,
     COMPARTILHAMENTO_PERMISSAO_CHOICES
@@ -281,11 +281,21 @@ def _documentos_context(imovel, imovel_caixa):
     documentos_ok = all(documento["disponivel"] for documento in documentos)
     documentos_parciais = any(documento["disponivel"] for documento in documentos) and not documentos_ok
 
+    # A análise IA usa qualquer documento extraível (PDF ou imagem via OCR),
+    # não só matrícula/edital — habilita o botão se houver qualquer anexo válido.
+    extensoes_analise = (
+        ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".gif",
+    )
+    tem_arquivos_analise = any(
+        arquivo.arquivo and arquivo.arquivo.name.lower().endswith(extensoes_analise)
+        for arquivo in imovel.arquivos.all()
+    )
+
     return {
         "documentos": documentos,
         "documentos_ok": documentos_ok,
         "documentos_parciais": documentos_parciais,
-        "tem_arquivos_analise": any(categoria in uploads for categoria in ("matricula", "edital")),
+        "tem_arquivos_analise": tem_arquivos_analise,
     }
 
 
@@ -910,6 +920,7 @@ def detalhe(request, pk):
         "arquivo_form": ImovelArquivoForm(),
         "calculo_form": ImovelCalculoForm(instance=imovel),
         "comentarios": comentarios,
+        "chat_mensagens": chat_historico(imovel),
         "acesso": acesso,
         "compartilhamentos": compartilhamentos,
         "permissoes_compartilhamento": COMPARTILHAMENTO_PERMISSAO_CHOICES,
@@ -1178,6 +1189,108 @@ def adicionar_comentario(request, pk):
     )
     messages.success(request, "Comentário adicionado.")
     return redirect(f"{reverse('detalhe', args=[imovel.pk])}#comentarios")
+
+
+def _imovel_caixa_de(imovel):
+    if not imovel.caixa_imovel_id:
+        return None
+    return ImovelCaixa.objects.filter(imovel_id_caixa=imovel.caixa_imovel_id).first()
+
+
+def _chat_mensagem_payload(mensagem):
+    autor = ""
+    if mensagem.role == "user":
+        autor = _nome_usuario(mensagem.user) if mensagem.user else "Usuário"
+    return {
+        "role": mensagem.role,
+        "conteudo": mensagem.conteudo,
+        "erro": mensagem.erro,
+        "autor": autor,
+        "criado_em": mensagem.criado_em.isoformat(),
+        "criado_em_display": timezone.localtime(mensagem.criado_em).strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+def chat_historico(imovel):
+    """Lista de mensagens do chat do imóvel para template/JSON."""
+    chat = ChatImovel.objects.filter(imovel=imovel).first()
+    if not chat:
+        return []
+    return [
+        _chat_mensagem_payload(msg)
+        for msg in chat.mensagens.select_related("user").all()
+    ]
+
+
+@login_required
+@require_POST
+def enviar_mensagem_chat(request, pk):
+    from .chat import responder, ChatImovelErro
+    from .documentos_texto import garantir_textos_documentos
+
+    imovel = _get_imovel_com_acesso(pk, request.user)
+    pergunta = (request.POST.get("pergunta") or "").strip()
+    if not pergunta:
+        return JsonResponse({"ok": False, "erro": "Escreva uma pergunta."}, status=400)
+
+    chat, _ = ChatImovel.objects.get_or_create(imovel=imovel)
+    historico = [
+        {"role": msg.role, "conteudo": msg.conteudo}
+        for msg in chat.mensagens.filter(erro=False)
+    ]
+
+    mensagem_usuario = ChatMensagem.objects.create(
+        chat=chat, user=request.user, role="user", conteudo=pergunta
+    )
+
+    imovel_caixa = _imovel_caixa_de(imovel)
+    try:
+        documentos_cache = garantir_textos_documentos(imovel, imovel_caixa)
+        resposta = responder(imovel, imovel_caixa, pergunta, historico, documentos_cache)
+    except ChatImovelErro as exc:
+        mensagem_erro = ChatMensagem.objects.create(
+            chat=chat, role="assistant", conteudo=str(exc), erro=True
+        )
+        return JsonResponse(
+            {
+                "ok": False,
+                "erro": str(exc),
+                "pergunta": _chat_mensagem_payload(mensagem_usuario),
+                "resposta": _chat_mensagem_payload(mensagem_erro),
+            },
+            status=502,
+        )
+    except Exception as exc:  # noqa: BLE001
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Erro inesperado no chat do imovel %s", imovel.pk)
+        mensagem_erro = ChatMensagem.objects.create(
+            chat=chat,
+            role="assistant",
+            conteudo="Não foi possível obter a resposta do assistente. Tente novamente.",
+            erro=True,
+        )
+        return JsonResponse(
+            {
+                "ok": False,
+                "erro": str(exc)[:300],
+                "pergunta": _chat_mensagem_payload(mensagem_usuario),
+                "resposta": _chat_mensagem_payload(mensagem_erro),
+            },
+            status=500,
+        )
+
+    mensagem_resposta = ChatMensagem.objects.create(
+        chat=chat, role="assistant", conteudo=resposta
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "pergunta": _chat_mensagem_payload(mensagem_usuario),
+            "resposta": _chat_mensagem_payload(mensagem_resposta),
+        }
+    )
+
 
 @login_required
 def tabela_lances_imovel(request, pk):
