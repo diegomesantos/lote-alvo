@@ -362,15 +362,14 @@
           <div>
             <h3 class="text-base font-bold text-gray-950">Análise jurídica IA</h3>
             <p class="mt-1 text-sm text-gray-600">
-              {% if imovel_caixa %}Síntese derivada dos documentos Caixa.
-              {% else %}Análise gerada a partir dos arquivos de matrícula e edital anexados.{% endif %}
+              Triagem gerada a partir dos documentos deste imóvel — anexos enviados{% if imovel_caixa %} + matrícula e edital da Caixa{% endif %}.
             </p>
           </div>
           <div class="no-print flex flex-wrap items-center gap-2">
             {% if caixa_detalhe_url %}
               <a href="{{ caixa_detalhe_url }}#analise-juridica" target="_blank" rel="noopener noreferrer"
                  class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Abrir análise completa
+                Ver análise da Caixa
               </a>
             {% endif %}
             {% if pode_gerar_analise_avulso and acesso.can_edit %}
@@ -529,7 +528,7 @@
           {% endif %}
         {% elif analise_juridica.status == 'processando' %}
           <div id="analise-avulso-processando" class="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4"
-               {% if not imovel_caixa %}data-poll-url="{% url 'analise_juridica_imovel_status' imovel.pk %}"{% endif %}>
+               {% if analise_origem_avulso %}data-poll-url="{% url 'analise_juridica_imovel_status' imovel.pk %}"{% endif %}>
             <div class="flex items-center gap-3">
               <div class="h-5 w-5 animate-spin rounded-full border-2 border-teal-200 border-t-teal-700"></div>
               <div>
@@ -552,7 +551,7 @@
           </div>
         {% elif analise_juridica.status == 'sem_documentos' %}
           <div class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            Nenhum arquivo de matrícula ou edital encontrado. Anexe o PDF na seção de arquivos abaixo e tente novamente.
+            Nenhum documento analisável encontrado. Anexe matrícula, edital, processo ou certidão na seção de arquivos abaixo e tente novamente.
           </div>
         {% elif analise_juridica.status == 'erro' or analise_juridica.status == 'sem_api_key' or analise_juridica.status == 'erro_configuracao' %}
           <div class="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -561,17 +560,17 @@
               <span class="ml-2 text-gray-500">Corrija o problema e tente novamente usando o botão acima.</span>
             {% endif %}
           </div>
-        {% elif imovel_caixa %}
+        {% elif pode_gerar_analise_avulso and acesso.can_edit %}
           <div class="mt-5 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-            Nenhuma análise jurídica IA concluída para este imóvel. Gere a análise pela página Caixa do imóvel.
+            Documentos disponíveis. Clique em <strong>Gerar análise</strong> para iniciar a triagem jurídica IA usando todos os documentos deste imóvel{% if imovel_caixa %} (anexos + matrícula/edital da Caixa){% endif %}.
           </div>
-        {% elif tem_arquivos_analise and acesso.can_edit %}
+        {% elif acesso.can_edit %}
           <div class="mt-5 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-            Matrícula ou edital já anexados. Clique em <strong>Gerar análise</strong> para iniciar a triagem jurídica IA.
+            Anexe a <strong>matrícula</strong>, o <strong>edital</strong> ou outros documentos (PDF/imagem) na seção de arquivos abaixo para habilitar a análise jurídica IA.
           </div>
         {% else %}
           <div class="mt-5 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-            Anexe a <strong>matrícula</strong> ou o <strong>edital</strong> (PDF) na seção de arquivos abaixo para habilitar a análise jurídica IA.
+            Nenhuma análise jurídica IA disponível para este imóvel ainda.
           </div>
         {% endif %}
       </section>
