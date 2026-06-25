@@ -244,17 +244,29 @@ def _modelo_ia():
 # pensamento (thinkingBudget) no Gemini. No Anthropic, o pensamento estendido é
 # incompatível com saída estruturada via tool_choice forçado, então a análise
 # Anthropic não usa thinking (ver _gerar_com_anthropic).
-_GEMINI_THINKING_BUDGET = {"minimal": 0, "low": 1024, "medium": 4096, "high": 12000}
+# Níveis válidos para reasoning.effort no gpt-5.5: none/low/medium/high/xhigh.
+# ("minimal" era do gpt-5 e foi renomeado para "none".)
+_GEMINI_THINKING_BUDGET = {
+    "none": 0,
+    "low": 1024,
+    "medium": 4096,
+    "high": 12000,
+    "xhigh": 24576,
+}
 
 
 def _nivel_esforco_normalizado(nivel):
     nivel = (nivel or "").strip().lower()
-    if nivel in {"minimal", "none", "minimo", "mínimo", "nenhum"}:
-        return "minimal"
+    if nivel in {"none", "minimal", "minimo", "mínimo", "nenhum"}:
+        return "none"
     if nivel in {"low", "baixo"}:
         return "low"
-    if nivel in {"high", "alto", "max", "maximo", "máximo"}:
+    if nivel in {"xhigh", "max", "maximo", "máximo"}:
+        return "xhigh"
+    if nivel in {"high", "alto"}:
         return "high"
+    if nivel in {"medium", "medio", "médio"}:
+        return "medium"
     return "medium"
 
 

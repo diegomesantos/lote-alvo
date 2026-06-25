@@ -81,20 +81,30 @@ def _historico_limite():
     return int(getattr(settings, "AI_CHAT_HISTORY_LIMIT", 16))
 
 
-_GEMINI_THINKING_BUDGET = {"minimal": 0, "low": 1024, "medium": 4096, "high": 12000}
+# Níveis válidos para reasoning.effort no gpt-5.5: none/low/medium/high/xhigh.
+# ("minimal" era do gpt-5 e foi renomeado para "none".)
+_GEMINI_THINKING_BUDGET = {
+    "none": 0,
+    "low": 1024,
+    "medium": 4096,
+    "high": 12000,
+    "xhigh": 24576,
+}
 
 
 def _esforco():
-    nivel = _setting_str("AI_CHAT_REASONING_EFFORT", "minimal").lower()
-    if nivel in {"none", "minimo", "mínimo", "nenhum"}:
-        return "minimal"
+    nivel = _setting_str("AI_CHAT_REASONING_EFFORT", "none").lower()
+    if nivel in {"none", "minimal", "minimo", "mínimo", "nenhum"}:
+        return "none"
     if nivel in {"baixo"}:
         return "low"
-    if nivel in {"alto", "max", "maximo", "máximo"}:
+    if nivel in {"alto"}:
         return "high"
-    if nivel in {"minimal", "low", "medium", "high"}:
+    if nivel in {"max", "maximo", "máximo"}:
+        return "xhigh"
+    if nivel in {"none", "low", "medium", "high", "xhigh"}:
         return nivel
-    return "minimal"
+    return "none"
 
 
 SYSTEM_PROMPT = (

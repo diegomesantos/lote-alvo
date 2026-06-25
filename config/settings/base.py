@@ -184,4 +184,5 @@ AI_CHAT_MAX_OUTPUT_TOKENS = config("AI_CHAT_MAX_OUTPUT_TOKENS", default=1800, ca
 AI_CHAT_CONTEXT_TEXT_LIMIT = config("AI_CHAT_CONTEXT_TEXT_LIMIT", default=40000, cast=int)
 AI_CHAT_HISTORY_LIMIT = config("AI_CHAT_HISTORY_LIMIT", default=16, cast=int)
 # Chat é interativo: esforço de raciocínio mínimo para respostas rápidas/baratas.
-AI_CHAT_REASONING_EFFORT = config("AI_CHAT_REASONING_EFFORT", default="minimal")
+# gpt-5.5 usa "none" como nível mínimo (o antigo "minimal" do gpt-5).
+AI_CHAT_REASONING_EFFORT = config("AI_CHAT_REASONING_EFFORT", default="none")
