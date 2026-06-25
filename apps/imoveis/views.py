@@ -286,10 +286,13 @@ def _documentos_context(imovel, imovel_caixa):
     extensoes_analise = (
         ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".gif",
     )
-    tem_arquivos_analise = any(
+    tem_uploads_analise = any(
         arquivo.arquivo and arquivo.arquivo.name.lower().endswith(extensoes_analise)
         for arquivo in imovel.arquivos.all()
     )
+    # Imóvel vinculado à Caixa também tem documentos analisáveis (matrícula/edital)
+    tem_docs_caixa = bool(imovel_caixa and (imovel_caixa.matricula_url or imovel_caixa.edital_url))
+    tem_arquivos_analise = tem_uploads_analise or tem_docs_caixa
 
     return {
         "documentos": documentos,
@@ -784,18 +787,22 @@ def detalhe(request, pk):
     detalhe_caixa = (imovel_caixa.detalhes or {}).get("detalhe_caixa") if imovel_caixa else {}
     detalhe_caixa = detalhe_caixa or {}
 
-    # Análise jurídica: prefere a do imóvel Caixa vinculado; fallback para análise local (avulso)
+    # Análise jurídica: prefere a análise própria do imóvel (gerada aqui, com todos
+    # os documentos); usa a da Caixa como fallback enquanto a local não foi gerada.
     analise_juridica_caixa = (imovel_caixa.detalhes or {}).get("analise_juridica_ia") if imovel_caixa else {}
     analise_juridica_avulso = imovel.analise_juridica_ia or {}
-    analise_juridica = analise_juridica_caixa or analise_juridica_avulso
+    analise_juridica = analise_juridica_avulso or analise_juridica_caixa
     analise_juridica = analise_juridica or {}
     analise_resultado = analise_juridica.get("resultado") or {}
     analise_nivel_risco = analise_resultado.get("nivel_risco") or "indeterminado"
+    # A análise mostrada é a própria do imóvel? (define se podemos pollar o status local)
+    analise_origem_avulso = bool(analise_juridica_avulso) or not analise_juridica_caixa
 
-    # Indica se análise pode ser gerada localmente (imóvel avulso sem Caixa vinculado)
+    # A análise pode ser gerada na própria página do imóvel sempre que houver
+    # documento analisável (uploads do usuário ou matrícula/edital da Caixa).
     documentos_context = _documentos_context(imovel, imovel_caixa)
     tem_arquivos_analise = documentos_context["tem_arquivos_analise"]
-    pode_gerar_analise_avulso = not imovel_caixa and tem_arquivos_analise
+    pode_gerar_analise_avulso = tem_arquivos_analise
 
     caixa_url = None
     caixa_detalhe_url = None
@@ -912,6 +919,7 @@ def detalhe(request, pk):
         "analise_risco_status": _classe_risco_analise(analise_nivel_risco),
         "pode_gerar_analise_avulso": pode_gerar_analise_avulso,
         "analise_juridica_avulso": analise_juridica_avulso,
+        "analise_origem_avulso": analise_origem_avulso,
         "tem_arquivos_analise": tem_arquivos_analise,
         "indicadores_decisao": indicadores_decisao,
         "alertas_relatorio": alertas_relatorio,

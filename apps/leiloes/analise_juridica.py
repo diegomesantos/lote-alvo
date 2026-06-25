@@ -1313,10 +1313,19 @@ def analisar_imovel_avulso(imovel, arquivos_imovel=None):
 
     # Usa TODOS os documentos anexados (matrícula, edital, processos, certidões
     # e demais anexos, incluindo imagens via OCR), reaproveitando o cache de texto.
+    # Quando o imóvel é vinculado à Caixa, inclui também a matrícula/edital oficiais.
     try:
         from apps.imoveis.documentos_texto import garantir_textos_documentos
 
-        cache = garantir_textos_documentos(imovel)
+        imovel_caixa = None
+        if getattr(imovel, "caixa_imovel_id", None):
+            from .models import ImovelCaixa
+
+            imovel_caixa = ImovelCaixa.objects.filter(
+                imovel_id_caixa=imovel.caixa_imovel_id
+            ).first()
+
+        cache = garantir_textos_documentos(imovel, imovel_caixa)
         fontes = _fontes_de_cache(cache)
     except Exception:  # noqa: BLE001 - fallback para o coletor clássico
         logger.exception("Falha ao usar cache de documentos do imovel %s; usando coletor classico", imovel.pk)
