@@ -120,7 +120,7 @@ AI_LEGAL_ANALYSIS_MODEL = config(
 )
 AI_LEGAL_ANALYSIS_REASONING_EFFORT = config(
     "AI_LEGAL_ANALYSIS_REASONING_EFFORT",
-    default=config("OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT", default="medium"),
+    default=config("OPENAI_LEGAL_ANALYSIS_REASONING_EFFORT", default="high"),
 )
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
@@ -174,3 +174,14 @@ OPENAI_LEGAL_ANALYSIS_OCR_TIMEOUT_SECONDS = config(
     default=45,
     cast=int,
 )
+
+# IA - chat especialista ancorado no imovel. Cai para a config da analise
+# juridica quando as variaveis AI_CHAT_* nao estao definidas.
+AI_CHAT_PROVIDER = config("AI_CHAT_PROVIDER", default=AI_LEGAL_ANALYSIS_PROVIDER).strip().lower()
+AI_CHAT_API_KEY = config("AI_CHAT_API_KEY", default="")
+AI_CHAT_MODEL = config("AI_CHAT_MODEL", default=AI_LEGAL_ANALYSIS_MODEL)
+AI_CHAT_MAX_OUTPUT_TOKENS = config("AI_CHAT_MAX_OUTPUT_TOKENS", default=1800, cast=int)
+AI_CHAT_CONTEXT_TEXT_LIMIT = config("AI_CHAT_CONTEXT_TEXT_LIMIT", default=40000, cast=int)
+AI_CHAT_HISTORY_LIMIT = config("AI_CHAT_HISTORY_LIMIT", default=16, cast=int)
+# Chat é interativo: esforço de raciocínio mínimo para respostas rápidas/baratas.
+AI_CHAT_REASONING_EFFORT = config("AI_CHAT_REASONING_EFFORT", default="minimal")

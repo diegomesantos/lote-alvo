@@ -20,6 +20,7 @@ urlpatterns = [
     path("<uuid:pk>/checklist/<int:item_id>/toggle/", views.toggle_checklist_item, name="toggle_checklist_item"),
     path("<uuid:pk>/arquivos/adicionar/", views.adicionar_arquivo, name="adicionar_arquivo"),
     path("<uuid:pk>/comentarios/adicionar/", views.adicionar_comentario, name="adicionar_comentario"),
+    path("<uuid:pk>/chat/enviar/", views.enviar_mensagem_chat, name="enviar_mensagem_chat"),
     path("<uuid:pk>/tabela-lances/", views.tabela_lances_imovel, name="tabela_lances_imovel"),
     path("<uuid:pk>/simular-moradia/", views.simular_moradia_imovel, name="simular_moradia_imovel"),
     path("<uuid:pk>/analise-juridica/", views.gerar_analise_juridica_imovel, name="gerar_analise_juridica_imovel"),
