@@ -179,9 +179,9 @@
 
       <div class="bg-gray-100">
         {% if imagem_url %}
-          <img src="{{ imagem_url }}" alt="{{ imovel.titulo_card }}" class="h-full max-h-[320px] min-h-[220px] w-full object-cover"
+          <img src="{{ imagem_url }}" data-fallback-src="{{ imagem_fallback_url }}" alt="{{ imovel.titulo_card }}" class="h-full max-h-[320px] min-h-[220px] w-full object-cover"
                loading="lazy"
-               onerror="this.closest('div').innerHTML='<div class=&quot;flex h-full min-h-[220px] items-center justify-center bg-gray-100 px-6 text-center text-sm font-medium text-gray-500&quot;>Imagem indisponível</div>'">
+               onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.closest('div').innerHTML='<div class=&quot;flex h-full min-h-[220px] items-center justify-center bg-gray-100 px-6 text-center text-sm font-medium text-gray-500&quot;>Imagem indisponível</div>'; }">
         {% else %}
           <div class="flex h-full min-h-[220px] items-center justify-center bg-gray-100 px-6 text-center text-sm font-medium text-gray-500">Imagem não cadastrada</div>
         {% endif %}

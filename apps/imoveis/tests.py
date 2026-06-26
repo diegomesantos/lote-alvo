@@ -9,6 +9,8 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.leiloes.models import ImovelCaixa
+
 from .models import (
     CHECKLIST_PADRAO,
     Imovel,
@@ -308,6 +310,36 @@ class ImovelInteracaoTests(TestCase):
         self.assertEqual(todos.context["status"], "todos")
         self.assertIn(str(self.imovel.pk), todos_ids)
         self.assertIn(str(arquivado.pk), todos_ids)
+
+    def test_card_caixa_usa_url_direta_da_foto_com_fallback(self):
+        self.imovel.caixa_imovel_id = "IMG-CAIXA-1"
+        self.imovel.save(update_fields=["caixa_imovel_id"])
+        ImovelCaixa.objects.create(
+            imovel_id_caixa="IMG-CAIXA-1",
+            endereco="Rua Caixa 123",
+            cidade="Salvador",
+            estado="BA",
+            tipo="apto",
+            valor_avaliacao=Decimal("150000.00"),
+            percentual_desconto=Decimal("20.00"),
+            valor_minimo_lance=Decimal("120000.00"),
+            tipo_leilao="extra",
+        )
+
+        response = self.client.get(reverse("listar"))
+        card = next(
+            card for card in response.context["cards"]
+            if card["imovel"].pk == self.imovel.pk
+        )
+
+        self.assertEqual(
+            card["imagem_url"],
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-CAIXA-121.jpg",
+        )
+        self.assertEqual(
+            card["imagem_fallback_url"],
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-CAIXA-122.jpg",
+        )
 
     def test_excluir_ajax_remove_card(self):
         response = self.client.post(

@@ -12,7 +12,7 @@ from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_ME
 from core.calculos.cartorio import (
     calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS
 )
-from apps.leiloes.models import ImovelCaixa
+from apps.leiloes.models import CAIXA_FOTOS_BASE_URL, ImovelCaixa
 from .models import (
     Imovel, ImovelChecklistItem, ImovelArquivo, ImovelComentario, ImovelCompartilhamento,
     NotificacaoUsuario, ChatImovel, ChatMensagem,
@@ -173,6 +173,21 @@ def _resultado_resumo(imovel, meses=6):
         return None
 
 
+def _foto_caixa_url(imovel_id_caixa, sufixo):
+    return f"{CAIXA_FOTOS_BASE_URL}/F{imovel_id_caixa}{sufixo}.jpg"
+
+
+def _foto_upload_url(imovel):
+    if not imovel.foto:
+        return None
+    try:
+        if imovel.foto.storage.exists(imovel.foto.name):
+            return imovel.foto.url
+    except (ValueError, OSError):
+        return None
+    return None
+
+
 def _imagem_card_url(imovel, caixa_ids_validos=None):
     """URL da imagem do imóvel para exibir no card/detalhe, ou None.
 
@@ -180,15 +195,21 @@ def _imagem_card_url(imovel, caixa_ids_validos=None):
     da Caixa quando o imóvel está vinculado. caixa_ids_validos: set opcional de
     imovel_id_caixa que existem — evita query por card no kanban.
     """
-    if imovel.foto:
-        try:
-            if imovel.foto.storage.exists(imovel.foto.name):
-                return imovel.foto.url
-        except (ValueError, OSError):
-            pass
+    upload_url = _foto_upload_url(imovel)
+    if upload_url:
+        return upload_url
     cid = imovel.caixa_imovel_id
     if cid and (caixa_ids_validos is None or cid in caixa_ids_validos):
-        return reverse("leiloes:imagem", args=[cid])
+        return _foto_caixa_url(cid, "21")
+    return None
+
+
+def _imagem_card_fallback_url(imovel, caixa_ids_validos=None):
+    if _foto_upload_url(imovel):
+        return ""
+    cid = imovel.caixa_imovel_id
+    if cid and (caixa_ids_validos is None or cid in caixa_ids_validos):
+        return _foto_caixa_url(cid, "22")
     return None
 
 
@@ -572,6 +593,7 @@ def _cards_context(imoveis, caixa_ids_validos, user):
             "imovel": imovel,
             "resultado": _resultado_resumo(imovel, imovel.giro_padrao),
             "imagem_url": _imagem_card_url(imovel, caixa_ids_validos),
+            "imagem_fallback_url": _imagem_card_fallback_url(imovel, caixa_ids_validos),
             "is_owner": is_owner,
             "is_shared": not is_owner and compartilhamento is not None,
             "can_edit": can_edit,
@@ -771,18 +793,11 @@ def detalhe(request, pk):
     maps_url = f"https://www.google.com/maps/search/?api=1&{urlencode({'query': endereco_query})}"
     maps_embed_url = f"https://maps.google.com/maps?{urlencode({'q': endereco_query, 'output': 'embed'})}"
 
-    imagem_url = None
-    if imovel.foto:
-        try:
-            # Só usa a foto se o arquivo realmente existe no storage. Imagens
-            # enviadas antes do B2 (disco efêmero) têm o campo preenchido mas o
-            # objeto sumiu — sem checar, a URL assinada apontaria para um 404.
-            if imovel.foto.storage.exists(imovel.foto.name):
-                imagem_url = imovel.foto.url
-        except (ValueError, OSError):
-            imagem_url = None
+    imagem_fallback_url = ""
+    imagem_url = _foto_upload_url(imovel)
     if not imagem_url and imovel_caixa:
-        imagem_url = reverse("leiloes:imagem", args=[imovel_caixa.imovel_id_caixa])
+        imagem_url = imovel_caixa.foto_principal_url
+        imagem_fallback_url = imovel_caixa.foto_fallback_url
 
     detalhe_caixa = (imovel_caixa.detalhes or {}).get("detalhe_caixa") if imovel_caixa else {}
     detalhe_caixa = detalhe_caixa or {}
@@ -904,6 +919,7 @@ def detalhe(request, pk):
         "fmt_brl": fmt_brl,
         "fmt_pct": fmt_pct,
         "imagem_url": imagem_url,
+        "imagem_fallback_url": imagem_fallback_url,
         "maps_url": maps_url,
         "maps_embed_url": maps_embed_url,
         "caixa_url": caixa_url,

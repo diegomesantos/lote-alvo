@@ -83,7 +83,7 @@
               {% endif %}
               <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block {% if card.can_edit %}cursor-grab group-hover:cursor-grabbing{% else %}cursor-pointer{% endif %} overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
                 {% if card.imagem_url %}
-                <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
+                <img src="{{ card.imagem_url }}" data-fallback-src="{{ card.imagem_fallback_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display='none'; }">
                 {% else %}
                 <div class="flex h-28 w-full items-center justify-center bg-gray-100 text-gray-300">
                   <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
@@ -170,7 +170,7 @@
               {% endif %}
               <a href="{% url 'detalhe' im.id %}" class="kanban-card-link block {% if card.can_edit %}cursor-grab group-hover:cursor-grabbing{% else %}cursor-pointer{% endif %} overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
                 {% if card.imagem_url %}
-                <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="this.style.display='none'">
+                <img src="{{ card.imagem_url }}" data-fallback-src="{{ card.imagem_fallback_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-28 w-full object-cover" onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display='none'; }">
                 {% else %}
                 <div class="flex h-28 w-full items-center justify-center bg-gray-100 text-gray-300">
                   <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
@@ -235,7 +235,7 @@
         {% endif %}
         <a href="{% url 'detalhe' im.id %}" class="block">
           {% if card.imagem_url %}
-          <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="this.style.display='none'">
+          <img src="{{ card.imagem_url }}" data-fallback-src="{{ card.imagem_fallback_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display='none'; }">
           {% else %}
           <div class="flex h-40 w-full items-center justify-center bg-gray-100 text-gray-300">
             <svg class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>
@@ -325,7 +325,7 @@
         {% endif %}
         <a href="{% url 'detalhe' im.id %}" class="block">
           {% if card.imagem_url %}
-          <img src="{{ card.imagem_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="this.style.display='none'">
+          <img src="{{ card.imagem_url }}" data-fallback-src="{{ card.imagem_fallback_url }}" alt="{{ im.titulo_card }}" loading="lazy" class="h-40 w-full object-cover" onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display='none'; }">
           {% else %}
           <div class="flex h-40 w-full items-center justify-center bg-gray-100 text-gray-300">
             <svg class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M9 20v-6h6v6"></path></svg>

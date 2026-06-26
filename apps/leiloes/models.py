@@ -1,6 +1,9 @@
 from django.db import models
 
 
+CAIXA_FOTOS_BASE_URL = "https://venda-imoveis.caixa.gov.br/fotos"
+
+
 class ImovelCaixa(models.Model):
     TIPO_CHOICES = [
         ('apto', 'Apartamento'),
@@ -92,6 +95,24 @@ class ImovelCaixa(models.Model):
 
     def __str__(self):
         return f"{self.endereco} - {self.cidade}/{self.estado}"
+
+    def _foto_caixa_url(self, sufixo):
+        return f"{CAIXA_FOTOS_BASE_URL}/F{self.imovel_id_caixa}{sufixo}.jpg"
+
+    @property
+    def foto_principal_url(self):
+        if self.foto_url and self.foto_url.startswith(f"{CAIXA_FOTOS_BASE_URL}/"):
+            return self.foto_url
+        return self._foto_caixa_url("21")
+
+    @property
+    def foto_fallback_url(self):
+        principal = self.foto_principal_url
+        for sufixo in ("21", "22"):
+            candidato = self._foto_caixa_url(sufixo)
+            if candidato != principal:
+                return candidato
+        return ""
 
     @property
     def valor_desconto_reais(self):

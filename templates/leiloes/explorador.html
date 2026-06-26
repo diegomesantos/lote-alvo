@@ -465,11 +465,12 @@
             <!-- Foto -->
             <div class="h-40 bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center overflow-hidden">
               <img
-                src="{% url 'leiloes:imagem' imovel.imovel_id_caixa %}"
+                src="{{ imovel.foto_principal_url }}"
+                data-fallback-src="{{ imovel.foto_fallback_url }}"
                 alt="{{ imovel.endereco }}"
                 loading="lazy"
                 class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                onerror="this.parentElement.innerHTML='<span class=&quot;text-4xl&quot;>🏠</span>'">
+                onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.parentElement.innerHTML='<span class=&quot;text-4xl&quot;>🏠</span>'; }">
             </div>
 
             <!-- Conteúdo do Card -->

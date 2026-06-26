@@ -283,6 +283,24 @@ class ImagemImovelCaixaTests(TestCase):
             foto_url="https://venda-imoveis.caixa.gov.br/fotos/FIMG-121.jpg",
         )
 
+    def test_urls_diretas_da_foto_principal_e_fallback(self):
+        self.assertEqual(
+            self.imovel.foto_principal_url,
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-121.jpg",
+        )
+        self.assertEqual(
+            self.imovel.foto_fallback_url,
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-122.jpg",
+        )
+
+    def test_url_principal_padrao_quando_foto_url_nao_foi_enriquecida(self):
+        self.imovel.foto_url = ""
+
+        self.assertEqual(
+            self.imovel.foto_principal_url,
+            "https://venda-imoveis.caixa.gov.br/fotos/FIMG-121.jpg",
+        )
+
     @patch("apps.leiloes.views.requests.get")
     def test_tenta_fallback_22_e_salva_url_valida(self, mock_get):
         resposta_404 = Mock()

@@ -37,10 +37,11 @@
         </div>
         <div class="aspect-[4/3] min-h-56 overflow-hidden rounded-lg bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center sm:aspect-[16/7] sm:min-h-64">
           <img
-            src="{% url 'leiloes:imagem' imovel.imovel_id_caixa %}"
+            src="{{ imovel.foto_principal_url }}"
+            data-fallback-src="{{ imovel.foto_fallback_url }}"
             alt="{{ imovel.endereco }}"
             class="h-full w-full object-cover"
-            onerror="this.parentElement.innerHTML='<span class=&quot;text-5xl&quot;>🏠</span>'">
+            onerror="if (this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.parentElement.innerHTML='<span class=&quot;text-5xl&quot;>🏠</span>'; }">
         </div>
       </section>
 
