@@ -1269,7 +1269,11 @@ def enviar_mensagem_chat(request, pk):
 
     imovel_caixa = _imovel_caixa_de(imovel)
     try:
-        documentos_cache = garantir_textos_documentos(imovel, imovel_caixa)
+        # Chat roda na web: não dispara navegador (Playwright). Usa o texto já
+        # cacheado pela análise; docs da Caixa são baixados na geração da análise.
+        documentos_cache = garantir_textos_documentos(
+            imovel, imovel_caixa, permitir_playwright=False
+        )
         resposta = responder(imovel, imovel_caixa, pergunta, historico, documentos_cache)
     except ChatImovelErro as exc:
         mensagem_erro = ChatMensagem.objects.create(
