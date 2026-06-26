@@ -81,6 +81,12 @@ def _historico_limite():
     return int(getattr(settings, "AI_CHAT_HISTORY_LIMIT", 16))
 
 
+def _timeout_segundos():
+    # Deve ficar ABAIXO do timeout do gunicorn (--timeout) para a chamada falhar
+    # com mensagem amigável em vez de o worker ser morto pelo servidor.
+    return int(getattr(settings, "AI_CHAT_TIMEOUT_SECONDS", 100))
+
+
 # Níveis válidos para reasoning.effort no gpt-5.5: none/low/medium/high/xhigh.
 # ("minimal" era do gpt-5 e foi renomeado para "none".)
 _GEMINI_THINKING_BUDGET = {
@@ -268,7 +274,7 @@ def _gerar_openai(mensagens, api_key, modelo):
     except ImportError as exc:
         raise ChatImovelErro("Pacote openai não instalado") from exc
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, timeout=_timeout_segundos(), max_retries=1)
     try:
         response = client.responses.create(
             model=modelo,
