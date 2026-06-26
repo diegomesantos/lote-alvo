@@ -16,6 +16,7 @@ from django.conf import settings
 from apps.leiloes.analise_juridica import (
     AnaliseJuridicaErro,
     _baixar_documento,
+    _conteudo_parece_pdf,
     _extrair_texto_pdf,
 )
 
@@ -67,6 +68,37 @@ def _ler_bytes_storage(field_file):
     if not conteudo:
         raise AnaliseJuridicaErro("Arquivo vazio")
     return bytes(conteudo)
+
+
+def _baixar_url_documento(url, imovel_caixa, permitir_playwright):
+    """Baixa um documento por URL. Para URLs da Caixa que caem no anti-bot
+    (Radware/CAPTCHA), faz fallback para download via navegador (Playwright)."""
+    try:
+        conteudo, _ = _baixar_documento(url, imovel_caixa)
+        return conteudo
+    except AnaliseJuridicaErro as exc:
+        msg = str(exc).lower()
+        bloqueio_antibot = "captcha" in msg or "html no lugar" in msg or "html/captcha" in msg
+        if not (permitir_playwright and bloqueio_antibot):
+            raise
+        logger.info("Download direto bloqueado pelo anti-bot da Caixa; tentando via navegador: %s", url)
+
+    from apps.leiloes.caixa_csv import baixar_documento_caixa_playwright
+
+    referer = getattr(imovel_caixa, "link_caixa", None) if imovel_caixa else None
+    try:
+        conteudo = baixar_documento_caixa_playwright(url, referer_url=referer)
+    except Exception as exc:  # noqa: BLE001
+        raise AnaliseJuridicaErro(f"Falha ao baixar documento da Caixa via navegador: {exc}") from exc
+
+    limite = _limite_bytes()
+    if len(conteudo) > limite:
+        raise AnaliseJuridicaErro(
+            f"Documento excede o limite de {settings.OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB} MB"
+        )
+    if not _conteudo_parece_pdf(conteudo):
+        raise AnaliseJuridicaErro("Documento da Caixa baixado via navegador não parece um PDF válido")
+    return conteudo
 
 
 def _ocr_imagem(conteudo):
@@ -165,11 +197,15 @@ def _fontes_do_imovel(imovel, imovel_caixa=None):
     return fontes
 
 
-def garantir_textos_documentos(imovel, imovel_caixa=None, *, forcar=False):
+def garantir_textos_documentos(imovel, imovel_caixa=None, *, forcar=False, permitir_playwright=True):
     """Extrai (com cache) o texto de todos os documentos do imóvel.
 
     Atualiza ``imovel.documentos_texto`` apenas quando há fontes novas/alteradas
     ou removidas. Retorna o dicionário do cache (chave -> dados do documento).
+
+    ``permitir_playwright``: quando True, baixa documentos da Caixa bloqueados
+    pelo anti-bot usando navegador (pesado). A análise (Celery) usa True; o chat
+    (web) usa False e se apoia no texto já cacheado pela análise.
     """
     cache = dict(imovel.documentos_texto or {})
     fontes = _fontes_do_imovel(imovel, imovel_caixa)
@@ -186,10 +222,15 @@ def garantir_textos_documentos(imovel, imovel_caixa=None, *, forcar=False):
     for fonte in fontes:
         chave = fonte["chave"]
         registrado = cache.get(chave)
+        # Reaproveita o cache só quando a extração anterior deu certo (sem erro).
+        # Entradas que falharam (ex.: edital bloqueado pelo anti-bot) são
+        # reprocessadas — permitindo o fallback via navegador numa nova tentativa.
         if (
             not forcar
             and registrado
             and registrado.get("fingerprint") == fonte["fingerprint"]
+            and not registrado.get("erro")
+            and (registrado.get("texto") or "").strip()
         ):
             continue
 
@@ -206,7 +247,9 @@ def garantir_textos_documentos(imovel, imovel_caixa=None, *, forcar=False):
             if fonte["tipo"] == "storage":
                 conteudo = _ler_bytes_storage(fonte["origem"])
             else:
-                conteudo, _ = _baixar_documento(fonte["origem"], imovel_caixa)
+                conteudo = _baixar_url_documento(
+                    fonte["origem"], imovel_caixa, permitir_playwright
+                )
             texto, paginas, metodo = _extrair_de_bytes(conteudo, fonte["extensao"])
             entrada["texto"] = texto
             entrada["paginas"] = paginas

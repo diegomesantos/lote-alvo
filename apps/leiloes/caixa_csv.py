@@ -48,6 +48,44 @@ def _sync_playwright():
     return sync_playwright()
 
 
+def baixar_documento_caixa_playwright(doc_url, referer_url=None, headless=True, timeout_ms=60_000):
+    """Baixa um documento (PDF) da Caixa usando um navegador real.
+
+    O download direto via requests cai no anti-bot (Radware/CAPTCHA). Aqui
+    visitamos uma página da Caixa para estabelecer os cookies do Radware e então
+    baixamos o PDF pela sessão do navegador (context.request), que compartilha
+    esses cookies. Retorna os bytes do documento.
+    """
+    with _sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            headless=headless,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = browser.new_context(
+            locale="pt-BR",
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            ),
+        )
+        try:
+            page = context.new_page()
+            page.set_default_timeout(30_000)
+            aquecimento = referer_url or f"{BASE_URL}/sistema/busca-imovel.asp?sltTipoBusca=imoveis"
+            try:
+                page.goto(aquecimento, wait_until="domcontentloaded", timeout=45_000)
+                page.wait_for_timeout(1_500)
+            except Exception as exc:  # noqa: BLE001 - aquecimento é best-effort
+                logger.info("Aquecimento Radware falhou (%s); seguindo para o download", exc)
+
+            resposta = context.request.get(doc_url, timeout=timeout_ms)
+            if not resposta.ok:
+                raise RuntimeError(f"HTTP {resposta.status} ao baixar documento da Caixa")
+            return resposta.body()
+        finally:
+            browser.close()
+
+
 def limpar_texto(valor) -> str:
     return " ".join(str(valor or "").replace("\xa0", " ").split()).strip()
 
