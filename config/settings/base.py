@@ -183,6 +183,9 @@ AI_CHAT_MODEL = config("AI_CHAT_MODEL", default=AI_LEGAL_ANALYSIS_MODEL)
 AI_CHAT_MAX_OUTPUT_TOKENS = config("AI_CHAT_MAX_OUTPUT_TOKENS", default=1800, cast=int)
 AI_CHAT_CONTEXT_TEXT_LIMIT = config("AI_CHAT_CONTEXT_TEXT_LIMIT", default=40000, cast=int)
 AI_CHAT_HISTORY_LIMIT = config("AI_CHAT_HISTORY_LIMIT", default=16, cast=int)
+# Timeout do cliente de IA do chat. Deve ficar ABAIXO do --timeout do gunicorn
+# para a chamada falhar com erro amigável em vez de o worker ser morto.
+AI_CHAT_TIMEOUT_SECONDS = config("AI_CHAT_TIMEOUT_SECONDS", default=100, cast=int)
 # Chat é interativo: esforço de raciocínio mínimo para respostas rápidas/baratas.
 # gpt-5.5 usa "none" como nível mínimo (o antigo "minimal" do gpt-5).
 AI_CHAT_REASONING_EFFORT = config("AI_CHAT_REASONING_EFFORT", default="none")
