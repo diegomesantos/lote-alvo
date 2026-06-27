@@ -605,6 +605,33 @@ def _extrair_texto_ocr_pdf(conteudo, paginas_para_ocr):
     return textos_ocr, erros
 
 
+def _imagens_por_pagina(conteudo):
+    """Conta imagens por página (1-indexed) via fitz. {} se indisponível.
+
+    Usado para detectar páginas escaneadas (matrícula/edital em imagem com um
+    cabeçalho fino de validação por cima), que passariam batido no gatilho de OCR
+    baseado só no tamanho do texto.
+    """
+    try:
+        import fitz
+    except ImportError:
+        return {}
+    try:
+        documento = fitz.open(stream=conteudo, filetype="pdf")
+    except Exception:
+        return {}
+    contagem = {}
+    try:
+        for indice in range(documento.page_count):
+            try:
+                contagem[indice + 1] = len(documento.load_page(indice).get_images())
+            except Exception:
+                contagem[indice + 1] = 0
+    finally:
+        documento.close()
+    return contagem
+
+
 def _extrair_texto_pdf(conteudo):
     try:
         from pypdf import PdfReader
@@ -625,6 +652,8 @@ def _extrair_texto_pdf(conteudo):
     textos_por_pagina = {}
     paginas_para_ocr = []
     max_paginas_ocr = max(0, settings.OPENAI_LEGAL_ANALYSIS_OCR_MAX_PAGES)
+    imagens_por_pagina = _imagens_por_pagina(conteudo)
+    limiar_escaneada = max(0, getattr(settings, "OPENAI_LEGAL_ANALYSIS_OCR_SCANNED_TEXT_LIMIT", 1500))
 
     for indice, pagina in enumerate(paginas, start=1):
         try:
@@ -635,10 +664,19 @@ def _extrair_texto_pdf(conteudo):
         texto = texto.strip()
         if texto:
             textos_por_pagina[indice] = texto
+
+        precisa_ocr = _pagina_precisa_ocr(texto)
+        # Página escaneada: tem imagem e pouco texto nativo (ex.: matrícula/edital
+        # digitalizado com só o cabeçalho de validação extraível). O teor está na
+        # imagem e precisa de OCR mesmo passando do mínimo de caracteres.
+        if not precisa_ocr and limiar_escaneada and imagens_por_pagina.get(indice, 0) > 0:
+            if len(_texto_util(texto)) < limiar_escaneada:
+                precisa_ocr = True
+
         if (
             settings.OPENAI_LEGAL_ANALYSIS_OCR_ENABLED
             and max_paginas_ocr
-            and _pagina_precisa_ocr(texto)
+            and precisa_ocr
             and len(paginas_para_ocr) < max_paginas_ocr
         ):
             paginas_para_ocr.append(indice)
