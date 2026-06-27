@@ -1831,8 +1831,9 @@ function toggleChecklistItem(input, imovelId, itemId) {
     });
   }
 
-  // Polling: se a página já carregar com status processando, continua verificando
-  {% if not imovel_caixa %}
+  // Polling: se a página já carregar com status processando, continua verificando.
+  // Roda sempre que o banner tiver data-poll-url (renderizado quando a análise
+  // mostrada é a do próprio imóvel — inclusive em imóveis vinculados à Caixa).
   var pollBox = document.getElementById('analise-avulso-processando');
   var pollUrl = pollBox && pollBox.dataset.pollUrl;
   if (pollUrl) {
@@ -1845,7 +1846,6 @@ function toggleChecklistItem(input, imovelId, itemId) {
       }).catch(function() { clearInterval(interval); });
     }, 4000);
   }
-  {% endif %}
 })();
 
 /* ---------- Simulador "Morar: comprar vs. alugar" ---------- */
