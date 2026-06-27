@@ -606,7 +606,7 @@
                     x-text="(m.role === 'user' ? (m.autor || 'Você') : 'Assistente') + (m.criado_em_display ? ' · ' + m.criado_em_display : '')"></span>
             </div>
           </template>
-          <div x-show="carregando" class="self-start flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500">
+          <div x-show="aguardando" class="self-start flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500">
             <span class="h-2 w-2 animate-pulse rounded-full bg-teal-500"></span> Pensando…
           </div>
         </div>
@@ -1616,6 +1616,7 @@ function chatImovel(endpoint) {
     endpoint,
     texto: '',
     carregando: false,
+    aguardando: false,
     mensagens: [],
     init() {
       const el = document.getElementById('chat-mensagens-data');
@@ -1631,10 +1632,21 @@ function chatImovel(endpoint) {
     async enviar() {
       const pergunta = this.texto.trim();
       if (!pergunta || this.carregando) return;
+      const userIdx = this.mensagens.length;
       this.mensagens.push({ role: 'user', conteudo: pergunta, autor: 'Você', criado_em_display: '' });
+      let asstIdx = -1;
       this.texto = '';
       this.carregando = true;
+      this.aguardando = true;
       this.$nextTick(() => this.rolar());
+
+      const garantirBolhaAssistente = () => {
+        if (asstIdx < 0) {
+          this.mensagens.push({ role: 'assistant', conteudo: '', criado_em_display: '' });
+          asstIdx = this.mensagens.length - 1;
+          this.aguardando = false;
+        }
+      };
 
       try {
         const resp = await fetch(this.endpoint, {
@@ -1646,17 +1658,43 @@ function chatImovel(endpoint) {
           },
           body: 'pergunta=' + encodeURIComponent(pergunta),
         });
-        const data = await resp.json();
-        // Substitui a bolha otimista do usuário pela versão persistida (com data/autor)
-        if (data.pergunta) this.mensagens[this.mensagens.length - 1] = data.pergunta;
-        if (data.resposta) this.mensagens.push(data.resposta);
-        else if (!resp.ok) {
-          this.mensagens.push({ role: 'assistant', erro: true, conteudo: data.erro || 'Falha ao responder.', criado_em_display: '' });
+        if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const blocos = buffer.split('\n\n');
+          buffer = blocos.pop();
+          for (const bloco of blocos) {
+            const linha = bloco.split('\n').find(l => l.startsWith('data:'));
+            if (!linha) continue;
+            let obj;
+            try { obj = JSON.parse(linha.slice(5).trim()); } catch (e) { continue; }
+            if (obj.tipo === 'user') {
+              if (obj.mensagem) this.mensagens[userIdx] = obj.mensagem;
+            } else if (obj.tipo === 'delta') {
+              garantirBolhaAssistente();
+              this.mensagens[asstIdx].conteudo += obj.texto;
+              this.rolar();
+            } else if (obj.tipo === 'done') {
+              garantirBolhaAssistente();
+              if (obj.mensagem) this.mensagens[asstIdx] = obj.mensagem;
+            } else if (obj.tipo === 'error') {
+              garantirBolhaAssistente();
+              this.mensagens[asstIdx] = obj.mensagem || { role: 'assistant', erro: true, conteudo: 'Falha ao responder.', criado_em_display: '' };
+            }
+          }
         }
       } catch (e) {
-        this.mensagens.push({ role: 'assistant', erro: true, conteudo: 'Erro de conexão. Tente novamente.', criado_em_display: '' });
+        garantirBolhaAssistente();
+        this.mensagens[asstIdx] = { role: 'assistant', erro: true, conteudo: 'Erro de conexão. Tente novamente.', criado_em_display: '' };
       } finally {
         this.carregando = false;
+        this.aguardando = false;
         this.$nextTick(() => this.rolar());
       }
     },

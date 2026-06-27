@@ -361,8 +361,8 @@ def _gerar_gemini(system, mensagens, api_key, modelo):
     return texto
 
 
-def responder(imovel, imovel_caixa, pergunta, historico, documentos_cache):
-    """Gera a resposta do assistente. Lança ChatImovelErro em falhas esperadas."""
+def _preparar(imovel, imovel_caixa, pergunta, historico, documentos_cache):
+    """Valida config e monta as mensagens. Retorna (provider, api_key, modelo, mensagens)."""
     provider = _provider()
     if provider not in AI_PROVIDERS_SUPORTADOS:
         raise ChatImovelErro(
@@ -390,6 +390,8 @@ def responder(imovel, imovel_caixa, pergunta, historico, documentos_cache):
 
     # O contexto entra como primeira mensagem de usuário, seguida de um
     # reconhecimento do assistente, para não poluir cada turno do histórico.
+    # Manter esse prefixo idêntico entre turnos ativa o cache de prompt do
+    # provedor, reduzindo a latência das próximas respostas.
     mensagens = [
         {"role": "user", "content": contexto},
         {
@@ -400,7 +402,14 @@ def responder(imovel, imovel_caixa, pergunta, historico, documentos_cache):
         *historico_msgs,
         {"role": "user", "content": pergunta},
     ]
+    return provider, api_key, modelo, mensagens
 
+
+def responder(imovel, imovel_caixa, pergunta, historico, documentos_cache):
+    """Gera a resposta completa do assistente. Lança ChatImovelErro em falhas esperadas."""
+    provider, api_key, modelo, mensagens = _preparar(
+        imovel, imovel_caixa, pergunta, historico, documentos_cache
+    )
     if provider == "openai":
         entrada = [{"role": "system", "content": SYSTEM_PROMPT}, *mensagens]
         return _gerar_openai(entrada, api_key, modelo)
@@ -409,3 +418,49 @@ def responder(imovel, imovel_caixa, pergunta, historico, documentos_cache):
     if provider == "gemini":
         return _gerar_gemini(SYSTEM_PROMPT, mensagens, api_key, modelo)
     raise ChatImovelErro(f"Provider de IA não suportado: {provider}")
+
+
+def _stream_openai(mensagens, api_key, modelo):
+    try:
+        from openai import OpenAI
+    except ImportError as exc:
+        raise ChatImovelErro("Pacote openai não instalado") from exc
+
+    client = OpenAI(api_key=api_key, timeout=_timeout_segundos(), max_retries=1)
+    try:
+        stream = client.responses.create(
+            model=modelo,
+            max_output_tokens=_max_output_tokens(),
+            reasoning={"effort": _esforco()},
+            input=mensagens,
+            stream=True,
+        )
+        for event in stream:
+            if getattr(event, "type", "") == "response.output_text.delta":
+                delta = getattr(event, "delta", "")
+                if delta:
+                    yield delta
+    except ChatImovelErro:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ChatImovelErro(f"Falha na API OpenAI: {exc}") from exc
+
+
+def responder_stream(imovel, imovel_caixa, pergunta, historico, documentos_cache):
+    """Gera a resposta em pedaços (streaming). Yields trechos de texto.
+
+    Para OpenAI usa streaming nativo (token a token). Para os demais provedores,
+    faz a chamada completa e entrega o resultado em um único trecho.
+    """
+    provider, api_key, modelo, mensagens = _preparar(
+        imovel, imovel_caixa, pergunta, historico, documentos_cache
+    )
+    if provider == "openai":
+        entrada = [{"role": "system", "content": SYSTEM_PROMPT}, *mensagens]
+        yield from _stream_openai(entrada, api_key, modelo)
+    elif provider == "anthropic":
+        yield _gerar_anthropic(SYSTEM_PROMPT, mensagens, api_key, modelo)
+    elif provider == "gemini":
+        yield _gerar_gemini(SYSTEM_PROMPT, mensagens, api_key, modelo)
+    else:
+        raise ChatImovelErro(f"Provider de IA não suportado: {provider}")
