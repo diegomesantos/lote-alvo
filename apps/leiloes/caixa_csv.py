@@ -105,8 +105,31 @@ def baixar_documento_caixa_playwright(doc_url, referer_url=None, headless=True, 
             except Exception as exc:  # noqa: BLE001
                 logger.info("Download via navegação não ocorreu (%s); tentando sessão", exc)
 
-            # Método 2: requisição pela sessão do navegador (URLs não protegidas
-            # que servem o PDF inline em vez de forçar download).
+            # Método 2: fetch DENTRO da página (contexto JS já autenticado pelo
+            # Radware). Funciona para PDFs servidos inline (ex.: matrícula), onde
+            # a navegação não dispara download.
+            try:
+                import base64
+
+                resultado = page.evaluate(
+                    """async (url) => {
+                        const r = await fetch(url, { credentials: 'include' });
+                        const buf = await r.arrayBuffer();
+                        const bytes = new Uint8Array(buf);
+                        let bin = '';
+                        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+                        return { status: r.status, b64: btoa(bin) };
+                    }""",
+                    doc_url,
+                )
+                if resultado and resultado.get("b64"):
+                    dados = base64.b64decode(resultado["b64"])
+                    if dados[:4] == b"%PDF":
+                        return dados
+            except Exception as exc:  # noqa: BLE001
+                logger.info("Fetch in-page falhou (%s); tentando sessão", exc)
+
+            # Método 3: requisição pela sessão do navegador (último recurso).
             resposta = context.request.get(doc_url, timeout=timeout_ms)
             if resposta.ok:
                 dados = resposta.body()
