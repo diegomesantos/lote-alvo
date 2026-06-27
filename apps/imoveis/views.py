@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.contrib import messages
 from django.db.models import Q
 from django.urls import reverse
@@ -1249,7 +1249,9 @@ def chat_historico(imovel):
 @login_required
 @require_POST
 def enviar_mensagem_chat(request, pk):
-    from .chat import responder, ChatImovelErro
+    import json as _json
+    import logging as _logging
+    from .chat import responder_stream, ChatImovelErro
     from .documentos_texto import garantir_textos_documentos
 
     imovel = _get_imovel_com_acesso(pk, request.user)
@@ -1262,62 +1264,62 @@ def enviar_mensagem_chat(request, pk):
         {"role": msg.role, "conteudo": msg.conteudo}
         for msg in chat.mensagens.filter(erro=False)
     ]
-
     mensagem_usuario = ChatMensagem.objects.create(
         chat=chat, user=request.user, role="user", conteudo=pergunta
     )
-
     imovel_caixa = _imovel_caixa_de(imovel)
-    try:
-        # Chat roda na web: não dispara navegador (Playwright). Usa o texto já
-        # cacheado pela análise; docs da Caixa são baixados na geração da análise.
-        documentos_cache = garantir_textos_documentos(
-            imovel, imovel_caixa, permitir_playwright=False
-        )
-        resposta = responder(imovel, imovel_caixa, pergunta, historico, documentos_cache)
-    except ChatImovelErro as exc:
-        mensagem_erro = ChatMensagem.objects.create(
-            chat=chat, role="assistant", conteudo=str(exc), erro=True
-        )
-        return JsonResponse(
-            {
-                "ok": False,
-                "erro": str(exc),
-                "pergunta": _chat_mensagem_payload(mensagem_usuario),
-                "resposta": _chat_mensagem_payload(mensagem_erro),
-            },
-            status=502,
-        )
-    except Exception as exc:  # noqa: BLE001
-        import logging as _logging
 
-        _logging.getLogger(__name__).exception("Erro inesperado no chat do imovel %s", imovel.pk)
-        mensagem_erro = ChatMensagem.objects.create(
-            chat=chat,
-            role="assistant",
-            conteudo="Não foi possível obter a resposta do assistente. Tente novamente.",
-            erro=True,
-        )
-        return JsonResponse(
-            {
-                "ok": False,
-                "erro": str(exc)[:300],
-                "pergunta": _chat_mensagem_payload(mensagem_usuario),
-                "resposta": _chat_mensagem_payload(mensagem_erro),
-            },
-            status=500,
-        )
+    def _sse(obj):
+        return f"data: {_json.dumps(obj, ensure_ascii=False)}\n\n"
 
-    mensagem_resposta = ChatMensagem.objects.create(
-        chat=chat, role="assistant", conteudo=resposta
-    )
-    return JsonResponse(
-        {
-            "ok": True,
-            "pergunta": _chat_mensagem_payload(mensagem_usuario),
-            "resposta": _chat_mensagem_payload(mensagem_resposta),
-        }
-    )
+    def _erro_assistente(texto):
+        msg = ChatMensagem.objects.create(
+            chat=chat, role="assistant", conteudo=texto, erro=True
+        )
+        return _sse({"tipo": "error", "mensagem": _chat_mensagem_payload(msg)})
+
+    def stream():
+        # Confirma a mensagem do usuário (versão persistida, com autor/data).
+        yield _sse({"tipo": "user", "mensagem": _chat_mensagem_payload(mensagem_usuario)})
+
+        partes = []
+        try:
+            # Chat roda na web: não dispara navegador (Playwright). Usa o texto já
+            # cacheado pela análise; docs da Caixa são baixados ao gerar a análise.
+            documentos_cache = garantir_textos_documentos(
+                imovel, imovel_caixa, permitir_playwright=False
+            )
+            for trecho in responder_stream(
+                imovel, imovel_caixa, pergunta, historico, documentos_cache
+            ):
+                if not trecho:
+                    continue
+                partes.append(trecho)
+                yield _sse({"tipo": "delta", "texto": trecho})
+        except ChatImovelErro as exc:
+            yield _erro_assistente(str(exc))
+            return
+        except Exception as exc:  # noqa: BLE001
+            _logging.getLogger(__name__).exception("Erro inesperado no chat do imovel %s", imovel.pk)
+            yield _erro_assistente(
+                "Não foi possível obter a resposta do assistente. Tente novamente."
+            )
+            return
+
+        texto = "".join(partes).strip()
+        if not texto:
+            yield _erro_assistente("O assistente não retornou resposta. Tente novamente.")
+            return
+
+        mensagem_resposta = ChatMensagem.objects.create(
+            chat=chat, role="assistant", conteudo=texto
+        )
+        yield _sse({"tipo": "done", "mensagem": _chat_mensagem_payload(mensagem_resposta)})
+
+    resposta = StreamingHttpResponse(stream(), content_type="text/event-stream")
+    resposta["Cache-Control"] = "no-cache"
+    resposta["X-Accel-Buffering"] = "no"  # evita buffering em proxies (nginx/Railway)
+    return resposta
 
 
 @login_required
