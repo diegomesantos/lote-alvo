@@ -76,7 +76,14 @@ def baixar_documento_caixa_playwright(doc_url, referer_url=None, headless=True, 
             aquecimento = referer_url or f"{BASE_URL}/sistema/busca-imovel.asp?sltTipoBusca=imoveis"
             try:
                 page.goto(aquecimento, wait_until="domcontentloaded", timeout=45_000)
-                page.wait_for_timeout(2_000)
+                # Aguarda o desafio do Radware "assentar": o anti-bot mostra uma
+                # página intersticial que se resolve via JS e recarrega. Esperamos
+                # o cookie/sessão estabilizar antes de tentar o download.
+                for _ in range(4):
+                    page.wait_for_timeout(2_000)
+                    conteudo_pagina = (page.content() or "").lower()
+                    if "radware" not in conteudo_pagina and "captcha" not in conteudo_pagina and "perfdrive" not in conteudo_pagina:
+                        break
             except Exception as exc:  # noqa: BLE001 - aquecimento é best-effort
                 logger.info("Aquecimento Radware falhou (%s); seguindo para o download", exc)
 
