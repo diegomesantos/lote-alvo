@@ -24,6 +24,9 @@ class ChatImovelErro(Exception):
 
 AI_PROVIDERS_SUPORTADOS = {"openai", "anthropic", "gemini"}
 
+# Ordem de prioridade dos documentos ao montar o contexto (menor = primeiro).
+_PRIORIDADE_CATEGORIA = {"matricula": 0, "edital": 1, "processo": 2, "certidao": 3}
+
 _ALIASES_PROVIDER = {
     "open_ai": "openai",
     "claude": "anthropic",
@@ -184,10 +187,10 @@ def _analise_juridica(imovel, imovel_caixa):
 
 def _contexto_documentos(cache):
     limite = _limite_contexto_docs()
-    restante = limite
     blocos = []
     fontes_com_erro = []
 
+    itens = []
     for entrada in (cache or {}).values():
         texto = (entrada.get("texto") or "").strip()
         nome = entrada.get("nome") or entrada.get("categoria") or "Documento"
@@ -195,8 +198,20 @@ def _contexto_documentos(cache):
             if entrada.get("erro"):
                 fontes_com_erro.append({"documento": nome, "erro": entrada["erro"]})
             continue
-        if len(texto) > restante:
-            texto = texto[:restante] + "\n[TEXTO TRUNCADO PELO LIMITE OPERACIONAL]"
+        itens.append((entrada.get("categoria") or "", nome, texto))
+
+    # Prioriza matrícula (teor registral, crítico e compacto), depois edital e o
+    # restante. Evita que um documento gigante (ex.: edital de 270k chars) consuma
+    # todo o orçamento e deixe a matrícula de fora.
+    itens.sort(key=lambda it: _PRIORIDADE_CATEGORIA.get(it[0], 9))
+
+    restante = limite
+    total = len(itens)
+    for indice, (_cat, nome, texto) in enumerate(itens):
+        faltam = total - indice
+        cota = max(restante // faltam, 1)  # divisão justa do que sobra
+        if len(texto) > cota:
+            texto = texto[:cota] + "\n[TEXTO TRUNCADO PELO LIMITE OPERACIONAL]"
         blocos.append(f"## Documento: {nome}\n{texto}")
         restante -= len(texto)
         if restante <= 0:

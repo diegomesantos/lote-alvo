@@ -914,18 +914,38 @@ def _dados_caixa_estruturados(imovel):
     return dados
 
 
+def _prioridade_fonte(fonte):
+    nome = (fonte.get("nome") or "").lower()
+    categoria = (fonte.get("categoria") or "").lower()
+    if "matri" in nome or categoria == "matricula":
+        return 0
+    if "edital" in nome or categoria == "edital":
+        return 1
+    if "processo" in nome or categoria == "processo":
+        return 2
+    if "certid" in nome or categoria == "certidao":
+        return 3
+    return 9
+
+
 def _montar_contexto_documentos(fontes):
     limite_total = max(10000, settings.OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT)
-    restante = limite_total
     blocos = []
 
-    for fonte in fontes:
-        texto = (fonte.get("texto") or "").strip()
-        if not texto:
-            continue
+    # Prioriza a matrícula (teor registral, crítico e compacto) e divide o
+    # orçamento de forma justa, para um documento gigante (ex.: edital de 270k
+    # chars) não consumir tudo e deixar a matrícula de fora.
+    com_texto = [f for f in fontes if (f.get("texto") or "").strip()]
+    com_texto.sort(key=_prioridade_fonte)
 
-        if len(texto) > restante:
-            texto = texto[:restante] + "\n[TEXTO TRUNCADO PELO LIMITE OPERACIONAL]"
+    restante = limite_total
+    total = len(com_texto)
+    for indice, fonte in enumerate(com_texto):
+        texto = (fonte.get("texto") or "").strip()
+        faltam = total - indice
+        cota = max(restante // faltam, 1)
+        if len(texto) > cota:
+            texto = texto[:cota] + "\n[TEXTO TRUNCADO PELO LIMITE OPERACIONAL]"
 
         origem = fonte.get("url") or fonte.get("arquivo") or ""
         blocos.append(

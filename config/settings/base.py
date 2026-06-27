@@ -191,7 +191,7 @@ AI_CHAT_PROVIDER = config("AI_CHAT_PROVIDER", default=AI_LEGAL_ANALYSIS_PROVIDER
 AI_CHAT_API_KEY = config("AI_CHAT_API_KEY", default="")
 AI_CHAT_MODEL = config("AI_CHAT_MODEL", default=AI_LEGAL_ANALYSIS_MODEL)
 AI_CHAT_MAX_OUTPUT_TOKENS = config("AI_CHAT_MAX_OUTPUT_TOKENS", default=1800, cast=int)
-AI_CHAT_CONTEXT_TEXT_LIMIT = config("AI_CHAT_CONTEXT_TEXT_LIMIT", default=40000, cast=int)
+AI_CHAT_CONTEXT_TEXT_LIMIT = config("AI_CHAT_CONTEXT_TEXT_LIMIT", default=60000, cast=int)
 AI_CHAT_HISTORY_LIMIT = config("AI_CHAT_HISTORY_LIMIT", default=16, cast=int)
 # Timeout do cliente de IA do chat. Deve ficar ABAIXO do --timeout do gunicorn
 # para a chamada falhar com erro amigável em vez de o worker ser morto.
