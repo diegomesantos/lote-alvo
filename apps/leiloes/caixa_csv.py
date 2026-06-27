@@ -51,10 +51,11 @@ def _sync_playwright():
 def baixar_documento_caixa_playwright(doc_url, referer_url=None, headless=True, timeout_ms=60_000):
     """Baixa um documento (PDF) da Caixa usando um navegador real.
 
-    O download direto via requests cai no anti-bot (Radware/CAPTCHA). Aqui
-    visitamos uma página da Caixa para estabelecer os cookies do Radware e então
-    baixamos o PDF pela sessão do navegador (context.request), que compartilha
-    esses cookies. Retorna os bytes do documento.
+    O download direto via requests cai no anti-bot (Radware/CAPTCHA), que exige
+    execução de JavaScript. Aqui visitamos a página do imóvel num navegador real
+    (resolve o desafio do Radware e fixa o cookie) e então obtemos o PDF. Para
+    documentos protegidos (ex.: edital), a navegação até a URL do PDF dispara um
+    download, que capturamos com expect_download. Retorna os bytes do PDF.
     """
     with _sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -63,6 +64,7 @@ def baixar_documento_caixa_playwright(doc_url, referer_url=None, headless=True, 
         )
         context = browser.new_context(
             locale="pt-BR",
+            accept_downloads=True,
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -74,14 +76,39 @@ def baixar_documento_caixa_playwright(doc_url, referer_url=None, headless=True, 
             aquecimento = referer_url or f"{BASE_URL}/sistema/busca-imovel.asp?sltTipoBusca=imoveis"
             try:
                 page.goto(aquecimento, wait_until="domcontentloaded", timeout=45_000)
-                page.wait_for_timeout(1_500)
+                page.wait_for_timeout(2_000)
             except Exception as exc:  # noqa: BLE001 - aquecimento é best-effort
                 logger.info("Aquecimento Radware falhou (%s); seguindo para o download", exc)
 
+            # Método 1: navegar até o PDF dispara o download (PDFs protegidos pelo
+            # Radware respondem ao navegador, não ao requests/context.request).
+            try:
+                with page.expect_download(timeout=timeout_ms) as download_info:
+                    try:
+                        page.goto(doc_url, timeout=timeout_ms)
+                    except Exception:
+                        pass  # "Download is starting" é o comportamento esperado
+                download = download_info.value
+                caminho = download.path()
+                if caminho:
+                    with open(caminho, "rb") as arquivo:
+                        dados = arquivo.read()
+                    if dados[:4] == b"%PDF":
+                        return dados
+            except Exception as exc:  # noqa: BLE001
+                logger.info("Download via navegação não ocorreu (%s); tentando sessão", exc)
+
+            # Método 2: requisição pela sessão do navegador (URLs não protegidas
+            # que servem o PDF inline em vez de forçar download).
             resposta = context.request.get(doc_url, timeout=timeout_ms)
-            if not resposta.ok:
-                raise RuntimeError(f"HTTP {resposta.status} ao baixar documento da Caixa")
-            return resposta.body()
+            if resposta.ok:
+                dados = resposta.body()
+                if dados[:4] == b"%PDF":
+                    return dados
+
+            raise RuntimeError(
+                "não foi possível obter um PDF da Caixa (anti-bot pode ter bloqueado)"
+            )
         finally:
             browser.close()
 
