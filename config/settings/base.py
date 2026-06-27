@@ -169,6 +169,13 @@ OPENAI_LEGAL_ANALYSIS_OCR_MIN_PAGE_CHARS = config(
     default=80,
     cast=int,
 )
+# Página com imagem e menos texto nativo que este limite é tratada como
+# escaneada (teor na imagem) e enviada para OCR mesmo passando do mínimo acima.
+OPENAI_LEGAL_ANALYSIS_OCR_SCANNED_TEXT_LIMIT = config(
+    "OPENAI_LEGAL_ANALYSIS_OCR_SCANNED_TEXT_LIMIT",
+    default=1500,
+    cast=int,
+)
 OPENAI_LEGAL_ANALYSIS_OCR_TIMEOUT_SECONDS = config(
     "OPENAI_LEGAL_ANALYSIS_OCR_TIMEOUT_SECONDS",
     default=45,

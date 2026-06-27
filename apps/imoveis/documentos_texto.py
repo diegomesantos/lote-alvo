@@ -22,6 +22,10 @@ from apps.leiloes.analise_juridica import (
 
 logger = logging.getLogger(__name__)
 
+# Incremente quando o pipeline de extração melhorar (ex.: novo gatilho de OCR).
+# Entradas do cache com versão diferente são reprocessadas uma vez.
+EXTRACAO_VERSION = 2
+
 EXTENSOES_PDF = {".pdf"}
 EXTENSOES_IMAGEM = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".gif"}
 
@@ -229,6 +233,7 @@ def garantir_textos_documentos(imovel, imovel_caixa=None, *, forcar=False, permi
             not forcar
             and registrado
             and registrado.get("fingerprint") == fonte["fingerprint"]
+            and registrado.get("versao") == EXTRACAO_VERSION
             and not registrado.get("erro")
             and (registrado.get("texto") or "").strip()
         ):
@@ -238,6 +243,7 @@ def garantir_textos_documentos(imovel, imovel_caixa=None, *, forcar=False, permi
             "nome": fonte["nome"],
             "categoria": fonte["categoria"],
             "fingerprint": fonte["fingerprint"],
+            "versao": EXTRACAO_VERSION,
             "texto": "",
             "paginas": 0,
             "metodo": "",
