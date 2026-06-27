@@ -135,9 +135,12 @@ OPENAI_LEGAL_ANALYSIS_TEXT_LIMIT = config(
     default=50000,
     cast=int,
 )
+# No Responses API este limite inclui os tokens de raciocínio. Com esforço alto
+# e documentos grandes (edital + matrícula), 4500 estourava antes do JSON ficar
+# pronto → "JSON inválido". Mais folga garante a saída estruturada completa.
 OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS = config(
     "OPENAI_LEGAL_ANALYSIS_MAX_OUTPUT_TOKENS",
-    default=4500,
+    default=16000,
     cast=int,
 )
 OPENAI_LEGAL_ANALYSIS_DOWNLOAD_LIMIT_MB = config(
