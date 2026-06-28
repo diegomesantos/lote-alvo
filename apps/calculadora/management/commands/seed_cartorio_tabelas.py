@@ -3,7 +3,12 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 
-from apps.calculadora.models import CartorioFaixa, CartorioRegraExtra, CartorioTabela
+from apps.calculadora.models import (
+    CartorioFaixa,
+    CartorioFonteMonitorada,
+    CartorioRegraExtra,
+    CartorioTabela,
+)
 from core.calculos import cartorio
 
 
@@ -60,7 +65,7 @@ class Command(BaseCommand):
         status = options["status"]
         replace = options["replace"]
 
-        criadas = atualizadas = faixas_criadas = extras_salvos = 0
+        criadas = atualizadas = faixas_criadas = extras_salvos = fontes_salvas = 0
         for uf in sorted(ufs):
             dados = TABELAS.get(uf)
             if not dados:
@@ -75,6 +80,21 @@ class Command(BaseCommand):
                 "versionamento, auditoria e validação anual. Conferir valores "
                 "contra a tabela oficial antes de marcar como validada."
             )
+            if fonte_url:
+                CartorioFonteMonitorada.objects.update_or_create(
+                    url=fonte_url,
+                    defaults={
+                        "uf": uf,
+                        "nome": f"Fonte oficial TJ-{uf}",
+                        "ativa": True,
+                        "observacoes": (
+                            "Criada pelo seed de custos cartorários. O monitoramento "
+                            "detecta mudanças na fonte, mas a validação das faixas é manual."
+                        ),
+                    },
+                )
+                fontes_salvas += 1
+
             for tipo in ("escritura", "registro"):
                 tabela, created = CartorioTabela.objects.update_or_create(
                     uf=uf,
@@ -127,6 +147,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Concluído: {criadas} tabelas criadas, {atualizadas} atualizadas, "
-                f"{faixas_criadas} faixas salvas, {extras_salvos} extras salvos."
+                f"{faixas_criadas} faixas salvas, {extras_salvos} extras salvos, "
+                f"{fontes_salvas} fontes monitoradas."
             )
         )

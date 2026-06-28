@@ -173,3 +173,109 @@ class CartorioRegraExtra(models.Model):
         if self.vigente_fim:
             return f"{inicio} a {self.vigente_fim.strftime('%d/%m/%Y')}"
         return f"desde {inicio}"
+
+
+class CartorioFonteMonitorada(models.Model):
+    uf = models.CharField("UF", max_length=2, db_index=True)
+    nome = models.CharField("Nome", max_length=180)
+    url = models.URLField("URL oficial monitorada", max_length=600, unique=True)
+    ativa = models.BooleanField("Ativa", default=True, db_index=True)
+    observacoes = models.TextField("Observações", blank=True)
+    ultimo_hash = models.CharField("Último hash", max_length=64, blank=True)
+    ultimo_status_http = models.PositiveSmallIntegerField("Último status HTTP", null=True, blank=True)
+    ultimo_content_type = models.CharField("Último content-type", max_length=180, blank=True)
+    ultimo_tamanho_bytes = models.PositiveIntegerField("Último tamanho em bytes", null=True, blank=True)
+    ultimo_etag = models.CharField("Último ETag", max_length=255, blank=True)
+    ultimo_last_modified = models.CharField("Último Last-Modified", max_length=255, blank=True)
+    verificada_em = models.DateTimeField("Verificada em", null=True, blank=True)
+    alterada_em = models.DateTimeField("Alterada em", null=True, blank=True)
+    ultimo_erro = models.TextField("Último erro", blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["uf", "nome"]
+        indexes = [
+            models.Index(fields=["uf", "ativa"]),
+            models.Index(fields=["ativa", "verificada_em"]),
+        ]
+        verbose_name = "Fonte cartorária monitorada"
+        verbose_name_plural = "Fontes cartorárias monitoradas"
+
+    def __str__(self):
+        return f"{self.uf} - {self.nome}"
+
+
+class CartorioFonteEvento(models.Model):
+    TIPO_MUDANCA = "mudanca_detectada"
+    TIPO_ERRO = "erro"
+    TIPO_CHOICES = [
+        (TIPO_MUDANCA, "Mudança detectada"),
+        (TIPO_ERRO, "Erro de monitoramento"),
+    ]
+
+    STATUS_PENDENTE = "pendente"
+    STATUS_REVISADO = "revisado"
+    STATUS_IGNORADO = "ignorado"
+    STATUS_CHOICES = [
+        (STATUS_PENDENTE, "Pendente"),
+        (STATUS_REVISADO, "Revisado"),
+        (STATUS_IGNORADO, "Ignorado"),
+    ]
+
+    fonte = models.ForeignKey(
+        CartorioFonteMonitorada,
+        on_delete=models.CASCADE,
+        related_name="eventos",
+        verbose_name="Fonte",
+    )
+    tipo = models.CharField("Tipo", max_length=30, choices=TIPO_CHOICES, db_index=True)
+    status = models.CharField(
+        "Status",
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDENTE,
+        db_index=True,
+    )
+    hash_anterior = models.CharField("Hash anterior", max_length=64, blank=True)
+    hash_novo = models.CharField("Hash novo", max_length=64, blank=True)
+    status_http = models.PositiveSmallIntegerField("Status HTTP", null=True, blank=True)
+    content_type = models.CharField("Content-type", max_length=180, blank=True)
+    tamanho_bytes = models.PositiveIntegerField("Tamanho em bytes", null=True, blank=True)
+    mensagem = models.CharField("Mensagem", max_length=260)
+    detalhe = models.TextField("Detalhe", blank=True)
+    aplicacao_automatica = models.BooleanField("Aplicação automática", default=False)
+    tabelas_afetadas = models.PositiveSmallIntegerField("Tabelas afetadas", default=0)
+    extras_afetados = models.PositiveSmallIntegerField("Regras extras afetadas", default=0)
+    detectado_em = models.DateTimeField("Detectado em", auto_now_add=True)
+    resolvido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Resolvido por",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cartorio_fonte_eventos_resolvidos",
+    )
+    resolvido_em = models.DateTimeField("Resolvido em", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-detectado_em"]
+        indexes = [
+            models.Index(fields=["status", "tipo", "detectado_em"]),
+            models.Index(fields=["fonte", "status"]),
+        ]
+        verbose_name = "Evento de fonte cartorária"
+        verbose_name_plural = "Eventos de fonte cartorária"
+
+    def __str__(self):
+        return f"{self.fonte} - {self.get_tipo_display()} ({self.get_status_display()})"
+
+    def marcar_revisado(self, user=None):
+        self.status = self.STATUS_REVISADO
+        self.resolvido_por = user
+        self.resolvido_em = timezone.now()
+
+    def marcar_ignorado(self, user=None):
+        self.status = self.STATUS_IGNORADO
+        self.resolvido_por = user
+        self.resolvido_em = timezone.now()

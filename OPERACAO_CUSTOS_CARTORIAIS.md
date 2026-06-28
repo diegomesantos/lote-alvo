@@ -31,6 +31,48 @@ railway run --service lote-alvo python manage.py seed_cartorio_tabelas --replace
 
 Por padrão o seed cria as tabelas como `pendente_validacao`. Depois da conferência, marque as tabelas no admin como `validada`.
 
+Quando houver URL oficial cadastrada no seed, o comando também cria uma `Fonte cartorária monitorada`.
+
+## Monitoramento automático das fontes
+
+O sistema possui um monitoramento assistido das fontes oficiais:
+
+- `Calculadora > Fontes cartorárias monitoradas`: URLs oficiais acompanhadas pelo sistema.
+- `Calculadora > Eventos de fonte cartorária`: fila de revisão quando uma fonte muda ou falha.
+- Celery beat executa `monitorar_fontes_cartorio_task` semanalmente, toda segunda-feira às 07:30.
+- Quando uma fonte muda, o sistema marca automaticamente as tabelas e regras extras vinculadas àquela fonte como `pendente_validacao`.
+- Os valores permanecem disponíveis para cálculo, mas deixam de aparecer como validados até nova conferência manual.
+
+Você não precisa rodar o comando abaixo na rotina de produção se o serviço Beat estiver ativo. Ele existe apenas para teste, implantação inicial ou execução avulsa:
+
+```bash
+python manage.py monitorar_fontes_cartorio
+```
+
+Filtrando uma UF:
+
+```bash
+python manage.py monitorar_fontes_cartorio --uf BA
+```
+
+No Railway, execute dentro do serviço web:
+
+```bash
+railway ssh --service lote-alvo /opt/venv/bin/python manage.py monitorar_fontes_cartorio --skip-checks
+```
+
+O monitoramento calcula hash do conteúdo oficial e cria evento pendente quando detecta mudança. Ele não valida a tabela automaticamente. Se a fonte já estiver vinculada a tabelas/regras extras, essas entradas são colocadas automaticamente em `pendente_validacao` para revisão.
+
+Fluxo recomendado quando surgir evento pendente:
+
+1. Abrir o evento em `Calculadora > Eventos de fonte cartorária`.
+2. Abrir a URL oficial da fonte.
+3. Conferir se houve nova tabela, ato normativo ou alteração de faixa.
+4. Atualizar as faixas se a fonte oficial tiver mudado os valores.
+5. Conferir os valores manualmente.
+6. Marcar a tabela como `validada`.
+7. Marcar o evento de fonte como `revisado` ou `ignorado`.
+
 ## Rotina anual
 
 1. Consultar a tabela oficial publicada pelo TJ do estado ou órgão extrajudicial competente.

@@ -1,9 +1,17 @@
 from datetime import date
 from decimal import Decimal
 
+from django.core.management import call_command
 from django.test import TestCase
 
-from apps.calculadora.models import CartorioFaixa, CartorioRegraExtra, CartorioTabela
+from apps.calculadora.models import (
+    CartorioFaixa,
+    CartorioFonteEvento,
+    CartorioFonteMonitorada,
+    CartorioRegraExtra,
+    CartorioTabela,
+)
+from apps.calculadora.services.cartorio_fontes import verificar_fonte_cartorio
 from core.calculos.cartorio import calcular_cartorio, obter_tabelas_cartorio
 
 
@@ -80,3 +88,116 @@ class CartorioCalculoTests(TestCase):
         self.assertEqual(tabelas["origem"], "banco")
         self.assertEqual(tabelas["escritura"], [(999999999.99, 11.0)])
         self.assertEqual(tabelas["registro"], [(999999999.99, 22.0)])
+
+
+class FakeFonteResponse:
+    def __init__(self, content=b"<html>ok</html>", status_code=200, headers=None):
+        self.content = content
+        self.status_code = status_code
+        self.headers = headers or {"content-type": "text/html"}
+
+    def iter_content(self, chunk_size=65536):
+        yield self.content
+
+
+class FakeFonteSession:
+    def __init__(self, *responses):
+        self.responses = list(responses)
+
+    def get(self, *args, **kwargs):
+        if not self.responses:
+            return FakeFonteResponse()
+        return self.responses.pop(0)
+
+
+class CartorioFonteMonitoramentoTests(TestCase):
+    def criar_fonte(self):
+        return CartorioFonteMonitorada.objects.create(
+            uf="BA",
+            nome="TJ-BA",
+            url="https://example.com/cartorio-ba",
+            ativa=True,
+        )
+
+    def test_primeira_coleta_grava_hash_sem_evento_pendente(self):
+        fonte = self.criar_fonte()
+
+        resultado = verificar_fonte_cartorio(
+            fonte,
+            session=FakeFonteSession(FakeFonteResponse(b"<html><body>Tabela 2026</body></html>")),
+        )
+
+        fonte.refresh_from_db()
+        self.assertEqual(resultado["status"], "sem_mudanca")
+        self.assertTrue(fonte.ultimo_hash)
+        self.assertEqual(CartorioFonteEvento.objects.count(), 0)
+
+    def test_mudanca_na_fonte_cria_evento_pendente(self):
+        fonte = self.criar_fonte()
+        tabela = CartorioTabela.objects.create(
+            uf="BA",
+            ano=date.today().year,
+            tipo=CartorioTabela.TIPO_REGISTRO,
+            vigente_inicio=date(date.today().year, 1, 1),
+            fonte_nome="TJ-BA",
+            fonte_url=fonte.url,
+            status=CartorioTabela.STATUS_VALIDADA,
+            ativo=True,
+        )
+        extra = CartorioRegraExtra.objects.create(
+            uf="BA",
+            ano=date.today().year,
+            nome="Fundo teste",
+            percentual=Decimal("0.1000"),
+            vigente_inicio=date(date.today().year, 1, 1),
+            fonte_nome="TJ-BA",
+            fonte_url=fonte.url,
+            status=CartorioRegraExtra.STATUS_VALIDADA,
+            ativo=True,
+        )
+        verificar_fonte_cartorio(
+            fonte,
+            session=FakeFonteSession(FakeFonteResponse(b"<html><body>Tabela 2026</body></html>")),
+        )
+        fonte.refresh_from_db()
+
+        resultado = verificar_fonte_cartorio(
+            fonte,
+            session=FakeFonteSession(FakeFonteResponse(b"<html><body>Tabela 2027 atualizada</body></html>")),
+        )
+
+        evento = CartorioFonteEvento.objects.get()
+        tabela.refresh_from_db()
+        extra.refresh_from_db()
+        self.assertEqual(resultado["status"], "alterada")
+        self.assertEqual(evento.status, CartorioFonteEvento.STATUS_PENDENTE)
+        self.assertEqual(evento.tipo, CartorioFonteEvento.TIPO_MUDANCA)
+        self.assertTrue(evento.aplicacao_automatica)
+        self.assertEqual(evento.tabelas_afetadas, 1)
+        self.assertEqual(evento.extras_afetados, 1)
+        self.assertEqual(tabela.status, CartorioTabela.STATUS_PENDENTE)
+        self.assertEqual(extra.status, CartorioRegraExtra.STATUS_PENDENTE)
+        self.assertIn("revalidacao manual", tabela.observacoes)
+        self.assertIn("Revisar tabela", evento.mensagem)
+
+    def test_erro_na_fonte_cria_evento_pendente(self):
+        fonte = self.criar_fonte()
+
+        resultado = verificar_fonte_cartorio(
+            fonte,
+            session=FakeFonteSession(FakeFonteResponse(status_code=500)),
+        )
+
+        evento = CartorioFonteEvento.objects.get()
+        fonte.refresh_from_db()
+        self.assertEqual(resultado["status"], "erro")
+        self.assertEqual(evento.status, CartorioFonteEvento.STATUS_PENDENTE)
+        self.assertEqual(evento.tipo, CartorioFonteEvento.TIPO_ERRO)
+        self.assertIn("HTTP 500", fonte.ultimo_erro)
+
+    def test_seed_cria_fontes_monitoradas_conhecidas(self):
+        call_command("seed_cartorio_tabelas", "--uf", "BA")
+
+        fonte = CartorioFonteMonitorada.objects.get(uf="BA")
+        self.assertIn("tjba", fonte.url)
+        self.assertTrue(fonte.ativa)

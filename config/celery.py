@@ -21,6 +21,11 @@ app.conf.beat_schedule = {
         # mais rápido. Serial + intervalo de 1s por design anti-CAPTCHA da Caixa.
         'args': (300, 1.0),
     },
+    'monitorar-fontes-cartorio-semanal': {
+        'task': 'apps.calculadora.tasks.monitorar_fontes_cartorio_task',
+        # As tabelas mudam pouco; monitorar semanalmente reduz ruído e carga nos TJs.
+        'schedule': crontab(minute=30, hour=7, day_of_week='mon'),
+    },
 }
 
 app.conf.timezone = 'America/Sao_Paulo'
