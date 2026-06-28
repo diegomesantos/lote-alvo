@@ -4,7 +4,8 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, lance_maximo, tabela_lances
 from core.calculos.cartorio import (
-    calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS
+    calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS,
+    obter_tabelas_cartorio,
 )
 
 
@@ -81,12 +82,12 @@ def calcular_htmx(request):
         cart["total"] = cart["registro"] + (cart.get("extra") or 0)
 
     tab_esc = tab_reg = idx_esc = idx_reg = None
-    if p["estado"] in ESTADOS_DISPONIVEIS:
-        dados_est = ESTADOS_DISPONIVEIS[p["estado"]]
-        if p["tipo_leilao"] == "Extrajudicial":
-            tab_esc = dados_est["escritura"]
+    tabelas_cartorio = obter_tabelas_cartorio(p["estado"], p["tipo_leilao"])
+    if tabelas_cartorio["registro"]:
+        if p["tipo_leilao"] == "Extrajudicial" and tabelas_cartorio["escritura"]:
+            tab_esc = tabelas_cartorio["escritura"]
             _, _, idx_esc = buscar_faixa(tab_esc, base_cart)
-        tab_reg = dados_est["registro"]
+        tab_reg = tabelas_cartorio["registro"]
         _, _, idx_reg = buscar_faixa(tab_reg, base_cart)
 
     lance_max = lance_maximo(p)
@@ -108,7 +109,7 @@ def calcular_htmx(request):
         "fmt_brl": fmt_brl,
         "fmt_pct": fmt_pct,
         "estado_nome": ESTADOS_NOMES.get(p["estado"], p["estado"]),
-        "estado_disponivel": p["estado"] in ESTADOS_DISPONIVEIS,
+        "estado_disponivel": bool(tabelas_cartorio["registro"]) or p["estado"] in ESTADOS_DISPONIVEIS,
     })
 
 @login_required

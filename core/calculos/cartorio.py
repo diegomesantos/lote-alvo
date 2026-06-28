@@ -8,6 +8,7 @@ Estrutura de cada tabela:
   O último item tem limite_superior = float('inf')
   A lógica é: se base <= limite, usa esse valor fixo.
 """
+from datetime import date
 
 # ─── Bahia (BA) — TJ-BA ─────────────────────────────────────────────────────
 # Idêntico para escritura e registro na regra operacional adotada.
@@ -296,6 +297,200 @@ ESTADOS_NOMES = {
 TODOS_ESTADOS = sorted(ESTADOS_NOMES.keys())
 
 
+def _hoje():
+    return date.today()
+
+
+def _vigente_qs(queryset, data_referencia):
+    from django.db.models import Q
+
+    return queryset.filter(
+        ativo=True,
+        vigente_inicio__lte=data_referencia,
+    ).filter(
+        Q(vigente_fim__isnull=True) | Q(vigente_fim__gte=data_referencia)
+    )
+
+
+def _buscar_tabela_db(uf, tipo, data_referencia=None):
+    data_referencia = data_referencia or _hoje()
+    try:
+        from django.db.utils import OperationalError, ProgrammingError
+        from apps.calculadora.models import CartorioTabela
+
+        queryset = CartorioTabela.objects.filter(uf=uf, tipo=tipo)
+        return (
+            _vigente_qs(queryset, data_referencia)
+            .prefetch_related("faixas")
+            .order_by("-vigente_inicio", "-ano", "-id")
+            .first()
+        )
+    except (ImportError, OperationalError, ProgrammingError):
+        return None
+
+
+def _buscar_extra_db(uf, data_referencia=None):
+    data_referencia = data_referencia or _hoje()
+    try:
+        from django.db.utils import OperationalError, ProgrammingError
+        from apps.calculadora.models import CartorioRegraExtra
+
+        queryset = CartorioRegraExtra.objects.filter(uf=uf)
+        return (
+            _vigente_qs(queryset, data_referencia)
+            .order_by("-vigente_inicio", "-ano", "-id")
+            .first()
+        )
+    except (ImportError, OperationalError, ProgrammingError):
+        return None
+
+
+def _tabela_db_para_tuplas(tabela):
+    if not tabela:
+        return None
+    faixas = list(tabela.faixas.all().order_by("ordem"))
+    if not faixas:
+        return None
+    return [
+        (
+            float("inf") if faixa.limite_superior is None else float(faixa.limite_superior),
+            float(faixa.valor),
+        )
+        for faixa in faixas
+    ]
+
+
+def _fonte_tabela(tabela):
+    if not tabela:
+        return None
+    return {
+        "uf": tabela.uf,
+        "ano": tabela.ano,
+        "tipo": tabela.tipo,
+        "status": tabela.status,
+        "fonte_nome": tabela.fonte_nome,
+        "fonte_url": tabela.fonte_url,
+        "fundamento": tabela.fundamento,
+        "vigencia": tabela.vigente_label,
+    }
+
+
+def _fonte_extra(extra):
+    if not extra:
+        return None
+    return {
+        "uf": extra.uf,
+        "ano": extra.ano,
+        "tipo": "extra",
+        "status": extra.status,
+        "fonte_nome": extra.fonte_nome,
+        "fonte_url": extra.fonte_url,
+        "fundamento": extra.fundamento,
+        "vigencia": extra.vigente_label,
+        "nome": extra.nome,
+    }
+
+
+def _calcular_cartorio_db(estado, base, tipo_leilao="Extrajudicial", data_referencia=None):
+    uf = estado.upper() if estado else "BA"
+    tabela_registro = _buscar_tabela_db(uf, "registro", data_referencia)
+    tab_registro = _tabela_db_para_tuplas(tabela_registro)
+    if not tab_registro:
+        return None
+
+    tabela_escritura = None
+    tab_escritura = None
+    if tipo_leilao != "Judicial":
+        tabela_escritura = _buscar_tabela_db(uf, "escritura", data_referencia)
+        tab_escritura = _tabela_db_para_tuplas(tabela_escritura)
+        if not tab_escritura:
+            return None
+
+    if tipo_leilao == "Judicial":
+        escritura_val = 0
+        escritura_faixa = "Carta de arrematação (isenta de escritura pública)"
+    else:
+        escritura_val, escritura_faixa, _ = buscar_faixa(tab_escritura, base)
+
+    registro_val, registro_faixa, _ = buscar_faixa(tab_registro, base)
+
+    extra = _buscar_extra_db(uf, data_referencia)
+    extra_val = 0
+    extra_nome = None
+    if extra:
+        extra_nome = extra.nome
+        extra_val = base * float(extra.percentual) / 100
+
+    fontes = [
+        fonte for fonte in (
+            _fonte_tabela(tabela_escritura),
+            _fonte_tabela(tabela_registro),
+            _fonte_extra(extra),
+        )
+        if fonte
+    ]
+    fonte_principal = fontes[0] if fontes else {}
+    status_pendente = any(fonte.get("status") == "pendente_validacao" for fonte in fontes)
+    aviso = None
+    if status_pendente:
+        aviso = "Tabela cartorária versionada pendente de validação formal da fonte oficial."
+
+    return dict(
+        escritura=escritura_val,
+        registro=registro_val,
+        extra=extra_val,
+        extra_nome=extra_nome,
+        total=escritura_val + registro_val + extra_val,
+        escritura_faixa=escritura_faixa,
+        registro_faixa=registro_faixa,
+        aviso=aviso,
+        origem="banco",
+        fonte_nome=fonte_principal.get("fonte_nome", ""),
+        fonte_url=fonte_principal.get("fonte_url", ""),
+        fonte_ano=fonte_principal.get("ano"),
+        fonte_status=fonte_principal.get("status", ""),
+        fonte_vigencia=fonte_principal.get("vigencia", ""),
+        fontes=fontes,
+    )
+
+
+def obter_tabelas_cartorio(estado, tipo_leilao="Extrajudicial", data_referencia=None):
+    """Retorna tabelas para exibição, preferindo dados versionados do banco."""
+    uf = estado.upper() if estado else "BA"
+    tabela_registro = _buscar_tabela_db(uf, "registro", data_referencia)
+    tab_registro = _tabela_db_para_tuplas(tabela_registro)
+    tabela_escritura = None
+    tab_escritura = None
+    if tipo_leilao != "Judicial":
+        tabela_escritura = _buscar_tabela_db(uf, "escritura", data_referencia)
+        tab_escritura = _tabela_db_para_tuplas(tabela_escritura)
+
+    if tab_registro and (tipo_leilao == "Judicial" or tab_escritura):
+        return {
+            "escritura": tab_escritura,
+            "registro": tab_registro,
+            "origem": "banco",
+            "fontes": [
+                fonte for fonte in (
+                    _fonte_tabela(tabela_escritura),
+                    _fonte_tabela(tabela_registro),
+                )
+                if fonte
+            ],
+        }
+
+    if uf in ESTADOS_DISPONIVEIS:
+        dados = ESTADOS_DISPONIVEIS[uf]
+        return {
+            "escritura": None if tipo_leilao == "Judicial" else dados["escritura"],
+            "registro": dados["registro"],
+            "origem": "codigo",
+            "fontes": [],
+        }
+
+    return {"escritura": None, "registro": None, "origem": "estimativa", "fontes": []}
+
+
 def buscar_faixa(tabela, base):
     """Retorna (valor_emolumento, faixa_texto, indice_faixa)"""
     for i,(limite, valor) in enumerate(tabela):
@@ -320,6 +515,10 @@ def calcular_cartorio(estado, base, tipo_leilao="Extrajudicial"):
     """
     uf = estado.upper() if estado else "BA"
 
+    calculo_db = _calcular_cartorio_db(uf, base, tipo_leilao)
+    if calculo_db:
+        return calculo_db
+
     if uf in ESTADOS_DISPONIVEIS:
         dados = ESTADOS_DISPONIVEIS[uf]
         tab_escritura = dados["escritura"]
@@ -337,6 +536,13 @@ def calcular_cartorio(estado, base, tipo_leilao="Extrajudicial"):
             escritura_faixa="Estimativa (estado sem tabela)",
             registro_faixa="Estimativa (0,5% do valor)",
             aviso=f"⚠️ Tabela oficial de {uf} não disponível. Valores estimados em 0,5%.",
+            origem="estimativa",
+            fonte_nome="Estimativa interna",
+            fonte_url="",
+            fonte_ano=None,
+            fonte_status="estimativa",
+            fonte_vigencia="",
+            fontes=[],
         )
 
     # Escritura: só em compra e venda direta; leilão judicial usa carta de arrematação
@@ -365,6 +571,13 @@ def calcular_cartorio(estado, base, tipo_leilao="Extrajudicial"):
         escritura_faixa=escritura_faixa,
         registro_faixa=registro_faixa,
         aviso=None,
+        origem="codigo",
+        fonte_nome="Tabela legada do sistema",
+        fonte_url="",
+        fonte_ano=None,
+        fonte_status="legada",
+        fonte_vigencia="2025/2026",
+        fontes=[],
     )
 
 

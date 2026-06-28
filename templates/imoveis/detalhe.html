@@ -746,6 +746,23 @@
               <div class="mt-1 text-lg font-bold text-sky-950">{{ cart.total|brl }}</div>
             </div>
           </div>
+          {% if cart.fonte_nome %}
+            <div class="mt-3 rounded-lg border border-sky-100 bg-white/80 px-3 py-2 text-xs text-gray-600">
+              <span class="font-semibold text-gray-700">Fonte:</span>
+              {% if cart.fonte_url %}
+                <a href="{{ cart.fonte_url }}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 hover:text-sky-900 hover:underline">{{ cart.fonte_nome }}</a>
+              {% else %}
+                <span class="font-medium text-gray-800">{{ cart.fonte_nome }}</span>
+              {% endif %}
+              {% if cart.fonte_ano %}<span class="text-gray-400"> · {{ cart.fonte_ano }}</span>{% endif %}
+              {% if cart.fonte_vigencia %}<span class="text-gray-400"> · {{ cart.fonte_vigencia }}</span>{% endif %}
+              {% if cart.fonte_status == "pendente_validacao" %}
+                <span class="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">pendente de validação</span>
+              {% elif cart.fonte_status == "validada" %}
+                <span class="ml-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">validada</span>
+              {% endif %}
+            </div>
+          {% endif %}
           {% if cart.aviso %}
             <p class="mt-3 text-xs text-amber-700">{{ cart.aviso }}</p>
           {% endif %}

@@ -10,7 +10,8 @@ from django.views.decorators.http import require_GET, require_POST
 from urllib.parse import urlencode
 from core.calculos.motor import calcular, tabela_giro, fmt_brl, fmt_pct, GIRO_MESES, tabela_lances, simular_moradia
 from core.calculos.cartorio import (
-    calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS
+    calcular_cartorio, buscar_faixa, ESTADOS_DISPONIVEIS, ESTADOS_NOMES, TODOS_ESTADOS,
+    obter_tabelas_cartorio,
 )
 from apps.leiloes.models import CAIXA_FOTOS_BASE_URL, ImovelCaixa
 from .models import (
@@ -779,12 +780,12 @@ def detalhe(request, pk):
         cart["total"] = cart["registro"] + (cart["extra"] or 0)
 
     tab_esc = tab_reg = idx_esc = idx_reg = None
-    if imovel.estado in ESTADOS_DISPONIVEIS:
-        dados_est = ESTADOS_DISPONIVEIS[imovel.estado]
-        if imovel.tipo_leilao == "Extrajudicial":
-            tab_esc = dados_est["escritura"]
+    tabelas_cartorio = obter_tabelas_cartorio(imovel.estado, imovel.tipo_leilao)
+    if tabelas_cartorio["registro"]:
+        if imovel.tipo_leilao == "Extrajudicial" and tabelas_cartorio["escritura"]:
+            tab_esc = tabelas_cartorio["escritura"]
             _, _, idx_esc = buscar_faixa(tab_esc, base_cart)
-        tab_reg = dados_est["registro"]
+        tab_reg = tabelas_cartorio["registro"]
         _, _, idx_reg = buscar_faixa(tab_reg, base_cart)
 
     endereco_query = " ".join(
