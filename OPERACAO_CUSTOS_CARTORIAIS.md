@@ -47,7 +47,8 @@ O sistema possui um monitoramento das fontes oficiais com aplicação automátic
 
 `apps/calculadora/services/cartorio_parsers.py` contém o motor de extração:
 
-- Cada UF pode registrar um parser em `PARSERS` que recebe o conteúdo baixado e devolve as faixas de escritura/registro. Hoje há parsers para **BA, MG, SC, GO, PE, RS e SP** (a fonte monitorada de cada uma aponta para o PDF/planilha oficial em `FONTE_TABELA_URL`). UFs sem parser (PR, RJ, CE, DF, ES) caem direto na revisão manual.
+- Cada UF pode registrar um parser em `PARSERS` que recebe o conteúdo baixado e devolve as faixas de escritura/registro. Hoje há parsers para **BA, MG, SC, GO, PE, RS, SP, DF e PR** (a fonte monitorada de cada uma aponta para o PDF/planilha oficial em `FONTE_TABELA_URL`). UFs sem parser (RJ, CE, ES) caem direto na revisão manual.
+- No **PR** o emolumento é "não progressivo" (teto acima de R$ 62.602) e o **FUNREJUS** é somado como regra extra aproximada (0,2%) — a tabela própria do fundo não consta do anexo oficial, então conferir.
 - O SP usa duas fontes: o PDF de Registro (monitorado) e a planilha de Notas (baixada pelo parser via `fetch`).
 - As URLs das tabelas têm o ano no caminho; quando o TJ publicar a do ano seguinte numa URL nova, a fonte antiga retorna 404 (vira evento de erro) — basta atualizar a URL em `FONTE_TABELA_URL`.
 - As faixas extraídas passam por **guardas de sanidade** (`validar_faixas`): quantidade mínima de faixas, valores estritamente crescentes e dentro de uma faixa plausível, limites crescentes e última faixa "sem limite".

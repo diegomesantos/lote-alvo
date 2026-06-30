@@ -350,6 +350,29 @@ class CartorioAplicacaoAutomaticaTests(TestCase):
         self.assertIsNone(faixas[-1][0])  # última sem limite
         self.assertEqual(faixas[-1][1], Decimal("150"))
 
+    def test_parsers_registrados_por_uf(self):
+        from apps.calculadora.services.cartorio_parsers import PARSERS
+
+        for uf in ("BA", "MG", "SC", "GO", "PE", "RS", "SP", "DF", "PR"):
+            self.assertIn(uf, PARSERS)
+
+    def test_df_extrai_faixa_total_em_uma_linha(self):
+        from apps.calculadora.services.cartorio_parsers import _abrir_pdf, _df_tabela
+
+        pdf = _pdf_de_linhas([
+            "ATOS DOS NOTÁRIOS",
+            "a até R$ 9.524,89 410,56 28,74 439,30",
+            "b de R$ 9.524,90 a R$ 15.272,67 624,04 43,68 667,72",
+            "c de R$ 15.272,68 a R$ 28.738,89 1.280,93 89,67 1.370,60",
+            "d de R$ 28.738,90 a R$ 57.477,78 1.724,34 120,70 1.845,04",
+            "e de R$ 57.477,79 a R$ 85.888,21 1.806,45 126,45 1.932,90",
+            "f acima de R$ 85.888,21 1.888,56 132,20 2.020,76",
+        ])
+        faixas = _df_tabela(_abrir_pdf(pdf), [0], two_line=False)
+        self.assertEqual(faixas[0], (Decimal("9524.89"), Decimal("439.30")))
+        self.assertIsNone(faixas[-1][0])
+        self.assertEqual(faixas[-1][1], Decimal("2020.76"))
+
     def test_parser_ba_separa_escritura_e_registro(self):
         from apps.calculadora.services.cartorio_parsers import parse_ba
 

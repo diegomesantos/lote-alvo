@@ -21,7 +21,7 @@ TABELAS = {
     "RS": {"ano": 2026, "escritura": cartorio.TABELA_RS_ESCRITURA, "registro": cartorio.TABELA_RS_REGISTRO},
     "PE": {"ano": 2026, "escritura": cartorio.TABELA_PE_ESCRITURA, "registro": cartorio.TABELA_PE_REGISTRO},
     "CE": {"ano": 2025, "escritura": cartorio.TABELA_CE, "registro": cartorio.TABELA_CE},
-    "DF": {"ano": 2025, "escritura": cartorio.TABELA_DF, "registro": cartorio.TABELA_DF},
+    "DF": {"ano": 2026, "escritura": cartorio.TABELA_DF_ESCRITURA, "registro": cartorio.TABELA_DF_REGISTRO},
     "SC": {"ano": 2026, "escritura": cartorio.TABELA_SC, "registro": cartorio.TABELA_SC},
     "GO": {"ano": 2026, "escritura": cartorio.TABELA_GO_ESCRITURA, "registro": cartorio.TABELA_GO_REGISTRO},
     "ES": {"ano": 2025, "escritura": cartorio.TABELA_ES, "registro": cartorio.TABELA_ES},
@@ -46,12 +46,12 @@ FONTES_URL = {
     "RS": _TAB["RS"],
     "SC": _TAB["SC"],
     "SP": _TAB["SP_REGISTRO"],
+    "PR": _TAB["PR"],
+    "DF": _TAB["DF"],
     # UFs sem parser (revisão manual): fonte = página/PDF oficial, para exibir o
     # link da fonte no front e monitorar mudanças.
     "RJ": "https://www3.tjrj.jus.br/portalextrajudicial/emolumentos.aspx",
-    "PR": "https://extrajudicial.tjpr.jus.br/documents/d/foro-extrajudicial/lei-e-tabela-atualizada-pdf",
     "CE": "https://portal.tjce.jus.br/uploads/2026/01/Tab.-Emolumentos-2026.pdf",
-    "DF": "https://www.tjdft.jus.br/informacoes/extrajudicial/tabela-de-custas",
     "ES": "https://www.tjes.jus.br/corregedoria/foro-extrajudicial/tabela-de-emolumentos/",
 }
 

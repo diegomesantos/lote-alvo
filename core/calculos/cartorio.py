@@ -166,32 +166,35 @@ TABELA_MG = [
 ]
 
 # ─── Paraná (PR) — TJ-PR 2026 ────────────────────────────────────────────────
-# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Lei 6.149/1970 +
-# anexo atualizado: extrajudicial.tjpr.jus.br/documents/d/foro-extrajudicial/
-# lei-e-tabela-atualizada-pdf). A tabela oficial usa unidade VRCext (1 VRCext =
-# R$ 0,277 em 2026), com emolumento crescente por faixa e FUNREJUS/ISS cobrados
-# à parte — não há coluna única de "valor final". Os números abaixo são a
-# estimativa legada e NÃO refletem a tabela 2026 conferida; manter status
-# pendente_validacao até modelar VRCext + FUNREJUS corretamente.
-# Inclui FUNREJUS (0,2% sobre o valor)
+# Fonte: TJ-PR, Lei 6.149/1970 + anexo atualizado (Tabela XI item IV - Notas;
+# Tabela XIII item b - Registro de Imóveis; mesma tabela para escritura e
+# registro). Emolumento em R$ por faixa de valor (a fonte usa VRCext = R$ 0,277;
+# aqui já convertido para reais). A tabela "não é progressiva": acima de
+# R$ 62.602 o emolumento fica no teto de R$ 1.377,24. O FUNREJUS (0,2%) é somado
+# à parte como regra extra — é uma APROXIMAÇÃO, pois a tabela própria do fundo
+# está em legislação separada (não consta deste anexo). Conferir o FUNREJUS.
 TABELA_PR = [
-    (3_000.00,        213.96),
-    (6_000.00,        269.15),
-    (12_000.00,       339.19),
-    (18_000.00,       427.35),
-    (30_000.00,       538.58),
-    (45_000.00,       678.69),
-    (60_000.00,       855.28),
-    (90_000.00,     1_077.80),
-    (120_000.00,    1_358.40),
-    (180_000.00,    1_711.99),
-    (240_000.00,    2_157.15),
-    (360_000.00,    2_718.64),
-    (480_000.00,    3_425.74),
-    (720_000.00,    4_316.40),
-    (float('inf'),  5_438.99),
+    (15_512.00,       349.02),
+    (18_282.00,       411.34),
+    (21_052.00,       473.67),
+    (23_822.00,       535.99),
+    (26_592.00,       598.32),
+    (29_362.00,       660.64),
+    (32_132.00,       722.97),
+    (34_902.00,       785.29),
+    (37_672.00,       847.62),
+    (40_442.00,       909.94),
+    (43_212.00,       972.27),
+    (45_982.00,     1_011.60),
+    (48_752.00,     1_072.54),
+    (51_522.00,     1_133.48),
+    (54_292.00,     1_194.42),
+    (57_062.00,     1_255.36),
+    (59_832.00,     1_316.30),
+    (62_602.00,     1_377.24),
+    (float('inf'),  1_377.24),
 ]
-PR_FUNREJUS_PCT = 0.002  # 0,2%
+PR_FUNREJUS_PCT = 0.002  # 0,2% (aproximação — ver nota acima)
 
 # ─── Rio Grande do Sul (RS) — TJ-RS 2026 (índice IPC/IEPE/UFRGS +5,86%) ──────
 # Fonte: TJ-RS, Tabela de Emolumentos 2026 (Lei estadual 12.692/06), vigência
@@ -305,27 +308,34 @@ TABELA_CE = [
 ]
 
 # ─── Distrito Federal (DF) — TJDFT 2026 ──────────────────────────────────────
-# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Resolução 2 de
-# 19/12/2025, +4,87% IPCA; tabela completa ANOREG-DF). O PDF traz várias
-# tabelas por página com colunas (Emolumentos/FUNDESP/ISSQN/TOTAL) e faixas em
-# múltiplos da UF-DF, mas o texto sai fragmentado e não foi possível parear
-# faixa->TOTAL com segurança. Os números abaixo são a estimativa legada;
-# manter pendente_validacao até extrair manualmente.
-TABELA_DF = [
-    (3_000.00,        298.61),
-    (6_000.00,        375.80),
-    (12_000.00,       473.34),
-    (24_000.00,       596.32),
-    (36_000.00,       751.09),
-    (60_000.00,       946.32),
-    (90_000.00,     1_192.25),
-    (120_000.00,    1_502.18),
-    (180_000.00,    1_892.81),
-    (240_000.00,    2_385.38),
-    (360_000.00,    3_005.50),
-    (480_000.00,    3_788.67),
-    (720_000.00,    4_774.38),
-    (float('inf'),  6_016.46),
+# Fonte: TJDFT, Resolução 2 de 19/12/2025 (+4,87% IPCA), tabela completa 2026.
+# Coluna "TOTAL" (emolumento + FUNDESP + ISSQN). Escritura (Tabela I, item 1
+# "Escrituras com conteúdo econômico") e Registro de Imóveis têm tabelas
+# DISTINTAS, em faixas de múltiplos da UF-DF.
+TABELA_DF_ESCRITURA = [
+    (9_524.89,        439.30),
+    (15_272.67,       667.72),
+    (28_738.89,     1_370.60),
+    (57_477.78,     1_845.04),
+    (85_888.21,     1_932.90),
+    (200_351.09,    2_020.76),
+    (343_224.42,    2_196.48),
+    (858_882.16,    2_372.20),
+    (1_313_777.69,  2_547.92),
+    (1_806_444.32,  2_723.63),
+    (float('inf'),  2_899.35),
+]
+TABELA_DF_REGISTRO = [
+    (32_844.44,       701.11),
+    (82_111.11,       885.62),
+    (164_222.21,    1_070.12),
+    (262_755.54,    1_199.28),
+    (574_777.74,    1_383.78),
+    (870_377.72,    1_568.29),
+    (1_149_555.47,  1_752.80),
+    (1_477_999.89,  1_937.29),
+    (1_970_666.52,  2_121.80),
+    (float('inf'),  2_306.30),
 ]
 
 # ─── Santa Catarina (SC) — TJ-SC 2026 ─────────────────────────────────────────
@@ -431,7 +441,7 @@ ESTADOS_DISPONIVEIS = {
     "RS": {"escritura": TABELA_RS_ESCRITURA, "registro": TABELA_RS_REGISTRO, "extra": None},
     "PE": {"escritura": TABELA_PE_ESCRITURA, "registro": TABELA_PE_REGISTRO, "extra": None},
     "CE": {"escritura": TABELA_CE,    "registro": TABELA_CE,    "extra": None},
-    "DF": {"escritura": TABELA_DF,    "registro": TABELA_DF,    "extra": None},
+    "DF": {"escritura": TABELA_DF_ESCRITURA, "registro": TABELA_DF_REGISTRO, "extra": None},
     "SC": {"escritura": TABELA_SC,    "registro": TABELA_SC,    "extra": None},
     "GO": {"escritura": TABELA_GO_ESCRITURA, "registro": TABELA_GO_REGISTRO, "extra": None},
     "ES": {"escritura": TABELA_ES,    "registro": TABELA_ES,    "extra": None},

@@ -162,6 +162,8 @@ FONTE_TABELA_URL = {
     "PE": "https://portal.tjpe.jus.br/documents/d/portal/ato-1556-tab-emolumentos-dj390-2025-pdf",
     "RS": "https://colegioregistralrs.org.br/img/emolumentos/39_emolumentos.pdf",
     "SC": "https://risantoamaro.com.br/wp-content/uploads/2026/02/Tabela-de-Emolumentos-2026-1.pdf",
+    "PR": "https://extrajudicial.tjpr.jus.br/documents/d/foro-extrajudicial/lei-e-tabela-atualizada-pdf",
+    "DF": "https://anoregdf.org.br/wp-content/uploads/2025/12/TABELA-COMPLETA-DE-EMOLUMENTOS-2026.pdf",
     "SP_REGISTRO": "https://www.registrodeimoveis.org.br/intranet/arquivos/upload/geral/888826_upload_de_arquivos_geral_20251226_174008_f6561d12-df91-4fd0-ad28-a8204b8b9d03.pdf",
     "SP_NOTAS": "https://cnbsp.org.br/wp-content/uploads/2025/12/TABELA-DE-EMOLUMENTOS-BASE-PARA-2026-Capital.xlsx",
 }
@@ -430,6 +432,103 @@ def parse_sp(payload, fetch):
     return {"escritura": esc, "registro": reg}
 
 
+def _linhas_pdf(doc, pages):
+    """Reconstrói as linhas (texto) de páginas do PDF a partir das palavras."""
+    from collections import defaultdict
+    out = []
+    for pg in pages:
+        rows = defaultdict(list)
+        for w in doc[pg].get_text("words"):
+            rows[round(w[1])].append(w)
+        for y in sorted(rows):
+            ws = sorted(rows[y], key=lambda w: w[0])
+            out.append(" ".join(t[4] for t in ws))
+    return out
+
+
+def _df_num(s):
+    s = s.strip()
+    if s.count(",") >= 2:  # OCR '32,844,44' -> '32.844,44'
+        s = s[: s.rfind(",")].replace(",", ".") + s[s.rfind(","):]
+    return _num(s)
+
+
+_DF_FAIXA = re.compile(r"(?:até|a)\s*R?\$?\s*([\d][\d.,]*,\d{2})\b")
+_DF_ACIMA = re.compile(r"acima de\s*R?\$?\s*([\d][\d.,]*,\d{2})", re.I)
+
+
+def _df_tabela(doc, pages, two_line):
+    """Extrai (limite|None, TOTAL) de uma tabela DF. ``two_line``: o TOTAL está
+    na linha seguinte à da faixa (caso do Registro); senão, é o último número da
+    própria linha (caso da Escritura)."""
+    linhas = _linhas_pdf(doc, pages)
+    faixas = []
+    for i, l in enumerate(linhas):
+        aci = _DF_ACIMA.search(l)
+        mfa = None if aci else _DF_FAIXA.search(l)
+        if not (aci or mfa):
+            continue
+        bloco = l + (" " + linhas[i + 1] if two_line and i + 1 < len(linhas) else "")
+        nums = re.findall(_NUM, bloco)
+        if len(nums) < 2:
+            continue
+        total = _num(nums[-1])
+        up = None if aci else _df_num(mfa.group(1))
+        if not faixas or total >= faixas[-1][1]:
+            faixas.append((up, total))
+        if aci:
+            break
+    return _fechar_inf(faixas)
+
+
+def parse_df(payload, fetch):
+    conteudo = _bytes_pdf(payload)
+    if not conteudo:
+        return None
+    doc = _abrir_pdf(conteudo)
+    if doc is None:
+        return None
+    esc = _df_tabela(doc, [0], two_line=False)      # Escritura (Tabela I, pág. 0)
+    reg = _df_tabela(doc, [8, 9], two_line=True)     # Registro de Imóveis (pág. 8-9)
+    if len(esc) < MIN_FAIXAS or len(reg) < MIN_FAIXAS:
+        return None
+    return {"escritura": esc, "registro": reg}
+
+
+def parse_pr(payload, fetch):
+    """PR: Tabela XI item IV (Notas) = Tabela XIII item b (Registro), mesma
+    tabela. Emolumento em R$ por faixa (coluna faixa-R$ ~x257, emol-R$ ~x367);
+    'não progressiva' -> teto repetido na última faixa (sem limite)."""
+    conteudo = _bytes_pdf(payload)
+    if not conteudo:
+        return None
+    doc = _abrir_pdf(conteudo)
+    if doc is None:
+        return None
+    from collections import defaultdict
+    faixas = []
+    for pg in (1, 2):
+        if pg >= doc.page_count:
+            continue
+        rows = defaultdict(list)
+        for w in doc[pg].get_text("words"):
+            rows[round(w[1])].append(w)
+        for y in sorted(rows):
+            ws = sorted(rows[y], key=lambda w: w[0])
+            if "Até" not in " ".join(t[4] for t in ws):
+                continue
+            fa = [w for w in ws if 250 <= w[0] <= 268 and re.fullmatch(_NUM, w[4])]
+            em = [w for w in ws if 360 <= w[0] <= 378 and re.fullmatch(_NUM, w[4])]
+            if fa and em:
+                up, v = _num(fa[0][4]), _num(em[0][4])
+                if not faixas or v >= faixas[-1][1]:
+                    faixas.append((up, v))
+    faixas = _fechar_inf(faixas)  # teto (tabela não progressiva)
+    if len(faixas) < MIN_FAIXAS:
+        return None
+    return {"escritura": faixas, "registro": faixas}
+
+
 # UF -> parser(payload, fetch). UFs sem parser caem na revisão manual.
 PARSERS = {
     "BA": parse_ba,
@@ -439,6 +538,8 @@ PARSERS = {
     "PE": parse_pe,
     "RS": parse_rs,
     "SP": parse_sp,
+    "DF": parse_df,
+    "PR": parse_pr,
 }
 
 
