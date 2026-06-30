@@ -28,7 +28,8 @@ TABELAS = {
 }
 
 EXTRAS = {
-    "RJ": {"ano": 2026, "nome": "FUNDPERJ", "percentual": Decimal("0.1000")},
+    # RJ: os acréscimos (FETJ/FUNPERJ/FUNDPERJ/FUNARPEN/PMCMV = 38%) já estão
+    # embutidos na TABELA_RJ, então não há regra extra separada.
     "PR": {"ano": 2026, "nome": "FUNREJUS", "percentual": Decimal("0.2000")},
 }
 

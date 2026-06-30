@@ -101,40 +101,39 @@ TABELA_SP_REGISTRO = [
 ]
 
 # ─── Rio de Janeiro (RJ) — TJ-RJ 2026 ───────────────────────────────────────
-# ⚠️ EMOLUMENTO OFICIAL, fundos não totalmente modelados. Fonte: TJ-RJ, Lei
-# 9.873/22 / tabela 2026 (DJe 30/12/2025), item "1 - Escritura com valor
-# declarado". Coluna "Total" = emolumento + 2% (Atos gratuitos/PMCMV). Acima de
-# R$ 561.712 a fonte usa fórmula: +R$ 252,43 de emolumento (+R$ 5,04 do 2%) por
-# faixa de R$ 140.427,98. SOBRE o emolumento ainda incidem acréscimos legais à
-# parte — FETJ 20%, FUNPERJ 5%, FUNDPERJ ~4% (~29%) — e ISS municipal, que NÃO
-# estão somados aqui: o total real ao usuário é ~30% maior. A tabela de Registro
-# de Imóveis está em publicação separada; aqui a de Notas é usada também como
-# aproximação para registro. Conferir os fundos antes de marcar como validada.
+# Fonte: TJ-RJ, Lei 9.873/22 / tabela 2026 (DJe 30/12/2025), item "1 - Escritura
+# com valor declarado". Os valores já são o TOTAL ao usuário = emolumento-base ×
+# 1,38, pois sobre o emolumento incidem os acréscimos legais confirmados na
+# própria portaria (e conferidos no exemplo numérico dela): 20% FETJ + 5% FUNPERJ
+# + 5% FUNDPERJ + 6% FUNARPEN + 2% PMCMV = 38%. Acima de R$ 561.712 vale a
+# fórmula da fonte: +R$ 252,43 de emolumento por faixa de R$ 140.427,98 (aqui já
+# ×1,38). NÃO inclui o ISS municipal (varia por município, ~2-5%). A tabela de
+# Registro de Imóveis está em publicação separada; aqui a de Notas é usada também
+# como aproximação para registro.
 TABELA_RJ = [
-    (21_064.17,       338.53),
-    (42_128.37,       559.41),
-    (63_192.57,       780.34),
-    (84_256.79,       957.01),
-    (112_342.37,    1_696.29),
-    (140_427.98,    2_002.57),
-    (280_855.98,    2_709.37),
-    (561_711.99,    2_907.22),
-    (702_139.98,    3_164.69),
-    (842_567.96,    3_422.16),
-    (982_995.94,    3_679.63),
-    (1_123_423.92,  3_937.10),
-    (1_263_851.90,  4_194.57),
-    (1_404_279.88,  4_452.04),
-    (1_544_707.86,  4_709.51),
-    (1_685_135.84,  4_966.98),
-    (1_825_563.82,  5_224.45),
-    (1_965_991.80,  5_481.92),
-    (2_246_847.76,  5_996.86),
-    (2_527_703.72,  6_511.80),
-    (2_808_559.68,  7_026.74),
-    (float('inf'),  7_284.21),
+    (21_064.17,       458.02),
+    (42_128.37,       756.86),
+    (63_192.57,     1_055.76),
+    (84_256.79,     1_294.78),
+    (112_342.37,    2_294.98),
+    (140_427.98,    2_709.37),
+    (280_855.98,    3_665.62),
+    (561_711.99,    3_933.30),
+    (702_139.98,    4_281.66),
+    (842_567.96,    4_630.01),
+    (982_995.94,    4_978.36),
+    (1_123_423.92,  5_326.72),
+    (1_263_851.90,  5_675.07),
+    (1_404_279.88,  6_023.42),
+    (1_544_707.86,  6_371.78),
+    (1_685_135.84,  6_720.13),
+    (1_825_563.82,  7_068.48),
+    (1_965_991.80,  7_416.84),
+    (2_246_847.76,  8_113.54),
+    (2_527_703.72,  8_810.25),
+    (2_808_559.68,  9_506.96),
+    (float('inf'),  9_855.31),
 ]
-RJ_FUNDPERJ_PCT = 0.001  # 0,1% (placeholder — acréscimos reais ~29%, ver nota)
 
 # ─── Minas Gerais (MG) — TJ-MG 2026 ─────────────────────────────────────────
 # Fonte: Portaria CGJ/MG 8664/2025 (valores 2026), Lei estadual 15.424/2004.
@@ -465,7 +464,7 @@ TABELA_ES = [
 ESTADOS_DISPONIVEIS = {
     "BA": {"escritura": TABELA_BA,    "registro": TABELA_BA,    "extra": None},
     "SP": {"escritura": TABELA_SP_ESCRITURA, "registro": TABELA_SP_REGISTRO, "extra": None},
-    "RJ": {"escritura": TABELA_RJ,    "registro": TABELA_RJ,    "extra": ("FUNDPERJ", RJ_FUNDPERJ_PCT)},
+    "RJ": {"escritura": TABELA_RJ,    "registro": TABELA_RJ,    "extra": None},
     "MG": {"escritura": TABELA_MG,    "registro": TABELA_MG,    "extra": None},
     "PR": {"escritura": TABELA_PR,    "registro": TABELA_PR,    "extra": ("FUNREJUS", PR_FUNREJUS_PCT)},
     "RS": {"escritura": TABELA_RS_ESCRITURA, "registro": TABELA_RS_REGISTRO, "extra": None},
