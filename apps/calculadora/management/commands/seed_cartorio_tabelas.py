@@ -24,7 +24,7 @@ TABELAS = {
     "DF": {"ano": 2026, "escritura": cartorio.TABELA_DF_ESCRITURA, "registro": cartorio.TABELA_DF_REGISTRO},
     "SC": {"ano": 2026, "escritura": cartorio.TABELA_SC, "registro": cartorio.TABELA_SC},
     "GO": {"ano": 2026, "escritura": cartorio.TABELA_GO_ESCRITURA, "registro": cartorio.TABELA_GO_REGISTRO},
-    "ES": {"ano": 2025, "escritura": cartorio.TABELA_ES, "registro": cartorio.TABELA_ES},
+    "ES": {"ano": 2026, "escritura": cartorio.TABELA_ES, "registro": cartorio.TABELA_ES},
 }
 
 EXTRAS = {

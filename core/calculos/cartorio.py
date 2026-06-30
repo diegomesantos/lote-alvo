@@ -407,27 +407,51 @@ TABELA_GO_REGISTRO = [
 ]
 
 # ─── Espírito Santo (ES) — TJ-ES 2026 ──────────────────────────────────────────
-# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 identificada (Ato CGJ-ES 10/2025,
-# disp. 17/12/2025, VRTE 2026 = R$ 4,9383; anexos 11 = Registro de Imóveis),
-# mas as tabelas oficiais só estão disponíveis como imagem/anexos não extraíveis
-# em texto. Os números abaixo são a estimativa legada (valores reajustaram MUITO
-# em 2026 no ES — registro chegou a ~triplicar); manter pendente_validacao.
+# Fonte: TJ-ES, Ato CGJ-ES 10/2025 (vigência 01/01/2026; ES reajustou após ficar
+# parado desde 2001). A tabela oficial só existe como IMAGEM; estes valores foram
+# extraídos por OCR da tabela de Registro de Imóveis 2026 (com ISS) publicada por
+# cartório do ES. Coluna VALOR (total ao usuário), teto R$ 5.981,93 acima de
+# R$ 200.000. As faixas 60k-80k seguem o incremento constante da tabela
+# (+R$ 139,02/5k, conferido contra a faixa seguinte). Usada também como
+# aproximação para escritura (a tabela de Notas 2026 não está disponível em
+# texto). NÃO há parser automático: OCR de imagem é frágil para auto-aplicar;
+# revalidar manualmente quando o TJ-ES publicar a tabela em texto.
 TABELA_ES = [
-    (2_000.00,        191.34),
-    (4_000.00,        240.82),
-    (8_000.00,        303.61),
-    (16_000.00,       382.55),
-    (24_000.00,       482.14),
-    (40_000.00,       607.47),
-    (60_000.00,       765.57),
-    (80_000.00,       964.78),
-    (120_000.00,    1_215.68),
-    (160_000.00,    1_531.80),
-    (240_000.00,    1_930.21),
-    (320_000.00,    2_432.26),
-    (480_000.00,    3_065.54),
-    (640_000.00,    3_863.97),
-    (float('inf'),  4_869.33),
+    (1_000.00,        171.05),
+    (3_000.00,        198.84),
+    (5_000.00,        254.45),
+    (10_000.00,       351.75),
+    (15_000.00,       490.78),
+    (20_000.00,       629.83),
+    (25_000.00,       768.80),
+    (30_000.00,       907.83),
+    (35_000.00,     1_046.86),
+    (40_000.00,     1_185.84),
+    (45_000.00,     1_324.88),
+    (50_000.00,     1_463.90),
+    (55_000.00,     1_602.90),
+    (60_000.00,     1_741.92),
+    (65_000.00,     1_880.94),
+    (70_000.00,     2_019.96),
+    (75_000.00,     2_158.98),
+    (80_000.00,     2_298.00),
+    (85_000.00,     2_437.00),
+    (90_000.00,     2_576.02),
+    (95_000.00,     2_715.07),
+    (100_000.00,    2_854.05),
+    (105_000.00,    2_993.06),
+    (110_000.00,    3_132.12),
+    (115_000.00,    3_271.09),
+    (120_000.00,    3_410.13),
+    (125_000.00,    3_549.14),
+    (130_000.00,    3_688.14),
+    (140_000.00,    3_896.72),
+    (150_000.00,    4_174.73),
+    (160_000.00,    4_452.74),
+    (170_000.00,    4_730.80),
+    (180_000.00,    5_008.83),
+    (200_000.00,    5_425.88),
+    (float('inf'),  5_981.93),
 ]
 
 # ─── Índice geral de estados disponíveis ────────────────────────────────────
