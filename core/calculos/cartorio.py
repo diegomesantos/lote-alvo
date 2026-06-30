@@ -101,36 +101,40 @@ TABELA_SP_REGISTRO = [
 ]
 
 # ─── Rio de Janeiro (RJ) — TJ-RJ 2026 ───────────────────────────────────────
-# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Portaria CGJ 516/2026
-# e Ato Normativo TJRJ, DJe 30/12/2025; tjrj.jus.br/documents/d/cgj/
-# portaria_n_516-26_cgj). O emolumento-base do RJ é definido por faixa COM
-# fórmula nos valores altos (a partir de ~R$561.712, +R$252,43 por faixa de
-# R$140.427,98) e sobre ele incide uma pilha de acréscimos (FETJ, FUNDPERJ,
-# FUNPERJ, FUNARPEN, ISS, distribuição) que o código hoje não modela
-# (só FUNDPERJ 0,1%). Reconstruir o TOTAL com confiança a partir do PDF
-# jurídico não foi possível; manter pendente_validacao.
-# Inclui FUNDPERJ (0,1% sobre o valor) cobrado adicionalmente
+# ⚠️ EMOLUMENTO OFICIAL, fundos não totalmente modelados. Fonte: TJ-RJ, Lei
+# 9.873/22 / tabela 2026 (DJe 30/12/2025), item "1 - Escritura com valor
+# declarado". Coluna "Total" = emolumento + 2% (Atos gratuitos/PMCMV). Acima de
+# R$ 561.712 a fonte usa fórmula: +R$ 252,43 de emolumento (+R$ 5,04 do 2%) por
+# faixa de R$ 140.427,98. SOBRE o emolumento ainda incidem acréscimos legais à
+# parte — FETJ 20%, FUNPERJ 5%, FUNDPERJ ~4% (~29%) — e ISS municipal, que NÃO
+# estão somados aqui: o total real ao usuário é ~30% maior. A tabela de Registro
+# de Imóveis está em publicação separada; aqui a de Notas é usada também como
+# aproximação para registro. Conferir os fundos antes de marcar como validada.
 TABELA_RJ = [
-    (3_000.00,        198.73),
-    (6_000.00,        249.90),
-    (12_000.00,       315.30),
-    (24_000.00,       397.53),
-    (36_000.00,       500.70),
-    (48_000.00,       630.88),
-    (72_000.00,       795.11),
-    (96_000.00,     1_001.56),
-    (144_000.00,    1_261.73),
-    (192_000.00,    1_589.48),
-    (288_000.00,    2_003.08),
-    (384_000.00,    2_523.88),
-    (576_000.00,    3_180.58),
-    (768_000.00,    4_007.49),
-    (1_152_000.00,  5_049.45),
-    (1_536_000.00,  6_362.28),
-    (2_304_000.00,  8_016.45),
-    (float('inf'), 10_100.50),
+    (21_064.17,       338.53),
+    (42_128.37,       559.41),
+    (63_192.57,       780.34),
+    (84_256.79,       957.01),
+    (112_342.37,    1_696.29),
+    (140_427.98,    2_002.57),
+    (280_855.98,    2_709.37),
+    (561_711.99,    2_907.22),
+    (702_139.98,    3_164.69),
+    (842_567.96,    3_422.16),
+    (982_995.94,    3_679.63),
+    (1_123_423.92,  3_937.10),
+    (1_263_851.90,  4_194.57),
+    (1_404_279.88,  4_452.04),
+    (1_544_707.86,  4_709.51),
+    (1_685_135.84,  4_966.98),
+    (1_825_563.82,  5_224.45),
+    (1_965_991.80,  5_481.92),
+    (2_246_847.76,  5_996.86),
+    (2_527_703.72,  6_511.80),
+    (2_808_559.68,  7_026.74),
+    (float('inf'),  7_284.21),
 ]
-RJ_FUNDPERJ_PCT = 0.001  # 0,1%
+RJ_FUNDPERJ_PCT = 0.001  # 0,1% (placeholder — acréscimos reais ~29%, ver nota)
 
 # ─── Minas Gerais (MG) — TJ-MG 2026 ─────────────────────────────────────────
 # Fonte: Portaria CGJ/MG 8664/2025 (valores 2026), Lei estadual 15.424/2004.
@@ -284,12 +288,14 @@ TABELA_PE_REGISTRO = [
 ]
 
 # ─── Ceará (CE) — TJ-CE 2026 ──────────────────────────────────────────────────
-# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Portaria 2982/2025,
+# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 (Portaria 2982/2025,
 # portal.tjce.jus.br/uploads/2026/01/Tab.-Emolumentos-2026.pdf, +4,46% UFIRCE).
-# A tabela usa atos codificados (cód. 002008+) cujas faixas de "valor declarado"
-# estão em células mescladas que não saem na camada de texto do PDF, então não
-# foi possível mapear faixa->valor com confiança. Os números abaixo são a
-# estimativa legada; manter status pendente_validacao até extrair manualmente.
+# OCR da tabela renderizada recupera as faixas mescladas (cód. 002008-002017),
+# mas a estrutura é ambígua e arriscada: faixas pequenas (R$ 104 a R$ 23.322,
+# unidade não clara — provavelmente UFIRCE), variantes "dentro/fora do
+# município" e teto em "acima de R$ 23.322,58". O OCR ainda perde dígitos/
+# códigos. Não foi possível extrair valores confiáveis; manter pendente e
+# atualizar manualmente conferindo a tabela oficial. Números abaixo são legados.
 TABELA_CE = [
     (2_000.00,        196.56),
     (4_000.00,        247.28),
