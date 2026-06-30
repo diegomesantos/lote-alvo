@@ -10,67 +10,105 @@ Estrutura de cada tabela:
 """
 from datetime import date
 
-# ─── Bahia (BA) — TJ-BA ─────────────────────────────────────────────────────
-# Idêntico para escritura e registro na regra operacional adotada.
+# ─── Bahia (BA) — TJ-BA 2026 ────────────────────────────────────────────────
+# Fonte: Tabela de Custas TJBA 2026 (Decreto). Item I (Notas) e Item VII
+# (Registro de Imóveis) têm faixas e valores idênticos, então usamos a mesma
+# tabela para escritura e registro.
 TABELA_BA = [
-    (1_600.00,       319.12),
-    (3_200.00,       401.40),
-    (8_000.00,       483.68),
-    (12_000.00,      522.76),
-    (16_000.00,      562.54),
-    (24_000.00,      642.22),
-    (32_000.00,      723.98),
-    (47_000.00,      799.68),
-    (63_000.00,      881.24),
-    (78_000.00,      967.68),
-    (118_000.00,   1_030.66),
-    (160_000.00,   1_115.10),
-    (235_000.00,   1_805.16),
-    (350_000.00,   2_708.06),
-    (530_000.00,   4_067.28),
-    (800_000.00,   6_099.38),
-    (1_200_000.00, 9_147.62),
-    (1_800_000.00,10_977.08),
-    (2_700_000.00,14_270.54),
-    (4_000_000.00,18_551.00),
-    (float('inf'),24_117.28),
+    (1_600.00,       333.34),
+    (3_200.00,       419.30),
+    (8_000.00,       505.24),
+    (12_000.00,      546.06),
+    (16_000.00,      587.62),
+    (24_000.00,      670.86),
+    (32_000.00,      756.26),
+    (47_000.00,      835.36),
+    (63_000.00,      920.54),
+    (78_000.00,    1_010.84),
+    (118_000.00,   1_076.62),
+    (160_000.00,   1_164.82),
+    (235_000.00,   1_885.66),
+    (350_000.00,   2_828.84),
+    (530_000.00,   4_248.68),
+    (800_000.00,   6_371.40),
+    (1_200_000.00, 9_555.60),
+    (1_800_000.00,11_466.66),
+    (2_700_000.00,14_907.00),
+    (4_000_000.00,19_379.08),
+    (float('inf'),25_192.90),
 ]
 
 # ─── São Paulo (SP) — TJ-SP 2026 ────────────────────────────────────────────
-# Tabela oficial TJ-SP (registro de imóveis e escritura têm tabelas distintas)
+# Registro de imóveis e escritura têm tabelas distintas no TJ-SP.
+# Escritura = Tabela Tabelionato de Notas (CNB/SP, "Capital 2026"), item 1
+# "Escritura com valor declarado", coluna TOTAL (emolumento + estado + ISS +
+# fundos). Faixas com limites em múltiplos de UFESP, como na fonte oficial.
 TABELA_SP_ESCRITURA = [
-    (5_430.37,        319.12),
-    (10_860.75,       401.40),
-    (21_721.49,       483.68),
-    (36_202.49,       522.76),
-    (54_303.74,       562.54),
-    (72_404.98,       642.22),
-    (90_506.23,       723.98),
-    (108_607.48,      799.68),
-    (180_756.25,    1_115.10),  # faixas intermediárias simplificadas TJ-SP
-    (361_512.47,    4_165.35),
-    (723_024.94,    5_694.22),
-    (1_446_049.88, 10_152.56),
-    (float('inf'), 14_610.89),
+    (1_524.00,        356.90),
+    (5_761.00,        533.35),
+    (9_603.00,        832.77),
+    (19_210.00,     1_189.68),
+    (38_420.00,     1_608.08),
+    (76_840.00,     1_907.60),
+    (115_260.00,    2_264.49),
+    (153_680.00,    2_682.90),
+    (192_100.00,    3_039.89),
+    (230_520.00,    3_400.86),
+    (268_940.00,    3_815.19),
+    (307_360.00,    4_176.24),
+    (330_146.00,    4_594.65),
+    (384_200.00,    4_890.01),
+    (768_400.00,    5_427.43),
+    (1_152_600.00,  6_026.36),
+    (1_536_800.00,  6_682.74),
+    (2_345_066.00,  7_384.26),
+    (3_908_444.00, 10_255.96),
+    (5_862_665.00, 13_332.69),
+    (7_816_887.00, 16_409.51),
+    (9_771_109.00, 19_486.25),
+    (float('inf'), 65_637.95),
 ]
 
+# Registro de Imóveis = Tabela III.B do TJ-SP 2026 (coluna TOTAL: emolumentos +
+# FUNJECC + FUNADEP + FEADMP + ISS 5% + selos). Faixas representativas extraídas
+# da tabela oficial (faixas redondas de R$); valores TOTAL exatos da fonte.
 TABELA_SP_REGISTRO = [
-    (5_430.37,        263.92),
-    (10_860.75,       331.62),
-    (21_721.49,       399.30),
-    (36_202.49,       431.89),
-    (54_303.74,       464.73),
-    (72_404.98,       530.40),
-    (90_506.23,       597.89),
-    (108_607.48,      660.58),
-    (180_756.25,      920.69),
-    (361_512.47,    3_232.83),
-    (723_024.94,    4_452.39),
-    (1_446_049.88,  7_921.32),
-    (float('inf'), 11_390.25),
+    (5_000.00,        107.82),
+    (10_000.00,       189.52),
+    (20_000.00,       351.74),
+    (30_000.00,       511.78),
+    (50_000.00,       836.31),
+    (75_000.00,     1_320.86),
+    (100_000.00,    1_806.52),
+    (120_000.00,    1_967.74),
+    (150_000.00,    2_209.38),
+    (200_000.00,    2_545.11),
+    (250_000.00,    2_869.64),
+    (300_000.00,    3_462.74),
+    (350_000.00,    3_576.93),
+    (400_000.00,    3_691.11),
+    (450_000.00,    3_805.19),
+    (500_000.00,    3_919.38),
+    (600_000.00,    3_976.43),
+    (700_000.00,    4_033.47),
+    (800_000.00,    4_090.06),
+    (1_000_000.00,  4_204.69),
+    (2_000_000.00,  4_261.84),
+    (3_000_000.00,  4_318.87),
+    (5_000_000.00,  4_433.06),
+    (9_000_000.00,  4_547.15),
+    (float('inf'),  4_615.37),
 ]
 
 # ─── Rio de Janeiro (RJ) — TJ-RJ 2026 ───────────────────────────────────────
+# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Portaria CGJ 516/2026
+# e Ato Normativo TJRJ, DJe 30/12/2025; tjrj.jus.br/documents/d/cgj/
+# portaria_n_516-26_cgj). O emolumento-base do RJ é definido por faixa COM
+# fórmula nos valores altos (a partir de ~R$561.712, +R$252,43 por faixa de
+# R$140.427,98) e sobre ele incide uma pilha de acréscimos (FETJ, FUNDPERJ,
+# FUNPERJ, FUNARPEN, ISS, distribuição) que o código hoje não modela
+# (só FUNDPERJ 0,1%). Reconstruir o TOTAL com confiança a partir do PDF
+# jurídico não foi possível; manter pendente_validacao.
 # Inclui FUNDPERJ (0,1% sobre o valor) cobrado adicionalmente
 TABELA_RJ = [
     (3_000.00,        198.73),
@@ -95,26 +133,46 @@ TABELA_RJ = [
 RJ_FUNDPERJ_PCT = 0.001  # 0,1%
 
 # ─── Minas Gerais (MG) — TJ-MG 2026 ─────────────────────────────────────────
+# Fonte: Portaria CGJ/MG 8664/2025 (valores 2026), Lei estadual 15.424/2004.
+# Escritura (Tabela 1, item 4.b) e Registro (Tabela 4, item 5.e) têm a MESMA
+# tabela. Coluna "Valor Final ao Usuário" (emolumento + Taxa de Fiscalização
+# Judiciária). Acima de R$ 3.200.000 a fonte usa fórmula (nota XVII): o teto
+# aqui subestima levemente valores muito altos.
 TABELA_MG = [
-    (3_000.00,        221.55),
-    (6_000.00,        278.58),
-    (12_000.00,       351.38),
-    (24_000.00,       442.66),
-    (36_000.00,       557.57),
-    (60_000.00,       702.45),
-    (90_000.00,       885.04),
-    (120_000.00,    1_115.01),
-    (180_000.00,    1_405.08),
-    (240_000.00,    1_770.46),
-    (360_000.00,    2_231.05),
-    (480_000.00,    2_811.15),
-    (720_000.00,    3_542.55),
-    (960_000.00,    4_464.07),
-    (1_440_000.00,  5_625.00),
-    (float('inf'),  7_088.52),
+    (1_400.00,        220.55),
+    (2_720.00,        359.76),
+    (5_440.00,        521.35),
+    (7_000.00,        721.75),
+    (14_000.00,       962.47),
+    (28_000.00,     1_243.47),
+    (42_000.00,     1_564.07),
+    (56_000.00,     1_925.31),
+    (70_000.00,     2_326.51),
+    (105_000.00,    2_928.06),
+    (140_000.00,    3_721.52),
+    (175_000.00,    3_979.69),
+    (210_000.00,    4_238.32),
+    (280_000.00,    4_772.07),
+    (350_000.00,    4_903.53),
+    (420_000.00,    5_035.59),
+    (560_000.00,    5_523.14),
+    (700_000.00,    5_826.70),
+    (840_000.00,    6_130.87),
+    (1_120_000.00,  6_866.53),
+    (1_400_000.00,  7_437.64),
+    (1_680_000.00,  8_009.72),
+    (3_200_000.00,  8_582.97),
+    (float('inf'),  8_582.97),
 ]
 
 # ─── Paraná (PR) — TJ-PR 2026 ────────────────────────────────────────────────
+# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Lei 6.149/1970 +
+# anexo atualizado: extrajudicial.tjpr.jus.br/documents/d/foro-extrajudicial/
+# lei-e-tabela-atualizada-pdf). A tabela oficial usa unidade VRCext (1 VRCext =
+# R$ 0,277 em 2026), com emolumento crescente por faixa e FUNREJUS/ISS cobrados
+# à parte — não há coluna única de "valor final". Os números abaixo são a
+# estimativa legada e NÃO refletem a tabela 2026 conferida; manter status
+# pendente_validacao até modelar VRCext + FUNREJUS corretamente.
 # Inclui FUNREJUS (0,2% sobre o valor)
 TABELA_PR = [
     (3_000.00,        213.96),
@@ -135,44 +193,100 @@ TABELA_PR = [
 ]
 PR_FUNREJUS_PCT = 0.002  # 0,2%
 
-# ─── Rio Grande do Sul (RS) — TJ-RS 2026 (índice IEPE/UFRGS +5,86%) ─────────
-TABELA_RS = [
-    (3_000.00,        202.37),
-    (6_000.00,        254.60),
-    (12_000.00,       320.87),
-    (24_000.00,       404.32),
-    (36_000.00,       509.44),
-    (60_000.00,       641.97),
-    (90_000.00,       809.09),
-    (120_000.00,    1_019.45),
-    (180_000.00,    1_284.52),
-    (240_000.00,    1_618.86),
-    (360_000.00,    2_040.09),
-    (480_000.00,    2_570.60),
-    (720_000.00,    3_239.08),
-    (float('inf'),  4_081.15),
+# ─── Rio Grande do Sul (RS) — TJ-RS 2026 (índice IPC/IEPE/UFRGS +5,86%) ──────
+# Fonte: TJ-RS, Tabela de Emolumentos 2026 (Lei estadual 12.692/06), vigência
+# 01/01/2026. Escritura (Tabelionato de Notas, item 1.i "escrituras com
+# conteúdo financeiro") e Registro de Imóveis (item 1) têm tabelas DISTINTAS.
+# Emolumento puro (RS não tem pilha de fundos; só o selo digital fixo à parte).
+TABELA_RS_ESCRITURA = [
+    (2_481.80,        222.80),
+    (7_445.20,        252.50),
+    (12_408.70,       292.40),
+    (24_816.80,       395.60),
+    (49_633.80,       552.70),
+    (74_451.00,       628.70),
+    (99_267.80,       728.60),
+    (148_901.60,      928.10),
+    (198_535.70,    1_076.70),
+    (248_169.50,    1_277.10),
+    (297_803.60,    1_475.80),
+    (347_437.30,    1_675.30),
+    (446_705.00,    2_075.00),
+    (496_338.90,    2_274.40),
+    (595_606.80,    2_673.20),
+    (744_508.50,    3_271.90),
+    (992_677.90,    3_870.10),
+    (1_240_847.60,  4_867.50),
+    (float('inf'),  5_482.90),
+]
+TABELA_RS_REGISTRO = [
+    (2_481.80,        226.10),
+    (7_445.20,        241.00),
+    (12_408.70,       260.90),
+    (24_816.80,       310.40),
+    (49_633.80,       390.80),
+    (74_451.00,       465.90),
+    (99_267.80,       565.50),
+    (148_901.60,      764.70),
+    (198_535.70,      964.20),
+    (248_169.50,    1_163.90),
+    (297_803.60,    1_313.30),
+    (347_437.30,    1_512.30),
+    (446_705.00,    1_911.30),
+    (496_338.90,    2_111.70),
+    (620_424.00,    2_460.80),
+    (744_508.50,    2_958.90),
+    (992_677.90,    3_956.20),
+    (1_240_847.60,  4_953.60),
+    (float('inf'),  5_482.90),
 ]
 
-# ─── Pernambuco (PE) — TJ-PE 2025 ────────────────────────────────────────────
-TABELA_PE = [
-    (2_000.00,        218.40),
-    (4_000.00,        274.68),
-    (8_000.00,        346.15),
-    (16_000.00,       436.06),
-    (24_000.00,       549.41),
-    (40_000.00,       692.29),
-    (60_000.00,       872.40),
-    (80_000.00,     1_099.38),
-    (120_000.00,    1_385.42),
-    (160_000.00,    1_746.01),
-    (240_000.00,    2_200.07),
-    (320_000.00,    2_772.36),
-    (480_000.00,    3_493.34),
-    (640_000.00,    4_401.68),
-    (float('inf'),  5_547.98),
+# ─── Pernambuco (PE) — TJ-PE 2026 ────────────────────────────────────────────
+# Fonte: TJ-PE, Ato 1556/2025 (DJe 390, 18/12/2025), valores 2026 (+4,46% IPCA).
+# Escritura = Tabela 'D' item I; Registro = Tabela 'E' item IV (ambos "com
+# conteúdo financeiro"). São EMOLUMENTOS apenas — a TSNR (Taxa de Serviço
+# Notarial e de Registro) e fundos são cobrados à parte e NÃO estão somados
+# aqui, então o custo real ao usuário é um pouco maior. Escritura teto
+# R$ 7.084,10; registro teto R$ 4.723,28.
+TABELA_PE_ESCRITURA = [
+    (1_000.00,        237.84),
+    (5_000.00,        399.50),
+    (15_000.00,       722.80),
+    (30_000.00,     1_126.92),
+    (50_000.00,     1_773.53),
+    (70_000.00,     2_420.11),
+    (90_000.00,     3_066.78),
+    (110_000.00,    3_713.32),
+    (130_000.00,    4_359.98),
+    (150_000.00,    5_006.54),
+    (175_000.00,    5_814.82),
+    (200_000.00,    6_623.08),
+    (210_000.00,    6_946.38),
+    (float('inf'),  7_084.10),
+]
+TABELA_PE_REGISTRO = [
+    (5_000.00,        237.84),
+    (10_000.00,       399.50),
+    (20_000.00,       561.13),
+    (35_000.00,       763.22),
+    (50_000.00,     1_005.73),
+    (75_000.00,     1_409.82),
+    (100_000.00,    1_813.99),
+    (130_000.00,    2_298.89),
+    (160_000.00,    2_783.87),
+    (200_000.00,    3_430.47),
+    (240_000.00,    4_077.07),
+    (278_000.00,    4_707.48),
+    (float('inf'),  4_723.28),
 ]
 
-# ─── Ceará (CE) — TJ-CE 2025 ──────────────────────────────────────────────────
+# ─── Ceará (CE) — TJ-CE 2026 ──────────────────────────────────────────────────
+# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Portaria 2982/2025,
+# portal.tjce.jus.br/uploads/2026/01/Tab.-Emolumentos-2026.pdf, +4,46% UFIRCE).
+# A tabela usa atos codificados (cód. 002008+) cujas faixas de "valor declarado"
+# estão em células mescladas que não saem na camada de texto do PDF, então não
+# foi possível mapear faixa->valor com confiança. Os números abaixo são a
+# estimativa legada; manter status pendente_validacao até extrair manualmente.
 TABELA_CE = [
     (2_000.00,        196.56),
     (4_000.00,        247.28),
@@ -190,7 +304,13 @@ TABELA_CE = [
     (float('inf'),  3_961.72),
 ]
 
-# ─── Distrito Federal (DF) — TJDFT 2025 ──────────────────────────────────────
+# ─── Distrito Federal (DF) — TJDFT 2026 ──────────────────────────────────────
+# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 localizada (Resolução 2 de
+# 19/12/2025, +4,87% IPCA; tabela completa ANOREG-DF). O PDF traz várias
+# tabelas por página com colunas (Emolumentos/FUNDESP/ISSQN/TOTAL) e faixas em
+# múltiplos da UF-DF, mas o texto sai fragmentado e não foi possível parear
+# faixa->TOTAL com segurança. Os números abaixo são a estimativa legada;
+# manter pendente_validacao até extrair manualmente.
 TABELA_DF = [
     (3_000.00,        298.61),
     (6_000.00,        375.80),
@@ -208,45 +328,80 @@ TABELA_DF = [
     (float('inf'),  6_016.46),
 ]
 
-# ─── Santa Catarina (SC) — TJ-SC 2025 ─────────────────────────────────────────
+# ─── Santa Catarina (SC) — TJ-SC 2026 ─────────────────────────────────────────
+# Fonte: TJ-SC, LC 755/2019 (alt. LC 846/2023), Circular CGJ 643/2025, valores
+# 2026. Coluna "Total (R$)" (emolumento + FRJ + selo) da Tabela III, item 2.2
+# (Registro com valor). Valores de REGISTRO de imóveis, usados também como
+# aproximação para escritura (a tabela do Tabelião de Notas não constava desta
+# fonte; conferir a escritura separadamente se precisar de mais precisão).
 TABELA_SC = [
-    (2_000.00,        197.45),
-    (4_000.00,        248.53),
-    (8_000.00,        313.19),
-    (16_000.00,       394.76),
-    (24_000.00,       497.38),
-    (40_000.00,       626.58),
-    (60_000.00,       789.68),
-    (80_000.00,       995.09),
-    (120_000.00,    1_254.22),
-    (160_000.00,    1_580.51),
-    (240_000.00,    1_991.37),
-    (320_000.00,    2_509.20),
-    (480_000.00,    3_161.86),
-    (640_000.00,    3_983.77),
-    (float('inf'),  5_020.45),
+    (13_786.59,       207.75),
+    (35_845.12,       438.45),
+    (53_767.69,       660.32),
+    (79_962.21,     1_024.85),
+    (100_642.09,    1_290.76),
+    (158_545.76,    1_961.70),
+    (212_313.47,    2_525.19),
+    (326_100.05,    2_799.08),
+    (426_100.05,    2_926.81),
+    (526_100.05,    3_054.54),
+    (726_100.05,    3_310.00),
+    (1_026_100.05,  3_693.19),
+    (1_526_100.05,  4_331.84),
+    (2_026_100.05,  4_970.49),
+    (float('inf'),  7_141.90),
 ]
 
-# ─── Goiás (GO) — TJ-GO 2025 ───────────────────────────────────────────────────
-TABELA_GO = [
-    (2_000.00,        204.18),
-    (4_000.00,        256.90),
-    (8_000.00,        323.65),
-    (16_000.00,       407.68),
-    (24_000.00,       513.82),
-    (40_000.00,       647.27),
-    (60_000.00,       815.88),
-    (80_000.00,     1_028.12),
-    (120_000.00,    1_295.65),
-    (160_000.00,    1_633.02),
-    (240_000.00,    2_057.20),
-    (320_000.00,    2_592.23),
-    (480_000.00,    3_266.45),
-    (640_000.00,    4_117.18),
-    (float('inf'),  5_188.72),
+# ─── Goiás (GO) — TJ-GO 2026 ───────────────────────────────────────────────────
+# Fonte: TJ-GO, Provimento Conjunto 179/2025 (valores 2026, +4,46%), Lei
+# 19.191/2015. Escritura = Tabela XIII, item 63.A (sobre o valor econômico);
+# Registro = Tabela XIV, item 76. Emolumento por faixa (FUNDESP/selo à parte).
+TABELA_GO_ESCRITURA = [
+    (653.80,          111.35),
+    (1_307.62,        168.88),
+    (2_615.24,        228.27),
+    (5_230.47,        319.17),
+    (10_460.94,       636.51),
+    (15_691.43,       681.04),
+    (26_152.37,       862.90),
+    (39_228.54,     1_091.15),
+    (52_304.74,     1_456.73),
+    (65_380.92,     1_729.50),
+    (104_609.47,    2_273.23),
+    (156_914.21,    3_408.91),
+    (261_523.68,    4_166.03),
+    (392_285.51,    4_923.17),
+    (523_047.35,    5_680.28),
+    (float('inf'),  6_062.56),
+]
+TABELA_GO_REGISTRO = [
+    (653.80,           61.56),
+    (1_307.62,         93.32),
+    (2_615.24,        119.13),
+    (5_230.47,        172.76),
+    (10_460.94,       339.54),
+    (15_691.43,       363.35),
+    (26_152.37,       462.64),
+    (39_228.54,       585.76),
+    (52_304.74,       776.37),
+    (65_380.92,       923.29),
+    (104_609.47,    1_294.60),
+    (156_914.21,    1_945.88),
+    (261_523.68,    2_620.98),
+    (392_285.51,    3_441.04),
+    (523_047.35,    4_054.59),
+    (784_571.03,    4_866.70),
+    (1_176_856.54,  5_831.70),
+    (1_569_142.07,  6_780.81),
+    (float('inf'),  7_407.33),
 ]
 
-# ─── Espírito Santo (ES) — TJ-ES 2025 ──────────────────────────────────────────
+# ─── Espírito Santo (ES) — TJ-ES 2026 ──────────────────────────────────────────
+# ⚠️ PENDENTE DE VALIDAÇÃO. Fonte oficial 2026 identificada (Ato CGJ-ES 10/2025,
+# disp. 17/12/2025, VRTE 2026 = R$ 4,9383; anexos 11 = Registro de Imóveis),
+# mas as tabelas oficiais só estão disponíveis como imagem/anexos não extraíveis
+# em texto. Os números abaixo são a estimativa legada (valores reajustaram MUITO
+# em 2026 no ES — registro chegou a ~triplicar); manter pendente_validacao.
 TABELA_ES = [
     (2_000.00,        191.34),
     (4_000.00,        240.82),
@@ -273,12 +428,12 @@ ESTADOS_DISPONIVEIS = {
     "RJ": {"escritura": TABELA_RJ,    "registro": TABELA_RJ,    "extra": ("FUNDPERJ", RJ_FUNDPERJ_PCT)},
     "MG": {"escritura": TABELA_MG,    "registro": TABELA_MG,    "extra": None},
     "PR": {"escritura": TABELA_PR,    "registro": TABELA_PR,    "extra": ("FUNREJUS", PR_FUNREJUS_PCT)},
-    "RS": {"escritura": TABELA_RS,    "registro": TABELA_RS,    "extra": None},
-    "PE": {"escritura": TABELA_PE,    "registro": TABELA_PE,    "extra": None},
+    "RS": {"escritura": TABELA_RS_ESCRITURA, "registro": TABELA_RS_REGISTRO, "extra": None},
+    "PE": {"escritura": TABELA_PE_ESCRITURA, "registro": TABELA_PE_REGISTRO, "extra": None},
     "CE": {"escritura": TABELA_CE,    "registro": TABELA_CE,    "extra": None},
     "DF": {"escritura": TABELA_DF,    "registro": TABELA_DF,    "extra": None},
     "SC": {"escritura": TABELA_SC,    "registro": TABELA_SC,    "extra": None},
-    "GO": {"escritura": TABELA_GO,    "registro": TABELA_GO,    "extra": None},
+    "GO": {"escritura": TABELA_GO_ESCRITURA, "registro": TABELA_GO_REGISTRO, "extra": None},
     "ES": {"escritura": TABELA_ES,    "registro": TABELA_ES,    "extra": None},
 }
 

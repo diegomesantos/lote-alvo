@@ -18,12 +18,12 @@ TABELAS = {
     "RJ": {"ano": 2026, "escritura": cartorio.TABELA_RJ, "registro": cartorio.TABELA_RJ},
     "MG": {"ano": 2026, "escritura": cartorio.TABELA_MG, "registro": cartorio.TABELA_MG},
     "PR": {"ano": 2026, "escritura": cartorio.TABELA_PR, "registro": cartorio.TABELA_PR},
-    "RS": {"ano": 2026, "escritura": cartorio.TABELA_RS, "registro": cartorio.TABELA_RS},
-    "PE": {"ano": 2025, "escritura": cartorio.TABELA_PE, "registro": cartorio.TABELA_PE},
+    "RS": {"ano": 2026, "escritura": cartorio.TABELA_RS_ESCRITURA, "registro": cartorio.TABELA_RS_REGISTRO},
+    "PE": {"ano": 2026, "escritura": cartorio.TABELA_PE_ESCRITURA, "registro": cartorio.TABELA_PE_REGISTRO},
     "CE": {"ano": 2025, "escritura": cartorio.TABELA_CE, "registro": cartorio.TABELA_CE},
     "DF": {"ano": 2025, "escritura": cartorio.TABELA_DF, "registro": cartorio.TABELA_DF},
-    "SC": {"ano": 2025, "escritura": cartorio.TABELA_SC, "registro": cartorio.TABELA_SC},
-    "GO": {"ano": 2025, "escritura": cartorio.TABELA_GO, "registro": cartorio.TABELA_GO},
+    "SC": {"ano": 2026, "escritura": cartorio.TABELA_SC, "registro": cartorio.TABELA_SC},
+    "GO": {"ano": 2026, "escritura": cartorio.TABELA_GO_ESCRITURA, "registro": cartorio.TABELA_GO_REGISTRO},
     "ES": {"ano": 2025, "escritura": cartorio.TABELA_ES, "registro": cartorio.TABELA_ES},
 }
 
@@ -32,10 +32,27 @@ EXTRAS = {
     "PR": {"ano": 2026, "nome": "FUNREJUS", "percentual": Decimal("0.2000")},
 }
 
+# Para as UFs com parser automático, a fonte monitorada aponta direto para o
+# PDF/planilha oficial da tabela (assim o monitoramento baixa o conteúdo que o
+# parser consome). UFs sem parser ficam na página oficial (revisão manual).
+from apps.calculadora.services.cartorio_parsers import FONTE_TABELA_URL as _TAB
+
 FONTES_URL = {
-    "BA": "https://www.tjba.jus.br/extrajudicial/tabelas-de-custas/",
-    "SP": "https://extrajudicial.tjsp.jus.br/pexPtl/listaLinksPortal.do",
+    # UFs com parser automático: fonte = PDF/planilha oficial da tabela.
+    "BA": _TAB["BA"],
+    "MG": _TAB["MG"],
+    "GO": _TAB["GO"],
+    "PE": _TAB["PE"],
+    "RS": _TAB["RS"],
+    "SC": _TAB["SC"],
+    "SP": _TAB["SP_REGISTRO"],
+    # UFs sem parser (revisão manual): fonte = página/PDF oficial, para exibir o
+    # link da fonte no front e monitorar mudanças.
     "RJ": "https://www3.tjrj.jus.br/portalextrajudicial/emolumentos.aspx",
+    "PR": "https://extrajudicial.tjpr.jus.br/documents/d/foro-extrajudicial/lei-e-tabela-atualizada-pdf",
+    "CE": "https://portal.tjce.jus.br/uploads/2026/01/Tab.-Emolumentos-2026.pdf",
+    "DF": "https://www.tjdft.jus.br/informacoes/extrajudicial/tabela-de-custas",
+    "ES": "https://www.tjes.jus.br/corregedoria/foro-extrajudicial/tabela-de-emolumentos/",
 }
 
 
