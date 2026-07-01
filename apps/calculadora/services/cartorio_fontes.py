@@ -282,14 +282,20 @@ def verificar_fonte_cartorio(fonte, session=None):
     )
 
     evento = None
+    afetados = {"tabelas_afetadas": 0, "extras_afetados": 0}
+    aplicacao = None
     if mudou:
         evento = _criar_evento_mudanca(fonte, hash_anterior, hash_novo, payload)
         if evento:
-            afetados = _marcar_itens_da_fonte_para_revalidacao(fonte, evento)
-        else:
-            afetados = {"tabelas_afetadas": 0, "extras_afetados": 0}
-    else:
-        afetados = {"tabelas_afetadas": 0, "extras_afetados": 0}
+            aplicacao = _tentar_aplicacao_automatica(fonte, payload, evento, session)
+            if aplicacao and aplicacao.get("aplicado"):
+                afetados = {
+                    "tabelas_afetadas": len(aplicacao.get("tabelas", [])),
+                    "extras_afetados": 0,
+                }
+            else:
+                # parser ausente ou faixas reprovadas: revisão manual (fluxo seguro)
+                afetados = _marcar_itens_da_fonte_para_revalidacao(fonte, evento)
 
     return {
         "fonte_id": fonte.pk,
@@ -297,8 +303,55 @@ def verificar_fonte_cartorio(fonte, session=None):
         "status": "alterada" if mudou else "sem_mudanca",
         "evento_id": evento.pk if evento else None,
         "hash": hash_novo,
+        "aplicacao_automatica": bool(aplicacao and aplicacao.get("aplicado")),
         **afetados,
     }
+
+
+def _tentar_aplicacao_automatica(fonte, payload, evento, session=None):
+    """Tenta extrair/gravar as tabelas automaticamente; registra no evento.
+
+    Em modo "totalmente automático": se um parser da UF devolver faixas que
+    passem nas guardas de sanidade, grava a nova tabela vigente e marca o evento
+    como revisado automaticamente. Caso contrário, devolve aplicado=False para o
+    chamador cair no fluxo de revisão manual.
+    """
+    from apps.calculadora.services.cartorio_parsers import aplicar_da_fonte
+
+    try:
+        resultado = aplicar_da_fonte(fonte, payload, session=session, evento=evento)
+    except Exception as exc:  # pragma: no cover - blindagem extra
+        logger.warning("Aplicação automática falhou para %s: %s", fonte, exc)
+        return {"aplicado": False, "motivo": str(exc)}
+
+    if resultado.get("aplicado"):
+        tipos = ", ".join(resultado.get("tabelas", []))
+        evento.aplicacao_automatica = True
+        evento.tabelas_afetadas = len(resultado.get("tabelas", []))
+        evento.status = CartorioFonteEvento.STATUS_REVISADO
+        evento.resolvido_em = timezone.now()
+        evento.detalhe = (
+            f"{evento.detalhe.rstrip()}\n\n"
+            f"Aplicação automática: tabela(s) [{tipos}] extraída(s) da fonte e "
+            f"gravada(s) como vigente(s)."
+        )
+        evento.save(
+            update_fields=[
+                "aplicacao_automatica",
+                "tabelas_afetadas",
+                "status",
+                "resolvido_em",
+                "detalhe",
+            ]
+        )
+    else:
+        evento.detalhe = (
+            f"{evento.detalhe.rstrip()}\n\n"
+            f"Aplicação automática não realizada ({resultado.get('motivo')}). "
+            f"Itens marcados para revisão manual."
+        )
+        evento.save(update_fields=["detalhe"])
+    return resultado
 
 
 def monitorar_fontes_cartorio(uf=None, fonte_id=None, session=None):

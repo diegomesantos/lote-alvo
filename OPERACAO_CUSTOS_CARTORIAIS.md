@@ -35,13 +35,28 @@ Quando houver URL oficial cadastrada no seed, o comando também cria uma `Fonte 
 
 ## Monitoramento automático das fontes
 
-O sistema possui um monitoramento assistido das fontes oficiais:
+O sistema possui um monitoramento das fontes oficiais com aplicação automática:
 
 - `Calculadora > Fontes cartorárias monitoradas`: URLs oficiais acompanhadas pelo sistema.
 - `Calculadora > Eventos de fonte cartorária`: fila de revisão quando uma fonte muda ou falha.
 - Celery beat executa `monitorar_fontes_cartorio_task` semanalmente, toda segunda-feira às 07:30.
-- Quando uma fonte muda, o sistema marca automaticamente as tabelas e regras extras vinculadas àquela fonte como `pendente_validacao`.
-- Os valores permanecem disponíveis para cálculo, mas deixam de aparecer como validados até nova conferência manual.
+- Quando uma fonte muda, o sistema **tenta extrair e aplicar a nova tabela automaticamente** (ver abaixo).
+- Se a aplicação automática não for possível, o sistema marca as tabelas e regras extras vinculadas àquela fonte como `pendente_validacao` para revisão manual.
+
+### Aplicação automática (parser)
+
+`apps/calculadora/services/cartorio_parsers.py` contém o motor de extração:
+
+- Cada UF pode registrar um parser em `PARSERS` que recebe o conteúdo baixado e devolve as faixas de escritura/registro. Hoje há parsers para **BA, MG, SC, GO, PE, RS, SP, DF e PR** (a fonte monitorada de cada uma aponta para o PDF/planilha oficial em `FONTE_TABELA_URL`). UFs sem parser (RJ, CE, ES) caem direto na revisão manual.
+- No **PR** o emolumento é "não progressivo" (teto acima de R$ 62.602) e o **FUNREJUS** é somado como regra extra aproximada (0,2%) — a tabela própria do fundo não consta do anexo oficial, então conferir.
+- O SP usa duas fontes: o PDF de Registro (monitorado) e a planilha de Notas (baixada pelo parser via `fetch`).
+- As URLs das tabelas têm o ano no caminho; quando o TJ publicar a do ano seguinte numa URL nova, a fonte antiga retorna 404 (vira evento de erro) — basta atualizar a URL em `FONTE_TABELA_URL`.
+- As faixas extraídas passam por **guardas de sanidade** (`validar_faixas`): quantidade mínima de faixas, valores estritamente crescentes e dentro de uma faixa plausível, limites crescentes e última faixa "sem limite".
+- Se as faixas passam nas guardas, o sistema cria uma **nova `CartorioTabela` vigente a partir de hoje** (status `validada`), aposenta a anterior (`substituida` + `vigente_fim`) e marca o evento como `revisado` com `aplicacao_automatica = True`.
+- Se o parse falha ou reprova nas guardas, **nada é gravado**: o sistema cai no fluxo de revisão manual (marca `pendente_validacao`). Isso evita publicar um valor "plausível-porém-errado" quando o PDF do TJ vier quebrado.
+- A aplicação automática pode ser desligada com `CARTORIO_AUTO_APLICAR_TABELAS = False` no settings (padrão: ligada).
+
+Para cobrir uma nova UF, registre um parser em `PARSERS` (UF → função) que devolva `{"escritura": [(limite, valor), ...], "registro": [...]}` a partir do conteúdo oficial.
 
 Você não precisa rodar o comando abaixo na rotina de produção se o serviço Beat estiver ativo. Ele existe apenas para teste, implantação inicial ou execução avulsa:
 
@@ -61,9 +76,9 @@ No Railway, execute dentro do serviço web:
 railway ssh --service lote-alvo /opt/venv/bin/python manage.py monitorar_fontes_cartorio --skip-checks
 ```
 
-O monitoramento calcula hash do conteúdo oficial e cria evento pendente quando detecta mudança. Ele não valida a tabela automaticamente. Se a fonte já estiver vinculada a tabelas/regras extras, essas entradas são colocadas automaticamente em `pendente_validacao` para revisão.
+O monitoramento calcula hash do conteúdo oficial e cria um evento quando detecta mudança. Em seguida tenta a aplicação automática (parser + guardas). Quando aplica, o evento já nasce `revisado` com a tabela nova vigente. Quando não consegue aplicar, o evento fica `pendente` e as tabelas/regras vinculadas vão para `pendente_validacao`.
 
-Fluxo recomendado quando surgir evento pendente:
+Fluxo recomendado quando surgir evento **pendente** (parser não aplicou):
 
 1. Abrir o evento em `Calculadora > Eventos de fonte cartorária`.
 2. Abrir a URL oficial da fonte.
