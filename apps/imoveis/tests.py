@@ -1,6 +1,7 @@
 import shutil
 import tempfile
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -217,6 +218,16 @@ class ImovelInteracaoTests(TestCase):
         self.assertEqual(self.imovel.tipo_pgto, "Financiamento SAC")
         self.assertEqual(self.imovel.pct_itbi_base, "Avaliação Fiscal")
         self.assertEqual(self.imovel.cond_am, Decimal("600.00"))
+
+    def test_detalhamento_exibe_despesas_diversas(self):
+        self.imovel.despesas_div = Decimal("1234.56")
+        self.imovel.save(update_fields=["despesas_div"])
+
+        response = self.client.get(reverse("detalhe", args=[self.imovel.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Despesas diversas")
+        self.assertContains(response, "-R$ 1.234,56")
 
     def test_arrastar_para_arrematado_inicia_pos_arrematacao(self):
         response = self.client.post(
@@ -529,3 +540,20 @@ class ImovelInteracaoTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(NotificacaoUsuario.objects.filter(user=self.leitor, lida_em__isnull=True).count(), 0)
+
+
+class ChatRespostaIncompletaTests(TestCase):
+    def test_avisa_quando_openai_interrompe_por_limite_de_saida(self):
+        from .chat import _anexar_aviso_incompleto, _motivo_incompleto_openai
+
+        response = SimpleNamespace(
+            status="incomplete",
+            incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+        )
+
+        motivo = _motivo_incompleto_openai(response)
+        texto = _anexar_aviso_incompleto("Resposta parcial.", motivo)
+
+        self.assertEqual(motivo, "max_output_tokens")
+        self.assertIn("Resposta parcial.", texto)
+        self.assertIn("limite de saída", texto)

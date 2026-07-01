@@ -62,6 +62,10 @@
           {% for m in giro_meses %}{% with v=tg|dict_get:m|dict_get:"debitos" %}<td class="px-3 py-2.5 text-right {% if v %}text-red-600{% else %}text-gray-400{% endif %}">{{ v|brl }}</td>{% endwith %}{% endfor %}
         </tr>
         <tr class="hover:bg-gray-50/80">
+          <td class="px-4 py-2.5 text-gray-700 font-medium">Despesas diversas</td>
+          {% for m in giro_meses %}{% with v=tg|dict_get:m|dict_get:"despesas_div" %}<td class="px-3 py-2.5 text-right {% if v %}text-red-600{% else %}text-gray-400{% endif %}">{% if v %}-{{ v|brl }}{% else %}{{ v|brl }}{% endif %}</td>{% endwith %}{% endfor %}
+        </tr>
+        <tr class="hover:bg-gray-50/80">
           <td class="px-4 py-2.5 text-gray-700 font-medium">Reformas</td>
           {% for m in giro_meses %}{% with v=tg|dict_get:m|dict_get:"reformas" %}<td class="px-3 py-2.5 text-right {% if v %}text-red-600{% else %}text-gray-400{% endif %}">{% if v %}-{{ v|brl }}{% else %}{{ v|brl }}{% endif %}</td>{% endwith %}{% endfor %}
         </tr>
@@ -172,6 +176,7 @@
             {% if r.reformas %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">Reformas</span><span class="text-red-600 font-medium">-{{ r.reformas|brl }}</span></div>{% endif %}
             {% if r.custo_desocup %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">Desocupação</span><span class="text-red-600 font-medium">-{{ r.custo_desocup|brl }}</span></div>{% endif %}
             {% if r.debitos %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">Débitos</span><span class="text-red-600 font-medium">-{{ r.debitos|brl }}</span></div>{% endif %}
+            {% if r.despesas_div %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">Despesas diversas</span><span class="text-red-600 font-medium">-{{ r.despesas_div|brl }}</span></div>{% endif %}
             {% if r.tot_iptu %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">IPTU ({{ m }}m)</span><span class="text-red-600 font-medium">-{{ r.tot_iptu|brl }}</span></div>{% endif %}
             {% if r.tot_cond %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">Condomínio ({{ m }}m)</span><span class="text-red-600 font-medium">-{{ r.tot_cond|brl }}</span></div>{% endif %}
             {% if r.cop %}<div class="flex justify-between px-4 py-2.5 text-sm"><span class="text-gray-600">Custo oportunidade</span><span class="text-red-600 font-medium">-{{ r.cop|brl }}</span></div>{% endif %}

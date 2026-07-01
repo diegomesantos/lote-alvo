@@ -73,7 +73,7 @@ def _nome_variavel_chave(provider):
 
 
 def _max_output_tokens():
-    return int(getattr(settings, "AI_CHAT_MAX_OUTPUT_TOKENS", 1800))
+    return int(getattr(settings, "AI_CHAT_MAX_OUTPUT_TOKENS", 4500))
 
 
 def _limite_contexto_docs():
@@ -88,6 +88,36 @@ def _timeout_segundos():
     # Deve ficar ABAIXO do timeout do gunicorn (--timeout) para a chamada falhar
     # com mensagem amigável em vez de o worker ser morto pelo servidor.
     return int(getattr(settings, "AI_CHAT_TIMEOUT_SECONDS", 100))
+
+
+def _motivo_incompleto_openai(response):
+    if not response:
+        return ""
+    detalhes = getattr(response, "incomplete_details", None)
+    motivo = getattr(detalhes, "reason", "") if detalhes else ""
+    if motivo:
+        return motivo
+    if getattr(response, "status", "") == "incomplete":
+        return "incomplete"
+    return ""
+
+
+def _aviso_resposta_incompleta(motivo):
+    if not motivo:
+        return ""
+    if motivo in {"max_output_tokens", "max_tokens", "MAX_TOKENS"}:
+        return (
+            "\n\n> Resposta interrompida pelo limite de saída configurado. "
+            "Peça para continuar de onde parou ou aumente AI_CHAT_MAX_OUTPUT_TOKENS."
+        )
+    if motivo == "content_filter":
+        return "\n\n> Resposta interrompida por filtro de conteúdo do provedor de IA."
+    return "\n\n> Resposta interrompida antes da conclusão pelo provedor de IA."
+
+
+def _anexar_aviso_incompleto(texto, motivo):
+    aviso = _aviso_resposta_incompleta(motivo)
+    return f"{texto.rstrip()}{aviso}" if aviso else texto
 
 
 # Níveis válidos para reasoning.effort no gpt-5.5: none/low/medium/high/xhigh.
@@ -306,7 +336,9 @@ def _gerar_openai(mensagens, api_key, modelo):
 
     texto = getattr(response, "output_text", None)
     if texto:
-        return texto.strip()
+        return _anexar_aviso_incompleto(
+            texto.strip(), _motivo_incompleto_openai(response)
+        )
 
     partes = []
     for item in getattr(response, "output", []) or []:
@@ -317,7 +349,7 @@ def _gerar_openai(mensagens, api_key, modelo):
     texto = "\n".join(partes).strip()
     if not texto:
         raise ChatImovelErro("A IA não retornou texto")
-    return texto
+    return _anexar_aviso_incompleto(texto, _motivo_incompleto_openai(response))
 
 
 def _gerar_anthropic(system, mensagens, api_key, modelo):
@@ -344,7 +376,7 @@ def _gerar_anthropic(system, mensagens, api_key, modelo):
     texto = "\n".join(p for p in partes if p).strip()
     if not texto:
         raise ChatImovelErro("A IA não retornou texto (Anthropic)")
-    return texto
+    return _anexar_aviso_incompleto(texto, data.get("stop_reason"))
 
 
 def _gerar_gemini(system, mensagens, api_key, modelo):
@@ -377,7 +409,8 @@ def _gerar_gemini(system, mensagens, api_key, modelo):
     texto = "\n".join(p.get("text", "") for p in partes if p.get("text")).strip()
     if not texto:
         raise ChatImovelErro("A IA não retornou texto (Gemini)")
-    return texto
+    motivo = ((data.get("candidates") or [{}])[0]).get("finishReason", "")
+    return _anexar_aviso_incompleto(texto, motivo)
 
 
 def _preparar(imovel, imovel_caixa, pergunta, historico, documentos_cache):
@@ -454,11 +487,19 @@ def _stream_openai(mensagens, api_key, modelo):
             input=mensagens,
             stream=True,
         )
+        resposta_final = None
         for event in stream:
-            if getattr(event, "type", "") == "response.output_text.delta":
+            tipo_evento = getattr(event, "type", "")
+            if tipo_evento == "response.output_text.delta":
                 delta = getattr(event, "delta", "")
                 if delta:
                     yield delta
+            elif tipo_evento in {"response.completed", "response.incomplete"}:
+                resposta_final = getattr(event, "response", None)
+
+        aviso = _aviso_resposta_incompleta(_motivo_incompleto_openai(resposta_final))
+        if aviso:
+            yield aviso
     except ChatImovelErro:
         raise
     except Exception as exc:  # noqa: BLE001
